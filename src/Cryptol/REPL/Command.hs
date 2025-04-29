@@ -100,6 +100,7 @@ import Cryptol.Parser
     ,parseModName,parseHelpName,parseImpName)
 import           Cryptol.Parser.Position (Position(..),Range(..),HasLoc(..))
 import qualified Cryptol.TypeCheck.AST as T
+import qualified Cryptol.TypeCheck.Docstrings as T
 import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
