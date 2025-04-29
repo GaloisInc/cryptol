@@ -1,0 +1,1 @@
+:! sh -c 'CRYPTOL_SAW="sh ./mocksaw.sh" ../../dist/bin/cryptol T14.cry -c :check-docstrings'
