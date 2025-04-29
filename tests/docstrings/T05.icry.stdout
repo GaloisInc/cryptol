@@ -12,8 +12,4 @@ Checking module T05
       Using exhaustive testing.
       Testing... Passed 1 tests.
       Q.E.D.
-    :exhaust p // implicit
-      Using exhaustive testing.
-      Testing... Passed 1 tests.
-      Q.E.D.
-Successes: 3, No fences: 1, Failures: 0
+Successes: 2, No fences: 1, Failures: 0

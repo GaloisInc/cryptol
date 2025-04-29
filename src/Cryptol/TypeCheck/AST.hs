@@ -58,7 +58,7 @@ import Control.DeepSeq
 import qualified Data.IntMap as IntMap
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
-import           Data.Maybe  (mapMaybe, maybeToList, isJust)
+import           Data.Maybe  (mapMaybe, maybeToList, isJust, fromMaybe)
 import           Data.Set    (Set)
 import           Data.Text   (Text)
 import qualified Data.Text   as T
@@ -624,7 +624,9 @@ gatherModuleDocstrings nameToModule m =
         Nothing -> panic "gatherModuleDocstrings" ["No owning module for name:", show (pp n)]
 
     exhaustBoolProp d =
-      if (tIsBit . sType . dSignature) d && PragmaProperty `elem` dPragmas d
+      if (null . extractCodeBlocks . fromMaybe "" . dDoc) d &&
+         (tIsBit . sType . dSignature) d &&
+         PragmaProperty `elem` dPragmas d
       then Just $ "```\n" <> ":exhaust " <> (identText . nameIdent) (dName d) <> " // implicit" <> "\n```"
       else Nothing
 
