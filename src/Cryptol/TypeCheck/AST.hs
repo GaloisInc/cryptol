@@ -27,11 +27,9 @@ module Cryptol.TypeCheck.AST
   , Fixity(..)
   , PrimMap(..)
   , module Cryptol.TypeCheck.Type
-  , DocFor(..)
   , FFI(..)
   ) where
 
-import Data.Maybe(catMaybes)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.Parser.Position(Located, HasLoc(..), Range)
@@ -58,7 +56,7 @@ import Control.DeepSeq
 import qualified Data.IntMap as IntMap
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
-import           Data.Maybe  (mapMaybe, maybeToList, isJust)
+import           Data.Maybe  (catMaybes, mapMaybe, isJust)
 import           Data.Set    (Set)
 import           Data.Text   (Text)
 
@@ -559,65 +557,3 @@ instance PP (WithNames TCTopEntity) where
      TCTopModule m -> ppWithNames nm m
      TCTopSignature n ps ->
         hang ("interface module" <+> pp n <+> "where") 2 (pp ps)
-
-data DocItem = DocItem
-  { docModContext :: ImpName Name -- ^ The module scope to run repl commands in
-  , docFor        :: DocFor -- ^ The name the documentation is attached to
-  , docText       :: [Text] -- ^ The text of the attached docstring, if any
-  }
-
-data DocFor
-  = DocForMod (ImpName Name)
-  | DocForDef Name -- definitions that aren't modules
-
-instance PP DocFor where
-  ppPrec p x =
-    case x of
-      DocForMod m -> ppPrec p m
-      DocForDef n -> ppPrec p n 
-
-
-gatherModuleDocstrings ::
-  Map Name (ImpName Name) ->
-  Module ->
-  [DocItem]
-gatherModuleDocstrings nameToModule m =
-  [DocItem
-    { docModContext = ImpTop (mName m)
-    , docFor = DocForMod (ImpTop (mName m))
-    , docText = mDoc m
-    }
-  ] ++
-  -- mParams m
-  -- mParamTypes m
-  -- mParamFuns m
-  [DocItem
-    { docModContext = lookupModuleName n
-    , docFor = DocForDef n
-    , docText = maybeToList (tsDoc t)
-    } | (n, t) <- Map.assocs (mTySyns m)] ++
-  [DocItem
-    { docModContext = lookupModuleName n
-    , docFor = DocForDef n
-    , docText = maybeToList (ntDoc t)
-    } | (n, t) <- Map.assocs (mNominalTypes m)] ++
-  [DocItem
-    { docModContext = lookupModuleName (dName d)
-    , docFor = DocForDef (dName d)
-    , docText = maybeToList (dDoc d)
-    } | g <- mDecls m, d <- groupDecls g] ++
-  [DocItem
-    { docModContext = ImpNested n
-    , docFor = DocForMod (ImpNested n)
-    , docText = ifsDoc (smIface s)
-    } | (n, s) <- Map.assocs (mSubmodules m)] ++
-  [DocItem
-    { docModContext = ImpTop (mName m)
-    , docFor = DocForMod (ImpNested n)
-    , docText = maybeToList (mpnDoc s)
-    } | (n, s) <- Map.assocs (mSignatures m)]
-  where
-    lookupModuleName n =
-      case Map.lookup n nameToModule of
-        Just x -> x
-        Nothing -> panic "gatherModuleDocstrings" ["No owning module for name:", show (pp n)]

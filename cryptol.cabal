@@ -161,6 +161,7 @@ library
                        Cryptol.TypeCheck.TypePat,
                        Cryptol.TypeCheck.SimpType,
                        Cryptol.TypeCheck.AST,
+                       Cryptol.TypeCheck.Docstrings,
                        Cryptol.TypeCheck.Parseable,
                        Cryptol.TypeCheck.Monad,
                        Cryptol.TypeCheck.Infer,

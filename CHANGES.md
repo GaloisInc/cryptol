@@ -2,6 +2,11 @@
 
 ## Language changes
 
+* When running the `:check-docstrings` command, `Bit` properties (e.g. `property
+  p = True`) will be checked with `:exhaust`, unless their docstrings contain
+  code blocks understood by `:check-docstrings`.
+  ([#1842](https://github.com/GaloisInc/cryptol/issues/1842))
+
 * `foreign` function declarations now support an optional calling convention
   keyword. See the [manual
   section](https://galoisinc.github.io/cryptol/master/FFI.html#calling-conventions)
