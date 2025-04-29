@@ -61,6 +61,7 @@ import qualified Data.Map    as Map
 import           Data.Maybe  (mapMaybe, maybeToList, isJust)
 import           Data.Set    (Set)
 import           Data.Text   (Text)
+import qualified Data.Text   as T
 
 
 data TCTopEntity =
@@ -626,3 +627,58 @@ gatherModuleDocstrings nameToModule m =
       if (tIsBit . sType . dSignature) d && PragmaProperty `elem` dPragmas d
       then Just $ "```\n" <> ":exhaust " <> (identText . nameIdent) (dName d) <> " // implicit" <> "\n```"
       else Nothing
+
+-- | Extract the code blocks from the body of a docstring.
+--
+-- A single code block starts with at least 3 backticks followed by an
+-- optional language specifier of "cryptol". This allowed other kinds
+-- of code blocks to be included (and ignored) in docstrings. Longer
+-- backtick sequences can be used when a code block needs to be able to
+-- contain backtick sequences.
+--
+-- @
+-- /**
+--  * A docstring example
+--  *
+--  * ```cryptol
+--  * :check example
+--  * ```
+--  */
+-- @
+extractCodeBlocks :: Text -> [[Text]]
+extractCodeBlocks raw = go [] (T.lines raw)
+  where
+    go finished [] = reverse finished
+    go finished (x:xs)
+      | (spaces, x1) <- T.span (' ' ==) x
+      , (ticks, x2) <- T.span ('`' ==) x1
+      , 3 <= T.length ticks
+      , not (T.elem '`' x2)
+      , let info = T.strip x2
+      = if info `elem` ["", "repl"] -- supported languages "unlabeled" and repl
+        then keep finished (T.length spaces) (T.length ticks) [] xs
+        else skip finished ticks xs
+      | otherwise = go finished xs
+
+    -- process a code block that we're keeping
+    keep finished _ _ acc [] = go (reverse acc : finished) [] -- unterminated code fences are defined to be terminated by github
+    keep finished indentLen ticksLen acc (x:xs)
+      | x1 <- T.dropWhile (' ' ==) x
+      , (ticks, x2) <- T.span ('`' ==) x1
+      , ticksLen <= T.length ticks
+      , T.all (' ' ==) x2
+      = go (reverse acc : finished) xs
+
+      | otherwise =
+        let x' =
+              case T.span (' ' ==) x of
+                (spaces, x1)
+                  | T.length spaces <= indentLen -> x1
+                  | otherwise -> T.drop indentLen x
+        in keep finished indentLen ticksLen (x' : acc) xs
+
+    -- process a code block that we're skipping
+    skip finished _ [] = go finished []
+    skip finished close (x:xs)
+      | close == x = go finished xs
+      | otherwise = skip finished close xs
