@@ -83,7 +83,7 @@ case $COMMAND in
     else
       TESTS=("$*")
     fi
-    $BIN/test-runner --ext=.icry \
+    $BIN/test-runner --ext=.icry --env-ext=.env \
       --exe=cabal \
       -F v2-run -F -v0 -F exe:cryptol -F -- -F -b \
       "${TESTS[@]}"
