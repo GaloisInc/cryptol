@@ -177,7 +177,7 @@ jobs:
           elif ${{ runner.os == 'macOS' }}; then
               cmd="cat \$1.stdout.darwin 2>/dev/null || $cmd"
           fi
-          ./bin/test-runner --ext=.icry -r ./output --exe=$(which bash) -F -c -F "$cmd" -F -- ./tests
+          ./bin/test-runner --ext=.icry --env-ext=.env ---r ./output --exe=$(which bash) -F -c -F "$cmd" -F -- ./tests
           TARGETS_JSON=$(echo -n "$(ls -1 ./output/tests)" | jq -Rsc 'split("\n")')
           echo "::set-output name=targets-json::$TARGETS_JSON"
 
@@ -391,7 +391,7 @@ jobs:
         run: |
           export PATH=$PWD/bin:$PWD/dist/bin:$PATH
           if ${{ matrix.target != 'ffi' }} || dist/bin/cryptol -v | grep -q 'FFI enabled'; then
-            ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+            ./bin/test-runner --ext=.icry --env-ext=.env -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
           fi
 
       - if: matrix.suite == 'test-lib' && runner.os == 'Windows'
@@ -401,7 +401,7 @@ jobs:
         run: |
           export PATH=$PWD/bin:$PWD/dist/bin:$PATH
           if ${{ matrix.target != 'ffi' }} || dist/bin/cryptol -v | grep -q 'FFI enabled'; then
-            ./bin/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+            ./bin/test-runner --ext=.icry -env-ext=.env -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
           fi
 
       - if: matrix.suite == 'rpc'
