@@ -401,7 +401,7 @@ jobs:
         run: |
           export PATH=$PWD/bin:$PWD/dist/bin:$PATH
           if ${{ matrix.target != 'ffi' }} || dist/bin/cryptol -v | grep -q 'FFI enabled'; then
-            ./bin/test-runner --ext=.icry -env-ext=.env -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+            ./bin/test-runner --ext=.icry --env-ext=.env -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
           fi
 
       - if: matrix.suite == 'rpc'
