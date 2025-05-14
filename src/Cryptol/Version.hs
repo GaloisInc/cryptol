@@ -16,12 +16,15 @@ module Cryptol.Version (
   , ffiEnabled
   , version
   , displayVersion
+  , displayVersionStr
   ) where
 
 import Paths_cryptol
 import qualified GitRev
+import Data.List (intercalate)
 import Data.Version (showVersion)
 import Control.Monad (when)
+import Control.Monad.Writer (MonadWriter(..), Writer, execWriter)
 
 commitHash :: String
 commitHash = GitRev.hash
@@ -52,3 +55,11 @@ displayVersion putLn = do
       where
       dirtyLab | commitDirty = " (non-committed files present during build)"
                | otherwise   = ""
+
+-- | A pure version of 'displayVersion' that renders the displayed version
+-- directly to a 'String'.
+displayVersionStr :: String
+displayVersionStr = intercalate "\n" $ execWriter $ displayVersion putLn
+  where
+    putLn :: String -> Writer [String] ()
+    putLn str = tell [str]

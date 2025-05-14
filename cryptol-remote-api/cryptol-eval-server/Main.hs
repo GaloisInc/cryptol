@@ -5,6 +5,8 @@
 module Main (main) where
 
 import Control.Lens ( view, set )
+import Data.List (intercalate)
+import Data.Version (showVersion)
 import System.Environment (lookupEnv)
 import System.Exit (exitFailure)
 import System.FilePath (splitSearchPath)
@@ -13,8 +15,11 @@ import Options.Applicative
     ( Parser,
       Alternative((<|>)),
       help,
+      hidden,
+      infoOption,
       long,
       metavar,
+      short,
       strOption,
       value )
 
@@ -30,6 +35,8 @@ import Cryptol.ModuleSystem.Monad (runModuleM, setFocusedModule)
 import Cryptol.TypeCheck.AST (tcTopEntitytName, ImpName(..))
 import Cryptol.Utils.Ident (ModName, modNameToText, textToModName, preludeName)
 import Cryptol.Utils.Logger (quietLogger)
+import Cryptol.Version (displayVersionStr)
+import qualified Paths_cryptol_remote_api as RPC
 
 import Argo (AppMethod, mkApp, defaultAppOpts, StateMutability(PureState))
 import Argo.DefaultMain ( customMain, userOptions )
@@ -52,7 +59,7 @@ import CryptolServer.Sat ( proveSatDescr, proveSat )
 import Cryptol.REPL.Command (CommandResult, DocstringResult)
 
 main :: IO ()
-main = customMain initMod initMod initMod initMod description buildApp
+main = customMain initMod initMod initMod initMod versionParser description buildApp
   where
     buildApp opts =
       mkApp
@@ -128,6 +135,24 @@ initMod = StartingFile <$> (Left <$> filename <|> Right . textToModName <$> modu
       metavar "MODULE" <>
       help "Cryptol module to load on startup" <>
       value (modNameToText preludeName)
+
+-- | Display the version number when the @--version@/@-v@ option is supplied.
+versionParser :: Parser (a -> a)
+versionParser =
+  infoOption versionStr $
+  mconcat
+    [ long "version"
+    , short 'v'
+    , help "Display version number"
+    , hidden
+    ]
+  where
+    versionStr :: String
+    versionStr =
+      intercalate "\n"
+        [ "Cryptol RPC server " ++ showVersion RPC.version
+        , displayVersionStr
+        ]
 
 cryptolEvalMethods :: [AppMethod ServerState]
 cryptolEvalMethods =

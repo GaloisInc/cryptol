@@ -105,7 +105,14 @@ executable cryptol-remote-api
 
   build-depends:
     cryptol-remote-api,
+    optparse-applicative,
     sbv
+
+  other-modules:
+    Paths_cryptol_remote_api
+
+  autogen-modules:
+    Paths_cryptol_remote_api
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread
@@ -123,6 +130,12 @@ executable cryptol-eval-server
     cryptol-remote-api,
     optparse-applicative,
     sbv
+
+  other-modules:
+    Paths_cryptol_remote_api
+
+  autogen-modules:
+    Paths_cryptol_remote_api
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread

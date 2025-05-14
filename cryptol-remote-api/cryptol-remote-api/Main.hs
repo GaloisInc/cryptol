@@ -4,11 +4,15 @@
 {-# LANGUAGE TypeApplications #-}
 module Main (main) where
 
+import Data.List (intercalate)
+import Data.Version (showVersion)
+import Options.Applicative
+    ( Parser, help, hidden, infoOption, long, short )
 import System.Environment (lookupEnv)
 import System.FilePath (splitSearchPath)
 
 import Argo (AppMethod, mkApp, defaultAppOpts, StateMutability( PureState ))
-import Argo.DefaultMain (defaultMain)
+import Argo.DefaultMain (customMain, parseNoOpts)
 import qualified Argo.Doc as Doc
 
 
@@ -40,6 +44,8 @@ import CryptolServer.Version ( version, versionDescr )
 import CryptolServer.FileDeps( fileDeps, fileDepsDescr )
 import Cryptol.REPL.Command (CommandResult, DocstringResult)
 import Cryptol.Project (ScanStatus, LoadProjectMode)
+import Cryptol.Version (displayVersionStr)
+import qualified Paths_cryptol_remote_api as RPC
 
 main :: IO ()
 main =
@@ -51,7 +57,32 @@ main =
                  (defaultAppOpts PureState)
                  (const (pure initSt))
                  cryptolMethods
-     defaultMain description theApp
+     customMain
+       parseNoOpts
+       parseNoOpts
+       parseNoOpts
+       parseNoOpts
+       versionParser
+       description
+       (const (pure theApp))
+
+-- | Display the version number when the @--version@/@-v@ option is supplied.
+versionParser :: Parser (a -> a)
+versionParser =
+  infoOption versionStr $
+  mconcat
+    [ long "version"
+    , short 'v'
+    , help "Display version number"
+    , hidden
+    ]
+  where
+    versionStr :: String
+    versionStr =
+      intercalate "\n"
+        [ "Cryptol RPC server " ++ showVersion RPC.version
+        , displayVersionStr
+        ]
 
 serverDocs :: [Doc.Block]
 serverDocs =
