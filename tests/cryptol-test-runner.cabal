@@ -16,7 +16,7 @@ flag static
 
 executable cryptol-test-runner
   Main-is:             Main.hs
-  build-depends:       base,filepath,test-lib >= 0.3
+  build-depends:       base,filepath,test-lib >= 0.5
   GHC-options:         -Wall -O2
   Default-language:    Haskell2010
 
