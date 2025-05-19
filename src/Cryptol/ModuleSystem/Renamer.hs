@@ -957,16 +957,6 @@ reportUnboundName expected qn =
 
      mkFakeName expected qn
 
-isFakeName :: ImpName Name -> Bool
-isFakeName m =
-  case m of
-    ImpTop x -> x == undefinedModName
-    ImpNested x ->
-      case nameTopModuleMaybe x of
-        Just y  -> y == undefinedModName
-        Nothing -> False
-
-
 -- | Resolve a name, and report error on failure.
 resolveName :: NameType -> Namespace -> PName -> RenameM Name
 resolveName nt expected qn =
