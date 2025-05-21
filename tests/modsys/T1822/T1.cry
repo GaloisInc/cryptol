@@ -1,0 +1,7 @@
+module Test where
+
+submodule S where
+  submodule E where
+    x = 0x02
+
+submodule S where

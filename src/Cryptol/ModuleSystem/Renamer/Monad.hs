@@ -10,6 +10,7 @@
 {-# Language FlexibleContexts #-}
 {-# Language BlockArguments #-}
 {-# Language OverloadedStrings #-}
+{-# Language MultiParamTypeClasses #-}
 module Cryptol.ModuleSystem.Renamer.Monad where
 
 import Data.List(sort,foldl')
@@ -25,7 +26,8 @@ import Prelude.Compat
 
 import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident(modPathCommon,OrigName(..),OrigSource(..))
+import Cryptol.Utils.Ident(modPathCommon,OrigName(..),OrigSource(..),
+                           undefinedModName)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Binds
@@ -50,7 +52,10 @@ data RenamerInfo = RenamerInfo
     -- ^ External modules
   }
 
-newtype RenameM a = RenameM { unRenameM :: ReaderT RO (StateT RW Lift) a }
+-- The ExceptionT here is for bailing when a fake value like mkFakeName is
+-- encountered. These values have already had an error recorded and are being
+-- processed for best-effort error reporting so we do not need a value.
+newtype RenameM a = RenameM { unRenameM :: ReaderT RO (ExceptionT () (StateT RW Lift)) a }
 
 data RO = RO
   { roLoc       :: Range
@@ -151,6 +156,9 @@ instance FreshM RenameM where
         rw'    = RW { rwSupply = s', .. }
      in a `seq` rw' `seq` (a, rw')
 
+instance ExceptionM RenameM () where
+  {-# INLINE raise #-}
+  raise        = RenameM . raise
 
 runRenamer :: RenamerInfo -> RenameM a
            -> ( Either [RenamerError] (a,Supply)
@@ -180,7 +188,9 @@ runRenamer info m = (res, warns)
           , roFromModParam = mempty
           }
 
-  res | Set.null (rwErrors rw) = Right (a,rwSupply rw)
+  res | Set.null (rwErrors rw) = case a of
+          Left _ -> panic "runRenamer" ["No renaming errors, but no output"]
+          Right r -> Right (r,rwSupply rw)
       | otherwise              = Left (Set.toList (rwErrors rw))
 
   toModMap t ent =
@@ -207,12 +217,13 @@ setResolvedLocals mp (RenameM m) =
 lookupResolved :: ImpName Name -> RenameM ResolvedLocal
 lookupResolved nm =
   do mp <- RenameM (roResolvedModules <$> ask)
-     pure case Map.lookup nm mp of
-            Just r  -> r
-
-            -- XXX: could this happen because we couldn't resolve a module?
-            Nothing -> panic "lookupResolved"
-                        [ "Missing module: " ++ show nm ]
+     case Map.lookup nm mp of
+       Just r -> pure r
+       Nothing | isFakeName nm -> raise ()
+       Nothing ->
+         panic
+           "lookupResolved"
+           ["Missing module: " ++ show nm]
 
 setModParams :: [RenModParam] -> RenameM a -> RenameM a
 setModParams ps (RenameM m) =
@@ -507,3 +518,11 @@ lookupDefinesAndSubs nm =
                            ]
               )
 
+isFakeName :: ImpName Name -> Bool
+isFakeName m =
+  case m of
+    ImpTop x -> x == undefinedModName
+    ImpNested x ->
+      case nameTopModuleMaybe x of
+        Just y  -> y == undefinedModName
+        Nothing -> False
