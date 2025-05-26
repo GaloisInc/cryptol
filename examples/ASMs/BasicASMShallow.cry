@@ -1,4 +1,4 @@
-/*
+/**
  * @title       "Shallow Embedding of Basic ASMs in Cryptol"
  * @description "Executable variant of Basic ASM semantics using native Cryptol records."
  * @author      "Joe Kiniry"
@@ -8,20 +8,35 @@
  */
 
 module BasicASMShallow where
+parameter
+  type MaxStateNameLength : #
+  type constraint (fin MaxStateNameLength
+                 , 1 <= MaxStateNameLength
+                 , MaxStateNameLength <= 16)
+  type MaxLabelNameLength : #
+  type constraint (fin MaxLabelNameLength
+                 , 1 <= MaxLabelNameLength
+                 , MaxLabelNameLength <= 16)
+  type MaxStates          : #
+  type constraint (fin MaxStates
+                 , 1 <= MaxStates)
+  type MaxTransitions     : #
+  type constraint (fin MaxTransitions
+                 , 1 <= MaxTransitions)
+  type MaxActions         : #
+  type constraint (fin MaxActions
+                 , 1 <= MaxActions)
 
-/**
+// @todo kiniry Make this into an interface module when I understand
+// how to parameterize that module over the State type.
+
+/*
  * This module defines a shallowly embedded version of Basic ASMs,
  * where locations, updates, and state transitions are represented
  * directly as Cryptol values and functions.
  */
 
-// == Domain Assumptions ==
-
-type MaxStateNameLength = 16
-type MaxLabelNameLength = 16
-type MaxStates          = 128
-type MaxTransitions     = 128
-type MaxActions         = 8
+// == Core Type Definitions ==
 
 /**
  * The abstract states of a system are denoted by a record.
@@ -46,23 +61,21 @@ type StatePredicate = State -> Bool
  * @param error a flag indicating if this abstract state is meant to model
  * an erroneous/abnormal state.
  */
-newtype ASMState = {
+type ASMState = {
   name      : String MaxStateNameLength,
   predicate : StatePredicate,
   error     : Bool
 }
 
 /**
- * @description "Updates on state have optional parameters, modeled as
- * a tuple, that are used to perform the update."
+ * Updates on state have optional parameters, modeled as a tuple, that
+ * are used to perform the update.
  */
 type UpdateParameters = ()
 
 /**
  * Updating a state is performed by a function that has optional
  * parameters denoting information about what must be updated.
- *
- * @param params are the parameters for the update.
  */
 type Update = (State, UpdateParameters) -> State
 
@@ -123,23 +136,23 @@ type Transition = {
  * @param states the abstract states of the ASM.
  * @param transitions the transitions of the ASM.
  */
-newtype ASM = {
+type ASM = {
   name        : String MaxStateNameLength,
   states      : [MaxStates]ASMState,
   transitions : [MaxTransitions]Transition
 }
 
 /**
- * @return Are these two abstract states equal?
+ * Are these two abstract states equal?
  */
 asmStateEq : (ASMState, ASMState) -> Bool
-asmStateEq = \(a, a') -> True // a.error == a'.error
+asmStateEq (a, a') = True // a.error == a'.error
 
 /**
- * @return Are these two sequences of abstract states equal?
+ * Are these two sequences of abstract states equal?
  */
 asmStatesEq : ([MaxStates]ASMState, [MaxStates]ASMState) -> Bool
-asmStatesEq = \(a, a') -> True // a.error == a'.error
+asmStatesEq (a, a') = True // a.error == a'.error
 
 /**
  * When are two ASMs in a refinement relation, a |= c, where
@@ -151,24 +164,23 @@ asmStatesEq = \(a, a') -> True // a.error == a'.error
  * @return a |= c
  */
 refines : (ASM, ASM) -> Bool
-refines = \(a, c) -> True
+refines (a, c) = True
 
 (|=) : (ASM, ASM) -> Bool
-(|=) = \(a, c) -> refines(a, c)
+(|=) (a, c) = refines(a, c)
 
 /**
  * Performs a single transition of a state machine.
  */
 transition : ASM -> ASM
-transition = \a -> a
+transition a = a
 
 /**
  * Performs transitions on a state machine until a predicate on the
  * machine holds.
  */
 transitionUntil : (ASM, (ASM -> Bool)) -> ASM
-transitionUntil = 
-  \(a, p) ->
+transitionUntil (a, p) =
    if ~ (p a) then
      transitionUntil ((transition a), p)
    else a
@@ -178,12 +190,20 @@ transitionUntil =
  * longer makes progress.
  */
 transitionUntilFixpoint : ASM -> ASM
-transitionUntilFixpoint = \a ->
+transitionUntilFixpoint a =
   if (asmStatesEq ((a.states), ((transition a).states))) then a
   else transitionUntilFixpoint (transition a)
 
-// ASM well-formedness theorems
+// == ASM Theorems ==
+
+// == Well-Formedness Properties ==
 
 // The guards on all transitions from an abstract state are complete.
 
 // The set of predicates defining all abstract states in a machine are complete.
+
+
+/* Local Variables: */
+/* comment-start: "// " */
+/* comment-end: "" */
+/* End: */

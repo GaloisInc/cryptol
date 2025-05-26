@@ -1,4 +1,4 @@
-/*
+/**
  * @title       "Basic Abstract State Machines in Cryptol"
  * @description "Core types and well-formedness properties for Basic ASMs"
  * @copyright   "Galois, Free & Fair, Joseph Kiniry, 2025"
@@ -7,7 +7,14 @@
  * @version     "0.1.0"
  */
 
-module BasicASM where
+module ASM::BasicASM where
+
+/*
+ * Defines the abstract syntax and semantic constraints of Basic ASMs
+   per Section 2.2 of Börger and Stärk's Abstract State Machines.
+ */
+
+// @todo kiniry Turn these into module parameters?
 
 type IdentifierMaxLength  = 32
 type DomainMaxSize        = 64
@@ -16,50 +23,46 @@ type AbstractStateMaxSize = 16
 type MaxUpdatesPerRule    = 8
 type undef                = 1
 
-/*
- * @description "Defines the abstract syntax and semantic constraints of Basic ASMs per Section 2.2 of Börger and Stärk's Abstract State Machines."
- * @author      "Joe Kiniry"
- * @version     "0.1.0"
- */
-
 // == Core Type Definitions ==
 
 /**
- * @description "Symbolic identifiers for functions, locations, etc."
+ * Symbolic identifiers for functions, locations, etc.
  */
 type Identifier = [IdentifierMaxLength][8]  // symbolic name encoded as 8-bit ASCII
 
 /**
- * @description "Domain elements are symbolic constants or concrete values."
+ * Domain elements are symbolic constants or concrete values.
  */
 type DomainValue = [DomainMaxSize] // assuming domain values fit within 64 bits
 
 /**
- * @description "A location is a pair of a function identifier and arguments."
+ * A location is a pair of a function identifier and arguments.
  */
 // Function name + up to 4 arguments (arity bound)
 type Location = (Identifier, [LocationMaxArity][DomainMaxSize])
 
 /**
- * @description "The state is a finite map from locations to values."
+ * The state is a finite map from locations to values.
  */
 type State = [AbstractStateMaxSize](Location, DomainValue)
 
 /**
- * @description "An update is a triple of (location, new value, 'undef' flag)."
+ * An update is a triple of (location, new value, 'undef' flag).
  */
 type Update = (Location, DomainValue, Bit)
 
 /**
- * @description "A rule is modeled abstractly as a function from state to list of updates."
+ * A rule is modeled abstractly as a function from state to list of updates.
  */
 type Updates = [MaxUpdatesPerRule]Update
 type Rule = State -> Updates
 
+// == ASM Theorems ==
+
 // == Well-Formedness Properties ==
 
 /**
- * @invariatn "Locations in a single update set must be distinct."
+ * @invariant Locations in a single update set must be distinct.
  */
 uniqueLocations : Updates -> Bit
 uniqueLocations = \u -> False
@@ -72,20 +75,20 @@ uniqueLocations us = (i == j) || ((us@i).0 != ((us@j).0))
 */
 
 /**
- * @invariant "No update in the set is undefined."
+ * @invariant No update in the set is undefined.
  */
 noUndefUpdates : Updates -> Bit
 noUndefUpdates = \u -> False
 // noUndefUpdates us = all (\(_, _, b) -> b == 0) us
 
 /**
- * @invariant "A well-formed update set has unique locations and no undefined values." 
+ * A well-formed update set has unique locations and no undefined values.
  */
 wellFormedUpdateSet : Updates -> Bit
 wellFormedUpdateSet us = uniqueLocations us /\ noUndefUpdates us
 
 /**
- * @invariant "A well-formed rule always returns a well-formed update set."
+ * A well-formed rule always returns a well-formed update set.
  */
 wellFormedRule : Rule -> State -> Bit
 wellFormedRule r s = wellFormedUpdateSet (r s)
