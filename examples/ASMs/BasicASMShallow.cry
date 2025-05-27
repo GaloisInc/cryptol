@@ -194,14 +194,51 @@ transitionUntilFixpoint a =
   if (asmStatesEq ((a.states), ((transition a).states))) then a
   else transitionUntilFixpoint (transition a)
 
+// == Helper Functions ==
+
+// transitionsFromState : (ASM, ASMState) -> [MaxTransitions]Transition
+// transitionsFromState (a, s) = []
+
+// transitionsIntoState : (ASM, ASMState) -> [MaxTransitions]Transition
+// transitionsIntoState (a, s) = []
+
+// guardsOfTransitions : [MaxTransitions]Transition -> [MaxTransitions]Guard
+// guardsOfTransitions ts = []
+
 // == ASM Theorems ==
 
 // == Well-Formedness Properties ==
 
-// The guards on all transitions from an abstract state are complete.
+/**
+ * The guards on all transitions from an abstract state are complete.
+ *
+ * ```
+ * :prove guardsComplete
+ * ```
+ */
+guardsComplete : ASMState -> Bool
+property guardsComplete a = False
 
-// The set of predicates defining all abstract states in a machine are complete.
+/**
+ * The guards of all transitions on all states are complete.
+ *
+ * ```
+ * :prove allGuardsComplete
+ * ```
+ */
+allGuardsComplete : ASM -> Bool
+property allGuardsComplete a = False
 
+/**
+ * The set of predicates defining all abstract states in a machine are
+ * complete.
+ *
+ * ```
+ * :prove statePredicatesComplete
+ * ```
+ */
+statePredicatesComplete: ASM -> Bool
+statePredicatesComplete a = False
 
 /* Local Variables: */
 /* comment-start: "// " */
