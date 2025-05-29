@@ -1,0 +1,8 @@
+{
+	"folders": [
+		{ "name": "Cleint", "path": "." },
+		{ "name": "Server", "path": ".." },
+		{ "name": "Cryptol", "path": "../.." }
+	],
+	"settings": {}
+}
