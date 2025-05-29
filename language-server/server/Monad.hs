@@ -3,11 +3,14 @@ module Monad (
   onConfigChange,
   lspNotification,
   lspSyncRequest,
+  lspAsyncRequest,
   Severity(..),
   lspLog,
   lspShow,
   getConfig,
-  update
+  update, update_,
+  getState,
+  liftIO
 )where
 
 import Data.Text
@@ -34,11 +37,21 @@ onConfigChange _cfg = pure ()
 getConfig :: M Config
 getConfig = LSP.getConfig
 
+-- | Update the server state.  Blocks if someone else is modifying it.
+-- Readers are blocks while this is executign.
 update :: (Config -> State -> IO (State, a)) -> M a
 update f =
   do cfg <- getConfig
      liftIO (modifyMVar (stateRef cfg) (f cfg))
 
+update_ :: (State -> State) -> M ()
+update_ f = update \_ s -> pure (f s, ())
+
+-- | Access the server state.  Blocks if someone is modifying it.
+getState :: M State
+getState =
+  do cfg <- getConfig
+     liftIO (readMVar (stateRef cfg))
 
 -- | Handle a notification.
 lspNotification ::
@@ -55,6 +68,18 @@ lspSyncRequest ::
   LSP.Handlers M
 lspSyncRequest m f =
   LSP.requestHandler m \msg k -> k . Right =<< f (msg ^. LSP.params)
+
+-- | Hand a request, asyncrohously
+lspAsyncRequest ::
+  LSP.SMethod (m :: LSP.Method LSP.ClientToServer LSP.Request) ->
+    (LSP.MessageParams m -> M (LSP.MessageResult m)) ->
+    LSP.Handlers M
+lspAsyncRequest m f =
+  LSP.requestHandler m \msg k ->
+    do
+      env <- LSP.getLspEnv
+      _ <- liftIO (forkIO (LSP.runLspT env (k . Right =<< f (msg ^. LSP.params))))
+      pure ()
 
   -- | Log a message to the client.
 lspLog :: Severity -> Text -> M ()

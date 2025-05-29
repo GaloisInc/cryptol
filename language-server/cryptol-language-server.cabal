@@ -16,7 +16,12 @@ extra-doc-files:    CHANGELOG.md
 
 executable cryptol-language-server
     main-is:          Main.hs
-    other-modules:    Config, Monad, Handlers, Commands
+    other-modules:
+        Config,
+        Monad,
+        Handlers,
+        Commands,
+        SyntaxHighlight
     ghc-options:      -Wall
     default-extensions:
         BlockArguments,

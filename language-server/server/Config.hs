@@ -1,8 +1,10 @@
 module Config where
 
 import Data.Text(Text)
+import Data.Map(Map)
 import Control.Concurrent
 import Data.Aeson qualified as JS
+import Language.LSP.Protocol.Types qualified as LSP
 
 -- | Configuration and state of the server
 newtype Config = Config {
@@ -10,13 +12,16 @@ newtype Config = Config {
 }
 
 data State = State {
+  lexedFiles :: Map LSP.Uri [LSP.SemanticTokenAbsolute]
 }
 
 -- | Make a fresh server state with the default configuration.
 newConfig :: IO Config
 newConfig =
   do
-    ref <- newMVar State {}
+    ref <- newMVar State {
+      lexedFiles = mempty
+    }
     pure Config { stateRef = ref } 
 
 

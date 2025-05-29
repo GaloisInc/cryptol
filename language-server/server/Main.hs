@@ -1,7 +1,6 @@
 module Main where
 
 import Control.Monad(void)
-import Control.Monad.IO.Class(liftIO)
 import Data.Map qualified as Map
 import Language.LSP.Server qualified as LSP 
 import Language.LSP.Protocol.Types qualified as LSP
@@ -24,7 +23,7 @@ main =
         doInitialize      = \env _ -> pure (Right env),
         staticHandlers    = handlers,
         interpretHandler  = \env -> LSP.Iso (LSP.runLspT env) liftIO,
-        options           = LSP.defaultOptions
+        options           = lspOptions
       }
 
 syncOptions :: LSP.TextDocumentSyncOptions
