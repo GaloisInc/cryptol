@@ -1,5 +1,6 @@
 module Handlers where
 
+import Data.Text qualified as Text
 import Data.Map qualified as Map
 import Control.Lens((^.))
 import Language.LSP.Server qualified as LSP
@@ -7,6 +8,10 @@ import Language.LSP.Protocol.Types(type (|?))
 import qualified Language.LSP.Protocol.Types as LSP
 import qualified Language.LSP.Protocol.Message as LSP
 import qualified Language.LSP.Protocol.Lens as LSP
+
+import Cryptol.Utils.PP
+import Cryptol.ModuleSystem
+
 import Monad
 import Config
 import SyntaxHighlight
@@ -27,13 +32,23 @@ handlers _caps = mconcat [
   ]
 
 onInitialized :: LSP.InitializedParams -> M ()
-onInitialized _ = lspShow Info "Hello"
+onInitialized _ = lspShow Info "Welcome to Cryptol!"
 
 onConfigChanged :: LSP.DidChangeConfigurationParams -> M ()
-onConfigChanged _ = lspShow Info "Config Change"
+onConfigChanged _ = pure ()
 
 onDocumentOpen :: LSP.DidOpenTextDocumentParams -> M ()
-onDocumentOpen _ps = pure () 
+onDocumentOpen ps =
+  do
+    let doc = ps ^. LSP.textDocument . LSP.uri
+    case LSP.uriToFilePath doc of
+      Just file ->
+        doModuleCmd' (loadModuleByPath file) \ws mb ->
+          case mb of
+            Left err -> lspShow Error ("Failed to load: " <> Text.pack file <> "\n" <> Text.pack (show (pp err)))
+            Right a  -> lspShow Info "Loaded"
+
+      Nothing -> pure ()
 
 onDocumentChange :: LSP.DidChangeTextDocumentParams -> M ()
 onDocumentChange _ps = pure ()

@@ -10,7 +10,8 @@ module Monad (
   getConfig,
   update, update_,
   getState,
-  liftIO
+  liftIO,
+  doModuleCmd', doModuleCmd, doModuleCmd_
 )where
 
 import Data.Text
@@ -25,6 +26,7 @@ import Language.LSP.Protocol.Message qualified as LSP
 import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Logging qualified as LSP
 
+import Cryptol.ModuleSystem
 import Config
 
 -- | The language server monad.
@@ -88,3 +90,43 @@ lspLog ty msg = LSP.logToLogMessage <& WithSeverity msg ty
 -- | Show a visible message to the client.
 lspShow :: Severity -> Text -> M ()
 lspShow ty msg = LSP.logToShowMessage <& WithSeverity msg ty
+
+
+
+doModuleCmd' ::
+  ModuleCmd a -> ([ModuleWarning] -> Either ModuleError a -> M ()) -> M ()
+doModuleCmd' m k =
+  do
+    refs  <- getConfig
+    senv <- LSP.getLspEnv
+    _tid <- liftIO $ forkIO $
+      do
+        (warns,res) <-
+          withMVar (cryWorking refs) \_ ->
+            do
+              s <- readMVar (stateRef refs)
+              (a,ws) <- m (cryState s)
+              case a of
+                Left err -> pure (ws, Left err)
+                Right (res,newEnv) ->
+                  do
+                    modifyMVar_ (stateRef refs) \s1 ->
+                      pure s1 { cryState =
+                                  (cryState s) { minpModuleEnv = newEnv } }
+                    pure (ws, Right res)
+        LSP.runLspT senv (k warns res)
+    pure ()
+
+
+doModuleCmd ::
+  ModuleCmd a -> (Maybe a -> M ()) -> M ()
+doModuleCmd m k =
+  doModuleCmd' m \ws mbRes ->
+    -- XXX: publish
+    k case mbRes of
+        Left {} -> Nothing
+        Right a -> Just a
+
+doModuleCmd_ :: ModuleCmd a -> M ()
+doModuleCmd_ m = doModuleCmd m (const (pure ()))
+

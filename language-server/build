@@ -3,5 +3,5 @@
 BIN=cryptol-language-server
 
 cabal build $BIN
-mkdir bin
+mkdir -p bin
 cp $(cabal exec which $BIN) bin

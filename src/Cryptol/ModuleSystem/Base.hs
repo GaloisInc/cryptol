@@ -310,7 +310,7 @@ doLoadModule eval quiet isrc path fp incDeps pm impDeps =
        ("Loading " ++ what ++ " " ++ pretty (P.thing (P.mName pm)))
 
 
-     (nameEnv,tcm) <- checkModule isrc pm
+     (nameEnv,tcm,renMod) <- checkModule isrc pm
 
      -- extend the eval env, unless a functor.
      tbl <- Concrete.primTable <$> getEvalOptsAction
@@ -330,7 +330,9 @@ doLoadModule eval quiet isrc path fp incDeps pm impDeps =
                       Nothing -> pure Nothing
 
      let fi = fileInfo fp incDeps impDeps foreignSrc
-     loadedModule path fi nameEnv foreignSrc tcm
+     saveRen <- getSaveRenamed
+     loadedModule path fi nameEnv foreignSrc tcm $!
+       if saveRen then Just renMod else Nothing
 
      return (tcm, fi)
 
@@ -650,7 +652,7 @@ getPrimMap  =
 checkModule ::
   ImportSource                      {- ^ why are we loading this -} ->
   P.Module PName                    {- ^ module to check -} ->
-  ModuleM (R.NamingEnv,T.TCTopEntity)
+  ModuleM (R.NamingEnv,T.TCTopEntity, Module Name)
 checkModule isrc m = do
 
   -- check that the name of the module matches expectations
@@ -697,7 +699,7 @@ checkModule isrc m = do
                   T.TCTopModule mo -> T.mInScope mo
                   -- Name env for signatures does not change after typechecking
                   T.TCTopSignature {} -> mInScope (R.rmModule renMod)
-  pure (nameEnv,rewMod)
+  pure (nameEnv,rewMod, R.rmModule renMod)
 
 data TCLinter o = TCLinter
   { lintCheck ::

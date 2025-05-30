@@ -21,8 +21,11 @@ executable cryptol-language-server
         Monad,
         Handlers,
         Commands,
-        SyntaxHighlight
-    ghc-options:      -Wall
+        SyntaxHighlight,
+        Error,
+        Hover,
+        Index
+    ghc-options:      -Wall -threaded
     default-extensions:
         BlockArguments,
         ImportQualifiedPost,
@@ -31,11 +34,10 @@ executable cryptol-language-server
         TypeOperators,
         DataKinds,
         KindSignatures,
-        MultiParamTypeClasses
-      
+        FlexibleInstances
         
     build-depends:
-        base, text, containers,
+        base, bytestring, text, containers,
         aeson, lens,
         lsp,
         cryptol,
