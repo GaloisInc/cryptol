@@ -314,6 +314,7 @@ data RO m =
   RO { roLoading    :: [ImportSource]
      , roEvalOpts   :: m EvalOpts
      , roCallStacks :: Bool
+     , roSaveRenamed :: Bool
      , roFileReader :: FilePath -> m ByteString
      , roTCSolver   :: SMT.Solver
      }
@@ -323,6 +324,7 @@ emptyRO minp =
   RO { roLoading = []
      , roEvalOpts   = minpEvalOpts minp
      , roCallStacks = minpCallStacks minp
+     , roSaveRenamed = minpSaveRenamed minp
      , roFileReader = minpByteReader minp
      , roTCSolver   = minpTCSolver minp
      }
@@ -374,6 +376,7 @@ instance MonadIO m => MonadIO (ModuleT m) where
 data ModuleInput m =
   ModuleInput
   { minpCallStacks :: Bool
+  , minpSaveRenamed :: Bool
   , minpEvalOpts   :: m EvalOpts
   , minpByteReader :: FilePath -> m ByteString
   , minpModuleEnv  :: ModuleEnv
@@ -550,8 +553,9 @@ loadedModule ::
   NamingEnv ->
   Maybe ForeignSrc ->
   T.TCTopEntity ->
+  Maybe (P.Module T.Name) ->
   ModuleM ()
-loadedModule path fi nameEnv fsrc m = ModuleT $ do
+loadedModule path fi nameEnv fsrc m renMod = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
@@ -559,8 +563,8 @@ loadedModule path fi nameEnv fsrc m = ModuleT $ do
 
   let newLM =
         case m of
-          T.TCTopModule mo -> addLoadedModule path ident fi nameEnv fsrc mo
-          T.TCTopSignature x s -> addLoadedSignature path ident fi nameEnv x s
+          T.TCTopModule mo -> addLoadedModule path ident fi nameEnv fsrc renMod mo
+          T.TCTopSignature x s -> addLoadedSignature path ident fi nameEnv x renMod s
 
   set $! env { meLoadedModules = newLM (meLoadedModules env) }
 
@@ -586,6 +590,9 @@ getEvalOpts :: ModuleM EvalOpts
 getEvalOpts =
   do act <- getEvalOptsAction
      liftIO act
+
+getSaveRenamed :: ModuleM Bool
+getSaveRenamed = ModuleT (roSaveRenamed <$> ask)
 
 getNominalTypes :: ModuleM (Map T.Name T.NominalType)
 getNominalTypes = ModuleT (loadedNominalTypes <$> get)

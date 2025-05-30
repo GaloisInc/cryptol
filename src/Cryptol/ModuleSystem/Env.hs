@@ -473,6 +473,9 @@ data LoadedModuleG a = LoadedModule
 
   , lmFileInfo          :: !FileInfo
 
+  , lmRenamedModule     :: Maybe (Module Name)
+    -- ^ The renamed AST, if we chose to save it
+
   , lmData              :: a
   } deriving (Show, Generic, NFData)
 
@@ -598,9 +601,9 @@ addLoadedSignature ::
   ModulePath -> String ->
   FileInfo ->
   R.NamingEnv ->
-  ModName -> T.ModParamNames ->
+  ModName -> Maybe (Module T.Name) -> T.ModParamNames ->
   LoadedModules -> LoadedModules
-addLoadedSignature path ident fi nameEnv nm si lm
+addLoadedSignature path ident fi nameEnv nm rm si lm
   | isLoadedStrict (ImpTop nm) ident lm = lm
   | otherwise = lm { lmLoadedSignatures = loaded : lmLoadedSignatures lm }
   where
@@ -611,6 +614,7 @@ addLoadedSignature path ident fi nameEnv nm si lm
             , lmNamingEnv   = nameEnv
             , lmData        = si
             , lmFileInfo    = fi
+            , lmRenamedModule = rm
             }
 
 -- | Add a freshly loaded module.  If it was previously loaded, then
@@ -621,8 +625,9 @@ addLoadedModule ::
   FileInfo ->
   R.NamingEnv ->
   Maybe ForeignSrc ->
+  Maybe (Module T.Name) ->
   T.Module -> LoadedModules -> LoadedModules
-addLoadedModule path ident fi nameEnv fsrc tm lm
+addLoadedModule path ident fi nameEnv fsrc rm tm lm
   | isLoadedStrict (ImpTop (T.mName tm)) ident lm = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
@@ -634,6 +639,7 @@ addLoadedModule path ident fi nameEnv fsrc tm lm
     , lmFilePath        = path
     , lmModuleId        = ident
     , lmNamingEnv       = nameEnv
+    , lmRenamedModule   = rm
     , lmData            = LoadedModuleData
                              { lmdInterface = T.genIface tm
                              , lmdModule    = tm

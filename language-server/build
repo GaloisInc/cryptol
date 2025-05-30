@@ -1,0 +1,7 @@
+#!/bin/bash
+
+BIN=cryptol-language-server
+
+cabal build $BIN
+mkdir -p bin
+cp $(cabal exec which $BIN) bin
