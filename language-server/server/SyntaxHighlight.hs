@@ -9,7 +9,7 @@ import Control.Lens((^.))
 import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Types qualified as LSP
 
-import Cryptol.Parser.Position(Range(..), Position(..))
+import Cryptol.Parser.Position qualified as Cry
 import Cryptol.Parser.Lexer
 import Monad
 import Config
@@ -54,13 +54,13 @@ toAbsolute ltok =
   do
     ty <- tokType (tokenType (thing ltok))
     let rng   = srcRange ltok
-        start = from rng
-        end   = to rng
+        start = Cry.from rng
+        end   = Cry.to rng
     pure LSP.SemanticTokenAbsolute {
-       _line = fromIntegral (line start - 1),
-       _startChar = fromIntegral (col start - 1),
-       _length = if line start == line end
-                   then fromIntegral (col end - col start + 1)
+       _line = fromIntegral (Cry.line start - 1),
+       _startChar = fromIntegral (Cry.colOffset start),
+       _length = if Cry.line start == Cry.line end
+                   then fromIntegral (Cry.colOffset end - Cry.colOffset start + 1)
                    else fromIntegral (Text.length (tokenText (thing ltok))),
        _tokenType = ty,
        _tokenModifiers = []
