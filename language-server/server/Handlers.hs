@@ -9,12 +9,13 @@ import qualified Language.LSP.Protocol.Types as LSP
 import qualified Language.LSP.Protocol.Message as LSP
 import qualified Language.LSP.Protocol.Lens as LSP
 
-import Cryptol.Utils.PP
-import Cryptol.ModuleSystem
+import Cryptol.Utils.PP(pp)
 
 import Monad
 import Config
+import Load
 import SyntaxHighlight
+import Index
 
 handlers :: LSP.ClientCapabilities -> LSP.Handlers M
 handlers _caps = mconcat [ 
@@ -38,17 +39,7 @@ onConfigChanged :: LSP.DidChangeConfigurationParams -> M ()
 onConfigChanged _ = pure ()
 
 onDocumentOpen :: LSP.DidOpenTextDocumentParams -> M ()
-onDocumentOpen ps =
-  do
-    let doc = ps ^. LSP.textDocument . LSP.uri
-    case LSP.uriToFilePath doc of
-      Just file ->
-        doModuleCmd' (loadModuleByPath file) \ws mb ->
-          case mb of
-            Left err -> lspShow Error ("Failed to load: " <> Text.pack file <> "\n" <> Text.pack (show (pp err)))
-            Right a  -> lspShow Info "Loaded"
-
-      Nothing -> pure ()
+onDocumentOpen ps = doLoad (ps ^. LSP.textDocument . LSP.uri)
 
 onDocumentChange :: LSP.DidChangeTextDocumentParams -> M ()
 onDocumentChange _ps = pure ()
@@ -58,6 +49,7 @@ onDocumentSave ps =
   do let doc = ps ^. LSP.textDocument . LSP.uri
      update_ \s -> s { lexedFiles = Map.delete doc (lexedFiles s) }
      requestSemTokUpdate
+     doLoad doc
      pure ()
 
 onDocumentClose :: LSP.DidCloseTextDocumentParams -> M ()
@@ -68,17 +60,24 @@ onDocumentClose ps =
   
 
 onHover :: LSP.HoverParams -> M (LSP.Hover |? LSP.Null)
-onHover ps = pure res
+onHover ps =
+  do
+    s <- getState
+    lspLog Info (Text.pack (show (pp (cryIndex s))))
+    case lookupPosition doc pos (cryIndex s) of
+        Left n -> lspLog Info ("not found " <> Text.pack (show n)) >> pure (LSP.InR LSP.Null)
+        Right (rng,def) ->
+          pure $ 
+          LSP.InL LSP.Hover {
+            _range = Just rng,
+            _contents = LSP.InL LSP.MarkupContent {
+              _kind = LSP.MarkupKind_Markdown,
+              _value = Text.pack (show (pp def))
+            }
+          }
   where
-  doc = ps ^. LSP.textDocument
+  doc = ps ^. LSP.textDocument . LSP.uri
   pos = ps ^. LSP.position
-  res = LSP.InL LSP.Hover {
-    _range = Nothing,
-    _contents = LSP.InL LSP.MarkupContent {
-      _kind = LSP.MarkupKind_Markdown,
-      _value = "hover *yes*"  
-    }
-  }
 
 requestSemTokUpdate :: M ()
 requestSemTokUpdate =

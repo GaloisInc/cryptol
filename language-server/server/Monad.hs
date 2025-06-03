@@ -49,7 +49,7 @@ update f =
 update_ :: (State -> State) -> M ()
 update_ f = update \_ s -> pure (f s, ())
 
--- | Access the server state.  Blocks if someone is modifying it.
+-- | Get a snapshot of the server state.  Blocks if someone is modifying it.
 getState :: M State
 getState =
   do cfg <- getConfig
@@ -92,7 +92,8 @@ lspShow :: Severity -> Text -> M ()
 lspShow ty msg = LSP.logToShowMessage <& WithSeverity msg ty
 
 
-
+-- | Execute a Cryptol command.  All interactions with Cryptol should happen
+-- through this, as it coordinates the acces to the Cryptol environment.
 doModuleCmd' ::
   ModuleCmd a -> ([ModuleWarning] -> Either ModuleError a -> M ()) -> M ()
 doModuleCmd' m k =

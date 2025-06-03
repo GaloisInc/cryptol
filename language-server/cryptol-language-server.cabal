@@ -23,11 +23,13 @@ executable cryptol-language-server
         Commands,
         SyntaxHighlight,
         Error,
-        Hover,
-        Index
+        Index,
+        Load
     ghc-options:      -Wall -threaded
     default-extensions:
         BlockArguments,
+        LambdaCase,
+        NamedFieldPuns,
         ImportQualifiedPost,
         DisambiguateRecordFields,
         OverloadedStrings,
