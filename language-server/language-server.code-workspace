@@ -1,7 +1,7 @@
 {
 	"folders": [
 		{ "name": "Language Server", "path": "." },
-		{ "name": "Cleint", "path": "client/src" },
+		{ "name": "Cleint", "path": "client" },
 		{ "name": "Server", "path": "server" },
 		{ "name": "Cryptol", "path": "../src/Cryptol" }
 	],
