@@ -27,7 +27,7 @@ import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Logging qualified as LSP
 
 import Cryptol.ModuleSystem
-import Config
+import State
 
 -- | The language server monad.
 type M = LSP.LspM Config

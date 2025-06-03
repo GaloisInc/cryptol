@@ -12,7 +12,7 @@ import qualified Language.LSP.Protocol.Lens as LSP
 import Cryptol.Utils.PP(pp)
 
 import Monad
-import Config
+import State
 import Load
 import SyntaxHighlight
 import Index

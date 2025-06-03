@@ -6,7 +6,7 @@ import Cryptol.ModuleSystem
 import Cryptol.ModuleSystem.Env(getLoadedEntities)
 import qualified Language.LSP.Protocol.Types as LSP
 
-import Config
+import State
 import Monad
 import Index
 

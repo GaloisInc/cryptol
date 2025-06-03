@@ -1,0 +1,9 @@
+{
+	"folders": [
+		{ "name": "Language Server", "path": "." },
+		{ "name": "Cleint", "path": "client/src" },
+		{ "name": "Server", "path": "server" },
+		{ "name": "Cryptol", "path": "../src/Cryptol" }
+	],
+	"settings": {}
+}

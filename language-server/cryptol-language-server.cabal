@@ -17,7 +17,7 @@ extra-doc-files:    CHANGELOG.md
 executable cryptol-language-server
     main-is:          Main.hs
     other-modules:
-        Config,
+        State,
         Monad,
         Handlers,
         Commands,

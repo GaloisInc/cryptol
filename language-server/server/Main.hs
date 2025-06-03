@@ -6,7 +6,7 @@ import Data.Map qualified as Map
 import Language.LSP.Server qualified as LSP 
 import Language.LSP.Protocol.Types qualified as LSP
 
-import Config
+import State
 import Monad
 import Handlers
 import Commands

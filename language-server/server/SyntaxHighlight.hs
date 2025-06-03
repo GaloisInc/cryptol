@@ -12,7 +12,7 @@ import Language.LSP.Protocol.Types qualified as LSP
 import Cryptol.Parser.Position qualified as Cry
 import Cryptol.Parser.Lexer
 import Monad
-import Config
+import State
 
 semanticTokens :: LSP.Uri -> Maybe LSP.Range -> M [LSP.SemanticTokenAbsolute]
 semanticTokens uri mbRange =
@@ -36,8 +36,6 @@ semanticTokens uri mbRange =
                     ]
   
     
-
-
 -- | Lex the given file.
 lexFile  :: LSP.Uri -> IO [LSP.SemanticTokenAbsolute]
 lexFile uri =

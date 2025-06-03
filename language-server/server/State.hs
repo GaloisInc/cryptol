@@ -1,4 +1,4 @@
-module Config where
+module State where
 
 import Data.ByteString qualified as BS
 import Data.Text(Text)
