@@ -25,7 +25,8 @@ executable cryptol-language-server
         Error,
         Index,
         Load,
-        Position
+        Position,
+        Definitions
     ghc-options:      -Wall -threaded
     default-extensions:
         BlockArguments,
