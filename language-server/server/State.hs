@@ -42,7 +42,7 @@ newConfig =
     solver <- startSolver (pure ()) (defaultSolverConfig [])
     me     <- initialModuleEnv
     work   <- newMVar ()
-    ref <- newMVar State {
+    ref    <- newMVar State {
       lexedFiles = mempty,
       cryIndex = emptyIndexDB,
       cryState = ModuleInput {
@@ -51,12 +51,12 @@ newConfig =
           evalLogger  = quietLogger,
           evalPPOpts  = defaultPPOpts
         },
-        minpByteReader = BS.readFile,
-        minpModuleEnv  = me,
-        minpTCSolver   = solver,
-        minpSaveRenamed    = True
-  }
+        minpByteReader  = BS.readFile,
+        minpModuleEnv   = me,
+        minpTCSolver    = solver,
+        minpSaveRenamed = True
       }
+    }
     pure Config { stateRef = ref, cryWorking = work } 
 
 -- | Kill the SMT solver for this configuration.

@@ -25,6 +25,8 @@ import Cryptol.ModuleSystem.Env
 import Cryptol.ModuleSystem.Interface
 import Cryptol.Utils.PP
 
+import Position
+
 data IndexDB = IndexDB {
   allDefs :: Map Name DefInfo,
   -- ^ Information about names
@@ -78,15 +80,10 @@ lookupPosition uri pos db =
         c   = fromIntegral (pos ^. LSP.character)
         tgt = replPosition (l,c)
         tooEarly rng = to rng < tgt
-    (Range { from, to },n) <-
-      step 3 $ Map.lookupMin (Map.dropWhileAntitone tooEarly info)
-    step 4 $ guard (from <= tgt && tgt <= to)
+    (r,n) <- step 3 $ Map.lookupMin (Map.dropWhileAntitone tooEarly info)
+    step 4 $ guard (from r <= tgt && tgt <= to r)
     def <- step 5 $ Map.lookup n (allDefs db)
-    let irange = LSP.mkRange (fromIntegral (line from - 1))
-                             (fromIntegral (colOffset from))
-                             (fromIntegral (line to - 1))
-                             (fromIntegral (colOffset to))
-    pure (irange, def)
+    pure (snd (rangeToLSP r) , def)
   where
   step n = maybe (Left n) Right
 

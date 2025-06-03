@@ -16,6 +16,7 @@ import State
 import Load
 import SyntaxHighlight
 import Index
+import Position
 
 handlers :: LSP.ClientCapabilities -> LSP.Handlers M
 handlers _caps = mconcat [ 
@@ -28,6 +29,8 @@ handlers _caps = mconcat [
   lspNotification LSP.SMethod_TextDocumentDidClose onDocumentClose,
   
   lspSyncRequest LSP.SMethod_TextDocumentHover onHover,
+  lspSyncRequest LSP.SMethod_TextDocumentDefinition onGotoDefinition,
+
   lspSyncRequest LSP.SMethod_TextDocumentSemanticTokensFull onSemTokFull,
   lspSyncRequest LSP.SMethod_TextDocumentSemanticTokensRange onSemTokRange
   ]
@@ -74,6 +77,24 @@ onHover ps =
               _kind = LSP.MarkupKind_Markdown,
               _value = Text.pack (show (pp def))
             }
+          }
+  where
+  doc = ps ^. LSP.textDocument . LSP.uri
+  pos = ps ^. LSP.position
+
+
+onGotoDefinition :: LSP.DefinitionParams -> M (LSP.Definition |? ([LSP.DefinitionLink] |? LSP.Null))
+onGotoDefinition ps =
+  do
+    s <- getState
+    case lookupPosition doc pos (cryIndex s) of
+      Left n -> lspLog Info ("not found " <> Text.pack (show n)) >> pure (LSP.InR (LSP.InR LSP.Null))
+      Right (_,def) ->
+        do
+          let (uri,rng) = rangeToLSP (defRange def)
+          pure $ LSP.InL $ LSP.Definition $ LSP.InL LSP.Location {
+            _uri = uri,
+            _range = rng
           }
   where
   doc = ps ^. LSP.textDocument . LSP.uri
