@@ -48,6 +48,7 @@ module Cryptol.REPL.Command (
 
     -- Check docstrings
   , checkDocStrings
+  , updateDocstringCache
   , SubcommandResult(..)
   , DocstringResult(..)
 
@@ -2100,10 +2101,12 @@ captureLog m = do
 
 -- | Apply control character semantics to the result of the logger
 interpretControls :: String -> String
-interpretControls ('\b' : xs) = interpretControls xs
-interpretControls (_ : '\b' : xs) = interpretControls xs
-interpretControls (x : xs) = x : interpretControls xs
-interpretControls [] = []
+interpretControls = f []
+  where
+    f []     ('\b':ys) = f [] ys -- skips unmatched \b
+    f (_:xs) ('\b':ys) = f xs ys
+    f xs     (y   :ys) = f (y:xs) ys
+    f xs     []        = reverse xs
 
 -- | The result of running a docstring as attached to a definition
 data DocstringResult = DocstringResult
@@ -2132,33 +2135,36 @@ checkDocItem item =
 -- The outer list elements correspond to the code blocks from the
 -- docstrings in file order. Each inner list corresponds to the
 -- REPL commands inside each of the docstrings.
-checkDocStrings :: M.LoadedModule -> REPL [DocstringResult]
-checkDocStrings m = do
+checkDocStrings :: M.LoadedModule -> Maybe Proj.CacheId -> REPL ([DocstringResult], Proj.CacheId)
+checkDocStrings m expectCache = do
   let dat = M.lmdModule (M.lmData m)
   rPrint ("Checking module" <+> pp (T.mName dat))
   let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
   results <- traverse checkDocItem ds
-  updateDocstringCache m (all checkDocstringResult results)
-  pure results
+  cid <- updateDocstringCache m results expectCache
+  pure (results,cid)
 
 checkDocstringResult :: DocstringResult -> Bool
 checkDocstringResult r = all (all (crSuccess . srResult)) (drFences r)
 
-updateDocstringCache :: M.LoadedModule -> Bool -> REPL ()
-updateDocstringCache m result =
- do cache <- io Proj.loadLoadCache
-    case M.lmFilePath m of
-      M.InMem{} -> pure ()
-      M.InFile fp ->
-        case Map.lookup (Proj.CacheInFile fp) (Proj.cacheModules cache) of
-          Nothing -> pure ()
-          Just entry ->
-            if Proj.moduleFingerprint (Proj.cacheFingerprint entry) /= M.fiFingerprint (M.lmFileInfo m)
-              then pure ()
-              else
-                do let entry' = entry { Proj.cacheDocstringResult = Just result }
-                   let cache' = cache { Proj.cacheModules = Map.insert (Proj.CacheInFile fp) entry' (Proj.cacheModules cache) }
-                   io (Proj.saveLoadCache cache')
+updateDocstringCache :: M.LoadedModule -> [DocstringResult] -> Maybe Proj.CacheId -> REPL Proj.CacheId
+updateDocstringCache m result expectCache =
+ do (cache,cacheId) <- io Proj.loadLoadCache
+    case expectCache of
+      Just c | c /= cacheId -> pure cacheId
+      _ ->
+        case M.lmFilePath m of
+          M.InMem{} -> pure cacheId
+          M.InFile fp ->
+            case Map.lookup (Proj.CacheInFile fp) (Proj.cacheModules cache) of
+              Nothing -> pure cacheId
+              Just entry ->
+                if Proj.moduleFingerprint (Proj.cacheFingerprint entry) /= M.fiFingerprint (M.lmFileInfo m)
+                  then pure cacheId
+                  else
+                    do let entry' = entry { Proj.cacheDocstringResult = Just (all checkDocstringResult result) }
+                       let cache' = cache { Proj.cacheModules = Map.insert (Proj.CacheInFile fp) entry' (Proj.cacheModules cache) }
+                       io (Proj.saveLoadCache cache')
 
 -- | Evaluate all the docstrings in the specified module.
 --
@@ -2213,7 +2219,7 @@ checkModName ind mn =
           rPutStrLn (tab ++ "Skipping docstrings on parameterized module")
           pure emptyCommandResult
         | otherwise -> do
-          results <- checkDocStrings fe
+          (results,_) <- checkDocStrings fe Nothing
           let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
           rPutStrLn (tab ++ "Successes: " ++ show successes ++
                           ", No fences: " ++ show nofences ++
@@ -2293,7 +2299,7 @@ loadProjectREPL mode cfg =
 
           rPutStrLn ("Passing: " ++ show passing ++ ", Failing: " ++ show failing ++ ", Missing: " ++ show missing)
 
-          io (Proj.saveLoadCache (Proj.LoadCache cache))
+          _cacheId <- io (Proj.saveLoadCache (Proj.LoadCache cache))
           pure emptyCommandResult { crSuccess = success }
 
 -- | Get the path to the SAW command.

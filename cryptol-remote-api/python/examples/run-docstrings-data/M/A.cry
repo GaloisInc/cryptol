@@ -1,0 +1,12 @@
+module M::A where
+
+import B
+
+/**
+```
+:type x
+x
+:check x == 0x02
+```
+*/
+x = 0x02
