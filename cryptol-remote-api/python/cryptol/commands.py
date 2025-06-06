@@ -367,10 +367,10 @@ class CryptolInterrupt(argo.Notification):
         )
 
 class CryptolCheckDocstrings(argo.Command):
-    def __init__(self, connection : HasProtocolState, timeout: Optional[float]) -> None:
+    def __init__(self, connection : HasProtocolState, cache_id: str, timeout: Optional[float]) -> None:
         super(CryptolCheckDocstrings, self).__init__(
             'check docstrings',
-            {},
+            {"cache_id": cache_id},
             connection,
             timeout=timeout
         )

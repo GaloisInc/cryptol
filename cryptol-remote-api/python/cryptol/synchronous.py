@@ -223,9 +223,9 @@ class CryptolSyncConnection:
         Otherwise only the modules affected by a change are loaded."""
         return self.connection.load_project(path, mode, timeout=timeout).result()
 
-    def check_docstrings(self, *, timeout:Optional[float] = None) -> Any:
+    def check_docstrings(self, cache_id: str, *, timeout:Optional[float] = None) -> Any:
         """Check the docstrings of the focused module."""
-        return self.connection.check_docstrings(timeout=timeout).result()
+        return self.connection.check_docstrings(cache_id, timeout=timeout).result()
 
     def extend_search_path(self, *dir : str, timeout:Optional[float] = None) -> None:
         """Extend the search path for loading Cryptol modules."""

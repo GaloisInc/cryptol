@@ -85,6 +85,7 @@ library
     CryptolServer.Options
     CryptolServer.Sat
     CryptolServer.TypeCheck
+    CryptolServer.Utils
     CryptolServer.Version
 
   other-modules:

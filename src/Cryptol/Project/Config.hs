@@ -19,7 +19,7 @@ data Config = Config
 
   , modules :: [String]
     -- ^ Git-style patterns describing the files for the project.
-  }
+  } deriving Show
 
 data LoadProjectMode
   = RefreshMode  -- load all files

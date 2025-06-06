@@ -20,6 +20,7 @@ module Cryptol.Project.Monad
   , getFingerprint
   , lPutStrLn
   , getOldDocstringResults
+  , getRootPath
   ) where
 
 import           Data.Map.Strict                  (Map)
@@ -90,6 +91,9 @@ data LoadConfig = LoadConfig
 
   , loadCache :: LoadCache
     -- ^ The state of the cache before we started loading the project.
+
+  , loadCacheId :: !CacheId
+    -- ^ An id for the cache when it was first loaded.
   }
 
 
@@ -141,12 +145,14 @@ runLoadM mode cfg (LoadM m) =
   do loadCfg <-
        M.io
          do path  <- canonicalizePath (root cfg)
-            cache <- case mode of
-                       RefreshMode  -> pure emptyLoadCache
-                       UntestedMode -> loadLoadCache
-                       ModifiedMode -> loadLoadCache
+            (cache,cacheId) <-
+              case mode of
+                RefreshMode  -> pure (emptyLoadCache, emptyCacheId)
+                UntestedMode -> loadLoadCache
+                ModifiedMode -> loadLoadCache
             pure LoadConfig { canonRoot = path
                             , loadCache = cache
+                            , loadCacheId = cacheId
                             }
      let loadState = LoadState { findModuleCache = mempty
                                , fingerprints = mempty
@@ -177,6 +183,9 @@ getModulePathLabel mpath =
     InFile p  -> LoadM (asks ((`makeRelative` p) . canonRoot))
     InMem l _ -> pure l
 
+-- | Get the root of the project
+getRootPath :: LoadM any FilePath
+getRootPath = LoadM (asks canonRoot)
 
 -- | Get the fingerprint for the given module path.
 getCachedFingerprint :: ModulePath -> LoadM any (Maybe FullFingerprint)

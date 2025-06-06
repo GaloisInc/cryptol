@@ -116,7 +116,8 @@ scanPath path =
 -- Fails if we can't find the module at this path.
 scanFromPath :: FilePath -> LoadM Err ScanStatus
 scanFromPath fpath =
-  liftCallback (withPrependedSearchPath [takeDirectory fpath])
+  getRootPath >>= \rootP ->
+  liftCallback (withPrependedSearchPath [rootP])
   do foundFPath <- doModule (M.findFile fpath)
      mpath      <- doIO (InFile <$> canonicalizePath foundFPath)
      scan mpath

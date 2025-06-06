@@ -1,18 +1,28 @@
-{-# Language OverloadedStrings, BlockArguments #-}
+{-# Language OverloadedStrings, BlockArguments, BangPatterns #-}
 module Cryptol.Project.Cache where
 
 import           Data.Map.Strict                  (Map)
 import qualified Data.Map.Strict                  as Map
 import qualified Data.Set                         as Set
-import qualified Data.Text.IO                     as Text
+import qualified Data.Text                        as Text
+import qualified Data.Text.Encoding               as Text
+import qualified Data.ByteString                  as BS
 import           Data.Set                         (Set)
 import           System.Directory
 import           System.FilePath                  as FP
 import           System.IO.Error
 import qualified Toml
 import qualified Toml.Schema                      as Toml
+import qualified Crypto.Hash.SHA256               as SHA256
 import           Cryptol.ModuleSystem.Fingerprint ( Fingerprint )
 import           Cryptol.ModuleSystem.Env
+
+-- | This is something to identify a particular cache state.
+-- We use a hash of the cache file at the moment.
+type CacheId = BS.ByteString
+
+emptyCacheId :: CacheId
+emptyCacheId = BS.empty
 
 -- | The load cache. This is what persists across invocations.
 newtype LoadCache = LoadCache
@@ -116,15 +126,23 @@ loadCachePath = metaDir FP.</> "loadcache.toml"
 emptyLoadCache :: LoadCache
 emptyLoadCache = LoadCache { cacheModules = mempty }
 
-loadLoadCache :: IO LoadCache
+-- | Load a cache.  Also returns an id for the cahce.
+-- If there is no cache (or it failed to load), then we return an empty id.
+loadLoadCache :: IO (LoadCache, CacheId)
 loadLoadCache =
- do txt <- Text.readFile loadCachePath
+ do bytes <- BS.readFile loadCachePath
+    let hash = SHA256.hash bytes
+        txt = Text.decodeUtf8 bytes
     case Toml.decode txt of
-      Toml.Success _ c -> pure c
-      Toml.Failure _ -> pure emptyLoadCache
-  `catchIOError` \_ -> pure emptyLoadCache
+      Toml.Success _ c -> pure (c,hash)
+      Toml.Failure _ -> pure (emptyLoadCache,emptyCacheId)
+  `catchIOError` \_ -> pure (emptyLoadCache,emptyCacheId)
 
-saveLoadCache :: LoadCache -> IO ()
+-- | Save the cache.  Returns an id for the cache.
+saveLoadCache :: LoadCache -> IO BS.ByteString
 saveLoadCache cache =
   do createDirectoryIfMissing False metaDir
-     writeFile loadCachePath (show (Toml.encode cache))
+     let txt = Text.pack (show (Toml.encode cache))
+         !bytes = Text.encodeUtf8 txt
+     BS.writeFile loadCachePath bytes
+     pure (SHA256.hash bytes)
