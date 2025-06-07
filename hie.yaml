@@ -1,0 +1,8 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "cryptol:lib:cryptol"
+    - path: "./cryptol"
+      component: "cryptol:exe:cryptol"
+    - path: "./language-server"
+      component: "cryptol-language-server:exe:cryptol-language-server"

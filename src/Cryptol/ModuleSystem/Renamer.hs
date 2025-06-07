@@ -1187,7 +1187,8 @@ instance Rename Expr where
     EInfix x y _ z  -> do op <- renameOp y
                           x' <- rename x
                           z' <- rename z
-                          mkEInfix x' op z'
+                          x'' <- located x'
+                          mkEInfix (Just (srcRange x'')) x' op z'
     EPrefix op e    -> EPrefix op <$> rename e
 
 
@@ -1223,43 +1224,50 @@ checkLabels = foldM_ check [] . map labs
             x':_ -> x'
             [] -> panic "checkLabels" ["UpdFields with no labels"]
 
-mkEInfix :: Expr Name             -- ^ May contain infix expressions
+mkEInfix :: Maybe Range           -- ^ Location of left expression
+         -> Expr Name             -- ^ May contain infix expressions
          -> (Located Name,Fixity) -- ^ The operator to use
          -> Expr Name             -- ^ Will not contain infix expressions
          -> RenameM (Expr Name)
 
-mkEInfix e@(EInfix x o1 f1 y) op@(o2,f2) z =
+mkEInfix mbR e@(EInfix x o1 f1 y) op@(o2,f2) z =
    case compareFixity f1 f2 of
      FCLeft  -> return (EInfix e o2 f2 z)
 
-     FCRight -> do r <- mkEInfix y op z
+     FCRight -> do r <- mkEInfix Nothing y op z
                    return (EInfix x o1 f1 r)
 
      FCError -> do recordError (FixityError o1 f1 o2 f2)
-                   return (EInfix e o2 f2 z)
+                   return (EInfix (maybeLoc mbR e) o2 f2 z)
 
-mkEInfix e@(EPrefix o1 x) op@(o2, f2) y =
+mkEInfix mbR e@(EPrefix o1 x) op@(o2, f2) y =
   case compareFixity (prefixFixity o1) f2 of
     FCRight -> do
       let warning = PrefixAssocChanged o1 x o2 f2 y
       RenameM $ sets_ (\rw -> rw {rwWarnings = warning : rwWarnings rw})
-      r <- mkEInfix x op y
+      r <- mkEInfix Nothing x op y
       return (EPrefix o1 r)
 
     -- Even if the fixities conflict, we make the prefix operator take
     -- precedence.
-    _ -> return (EInfix e o2 f2 y)
-
+    _ -> return (EInfix (maybeLoc mbR e) o2 f2 y)
+  
 -- Note that for prefix operator on RHS of infix operator we make the prefix
 -- operator always have precedence, so we allow a * -b instead of requiring
 -- a * (-b).
 
-mkEInfix (ELocated e' _) op z =
-     mkEInfix e' op z
+mkEInfix _ (ELocated e' r) op z =
+     mkEInfix (Just r) e' op z
 
-mkEInfix e (o,f) z =
-     return (EInfix e o f z)
+mkEInfix mbR e (o,f) z =
+     return (EInfix (maybeLoc mbR e) o f z)
+  
 
+maybeLoc :: Maybe Range -> Expr name -> Expr name
+maybeLoc mb e =
+  case mb of
+    Nothing -> e
+    Just r  -> ELocated e r
 
 renameOp :: Located PName -> RenameM (Located Name, Fixity)
 renameOp ln =
