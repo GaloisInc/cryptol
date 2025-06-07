@@ -7,7 +7,6 @@ module Index (
 ) where
 
 import Data.List(foldl')
-import Data.Text(Text)
 import Data.Map(Map)
 import Data.Map qualified as Map
 import Control.Lens((^.))
@@ -16,13 +15,12 @@ import Control.Monad(guard)
 import Language.LSP.Protocol.Types qualified as LSP
 import Language.LSP.Protocol.Lens qualified as LSP
 
-import Cryptol.Utils.RecordMap
 import Cryptol.Parser.Position
 import Cryptol.Parser.AST
 import Cryptol.TypeCheck.AST qualified as T
+import Cryptol.TypeCheck.PP qualified as T
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Env
-import Cryptol.ModuleSystem.Interface
 import Cryptol.Utils.PP
 
 import Position
@@ -79,12 +77,12 @@ updateIndexes loaded ixes = foldl' updateIndex ixes loaded
   updateIndex cur ent =
     case ent of
       ALoadedModule lm ->
-        case entityFileInfo lm of
-          Just (uri, rm) ->
-            let i  = rangedVars (mDef rm) noCtxt emptyIndex
-                decls = ifDecls (ifDefines (lmdInterface (lmData lm)))
-                addTy n inf = inf { defType = ifDeclSig <$> Map.lookup n decls }
-                defs = Map.mapWithKey addTy (ixDefs i)
+        let getTys m = getVarTypes T.emptyNameMap (T.mDecls (lmdModule m)) mempty in
+        case entityFileInfo getTys lm of
+          Just (uri, rm, tys) ->
+            let i           = rangedVars (mDef rm) noCtxt emptyIndex
+                addTy n inf = inf { defType = Map.lookup n tys }
+                defs        = Map.mapWithKey addTy (ixDefs i)
             in IndexDB {
                 posIndex = Map.insert uri (Map.fromList (ixUse i)) (posIndex cur),
                 allDefs  = Map.union defs (allDefs cur)
@@ -93,13 +91,12 @@ updateIndexes loaded ixes = foldl' updateIndex ixes loaded
       ALoadedFunctor lm -> cur -- XXX
       ALoadedInterface li -> cur  -- XXX
 
-entityFileInfo :: LoadedModuleG a -> Maybe (ModulePath,Module Name)
-entityFileInfo lm =
+entityFileInfo ::
+  (a -> Map Name (T.NameMap, T.Schema)) ->
+  LoadedModuleG a ->
+  Maybe (ModulePath,Module Name, Map Name (T.NameMap, T.Schema))
+entityFileInfo getTys lm =
   do rm <- lmRenamedModule lm
-     pure (lmFilePath lm, rm)
-
-
-
-
+     pure (lmFilePath lm, rm, getTys (lmData lm))
 
 

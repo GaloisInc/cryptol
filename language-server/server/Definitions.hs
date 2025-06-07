@@ -9,28 +9,99 @@ import Cryptol.Utils.RecordMap
 import Cryptol.Parser.AST
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST qualified as T
+import Cryptol.TypeCheck.PP qualified as T
 import Cryptol.Parser.Position
 
 -- | Information about a definition
 data DefInfo = DefInfo {
+  defName  :: !Name,
+  -- ^ The name of the definition
+
   defRange :: Range,
   -- ^ Location of the definition (specifically, the name)
 
   defDoc   :: Maybe Text,
   -- ^ Documentation, if any
 
-  defType  :: Maybe T.Schema
+  defType  :: Maybe (T.NameMap, T.Schema)
   -- ^ Type, if known
 }
 
 instance PP DefInfo where
   ppPrec _ di = vcat [
-    maybe mempty pp (defDoc di),
     case defType di of
       Nothing -> mempty
-      Just s -> vcat ["```",pp s,"```"]
+      Just (nms,s) -> "__" <> pp (nameIdent (defName di)) <> "__: "
+        <> T.ppWithNames nms s,
+    "",
+    maybe mempty pp (defDoc di),
+    "",
+    case nameModPathMaybe (defName di) of
+      Just p  -> "*Defined in `" <> pp p <> "`*"
+      Nothing -> "*Local definition*"
     ]
 
+-- | Collect the types of declared variables.
+-- Assumes all variables have distinct names
+class GetVarTypes t where
+  getVarTypes ::
+    T.NameMap -> t -> Map Name (T.NameMap, T.Schema) -> Map Name (T.NameMap, T.Schema)
+
+instance (GetVarTypes a, GetVarTypes b) => GetVarTypes (a,b) where
+  getVarTypes nm (a,b) = getVarTypes nm a . getVarTypes nm b
+
+instance (GetVarTypes a) => GetVarTypes (Maybe a) where
+  getVarTypes nm = maybe id (getVarTypes nm)
+
+instance (GetVarTypes a) => GetVarTypes [a] where
+  getVarTypes nm xs =
+    case xs of
+      [] -> id
+      x : ys -> getVarTypes nm (x,ys)
+
+instance GetVarTypes T.DeclGroup where
+  getVarTypes nm = getVarTypes nm . T.groupDecls
+
+instance GetVarTypes T.Decl where
+  getVarTypes nm d =
+    Map.insert (T.dName d) (nm, T.dSignature d) .
+    case T.dDefinition d of
+      T.DPrim         -> id
+      T.DForeign _ i  -> getVarTypes nm i
+      T.DExpr e       -> getVarTypes nm e
+
+
+instance GetVarTypes T.Expr where
+  getVarTypes nm expr =
+    case expr of
+      T.ETuple es -> getVarTypes nm es
+      T.EList es _ -> getVarTypes nm es
+      T.ERec es -> getVarTypes nm (recordElements es)
+      T.ESel e _ -> getVarTypes nm e
+      T.ESet _ e1 _ e2 -> getVarTypes nm (e1,e2)                       
+      T.EIf e1 e2 e3 -> getVarTypes nm (e1,(e2,e3))
+      T.ECase e ps d -> getVarTypes nm (e,(Map.elems ps,d))
+      T.EComp _ _ e m -> getVarTypes nm (e,m)
+      T.EVar _ -> id
+      T.ETAbs t e -> getVarTypes (T.addTNames [t] nm) e
+      T.ETApp e _   -> getVarTypes nm e
+      T.EApp e1 e2  -> getVarTypes nm (e1,e2)
+      T.EAbs x t e  -> getVarTypes nm e . Map.insert x (nm, T.tMono t)
+      T.ELocated _ e -> getVarTypes nm e
+      T.EProofAbs _ e -> getVarTypes nm e
+      T.EProofApp e -> getVarTypes nm e
+      T.EWhere e ds     -> getVarTypes nm (e,ds)
+      T.EPropGuards gs _ -> getVarTypes nm (map snd gs)
+
+instance GetVarTypes T.CaseAlt where
+  getVarTypes nm (T.CaseAlt xs e) =
+    getVarTypes nm e . flip (foldr (\(x,t) -> Map.insert x (nm, T.tMono t))) xs
+
+instance GetVarTypes T.Match where
+  getVarTypes nm m =
+    case m of
+      T.From x _ t e -> getVarTypes nm e . Map.insert x (nm, T.tMono t)
+      T.Let d -> getVarTypes nm d
 
 class RangedVars t where
   rangedVars ::
@@ -80,11 +151,10 @@ instance RangedVars Use where
   rangedVars (Use a) ctx rest =
     case nameInfo a of
       GlobalName SystemName _ -> rest
-      GlobalName UserName _ ->
+      _ ->
         case curRange ctx of
           Nothing -> rest
           Just r  -> rest { ixUse = (r,a) : ixUse rest }
-      LocalName ns i -> rest -- XXX, track current top decl
 
 newtype Def = Def Name
 
@@ -92,17 +162,23 @@ instance RangedVars Def where
   rangedVars (Def a) ctx rest =
     case nameInfo a of
       GlobalName SystemName _ -> rest
-      GlobalName UserName _ -> rest { ixDefs = Map.insert a info (ixDefs rest),
-                                      ixUse = (r,a) : ixUse rest }
-        where
-        r = nameLoc a
-        info = DefInfo {
-          defRange = r,
-          defDoc   = curDoc ctx,
-          defType  = Nothing
-        }
-      LocalName ns i -> rest -- XXX: locals
-
+      _ -> rest {
+        ixDefs = Map.insert a info (ixDefs rest),
+        ixUse = (r,a) : ixUse rest
+      }
+    where
+    r = nameLoc a
+    blankInfo = DefInfo {
+      defName  = a,
+      defRange = r,
+      defDoc   = Nothing,
+      defType  = Nothing   -- added later
+    }
+    info =
+      case nameInfo a of 
+        GlobalName {} -> blankInfo { defDoc = curDoc ctx }
+        _             -> blankInfo
+    
 
 --------------------------------------------------------------------------------
 
