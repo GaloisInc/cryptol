@@ -209,18 +209,26 @@ instance RangedVars (TopDecl Name) where
       TDNewtype nt -> rangedVars nt
       TDEnum en -> rangedVars en
       DInterfaceConstraint _ xs -> rangedVars xs
-      _ -> const id -- XXX
-      
-      {-
-  
-  
-  | DParamDecl Range (Signature name)   -- ^ @parameter ...@ (parser only)
+      DModule nm -> rangedVars nm
+      DImport i -> rangedVars i
+      DModParam mp -> rangedVars mp
+      DParamDecl r s -> const id -- XXX: Signatures
+      Include {} -> const id
 
-  | DModule (TopLevel (NestedModule name))      -- ^ @submodule M where ...@
-  | DImport (Located (ImportG (ImpName name)))  -- ^ @import X@
-  | DModParam (ModParam name)                   -- ^ @import interface X ...@
-  
--}
+instance RangedVars (ModParam Name) where
+  rangedVars mp = rangedVars (mpSignature mp)
+
+instance RangedVars (ImpName Name) where
+  rangedVars imp =
+    case imp of
+      ImpNested n -> rangedVars (Use n)
+      ImpTop {}   -> const id
+
+instance RangedVars (ImportG (ImpName Name)) where
+  rangedVars imp = rangedVars (iModule imp)
+
+instance RangedVars (NestedModule Name) where
+  rangedVars (NestedModule nm) = rangedVars (Def <$> mName nm, mDef nm)
 
 instance RangedVars (Newtype Name) where
   rangedVars nt =
