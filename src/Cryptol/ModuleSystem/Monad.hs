@@ -92,7 +92,7 @@ importedModule is =
 
 
 data ModuleError
-  = ModuleNotFound P.ModName [FilePath]
+  = ModuleNotFound ImportSource P.ModName [FilePath]
     -- ^ Unable to find the module given, tried looking in these paths
   | CantFindFile FilePath
     -- ^ Unable to open a file
@@ -132,7 +132,7 @@ data ModuleError
 
 instance NFData ModuleError where
   rnf e = case e of
-    ModuleNotFound src path              -> src `deepseq` path `deepseq` ()
+    ModuleNotFound is src path           -> is `deepseq` src `deepseq` path `deepseq` ()
     CantFindFile path                    -> path `deepseq` ()
     BadUtf8 path fp ue                   -> rnf (path, fp, ue)
     OtherIOError path exn                -> path `deepseq` exn `seq` ()
@@ -155,9 +155,13 @@ instance NFData ModuleError where
 instance PP ModuleError where
   ppPrec prec e = case e of
 
-    ModuleNotFound src path ->
+    ModuleNotFound isrc src path ->
       text "[error]" <+>
       text "Could not find module" <+> pp src
+      $$
+        case isrc of
+          FromModule {} -> mempty
+          _ -> "arising from" <+> pp isrc
       $$
       hang (text "Searched paths:")
          4 (vcat (map text path))
@@ -216,8 +220,8 @@ instance PP ModuleError where
 
     ErrorInFile _ x -> ppPrec prec x
 
-moduleNotFound :: P.ModName -> [FilePath] -> ModuleM a
-moduleNotFound name paths = ModuleT (raise (ModuleNotFound name paths))
+moduleNotFound :: ImportSource -> P.ModName -> [FilePath] -> ModuleM a
+moduleNotFound isrc name paths = ModuleT (raise (ModuleNotFound isrc name paths))
 
 cantFindFile :: FilePath -> ModuleM a
 cantFindFile path = ModuleT (raise (CantFindFile path))

@@ -70,7 +70,7 @@ getPrimMap me = runModuleM me Base.getPrimMap
 
 -- | Find the file associated with a module name in the module search path.
 findModule :: P.ModName -> ModuleCmd ModulePath
-findModule n env = runModuleM env (Base.findModule n)
+findModule n env = runModuleM env (Base.findModule (FromModule n) n)
 
 -- | Load the module contained in the given file.
 loadModuleByPath :: FilePath -> ModuleCmd (ModulePath,T.TCTopEntity)

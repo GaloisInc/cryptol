@@ -14,7 +14,9 @@ module Monad (
   doModuleCmd', doModuleCmd, doModuleCmd_
 )where
 
-import Data.Text
+import Data.Text(Text)
+import Data.Text qualified as Text
+import Data.Map qualified as Map
 import Control.Lens((^.))
 
 import Colog.Core.Action((<&))
@@ -22,12 +24,14 @@ import Colog.Core.Severity(Severity(..),WithSeverity(..))
 import Control.Monad.IO.Class(liftIO)
 import Control.Concurrent
 import Language.LSP.Server qualified as LSP
+import Language.LSP.Server qualified as SLSP
 import Language.LSP.Protocol.Message qualified as LSP
 import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Logging qualified as LSP
-
+import Cryptol.Utils.PP
 import Cryptol.ModuleSystem
 import State
+import Error
 
 -- | The language server monad.
 type M = LSP.LspM Config
@@ -123,10 +127,20 @@ doModuleCmd ::
   ModuleCmd a -> (Maybe a -> M ()) -> M ()
 doModuleCmd m k =
   doModuleCmd' m \ws mbRes ->
-    -- XXX: publish
-    k case mbRes of
-        Left {} -> Nothing
-        Right a -> Just a
+    do
+      let (err,res) =
+            case mbRes of
+              Left e -> (Just e, Nothing)
+              Right a -> (Nothing, Just a)
+          (haveErrs, dsMap) = diagnostics err ws
+          ds = Map.toList dsMap
+      case err of
+        Just e | not haveErrs ->
+          lspShow Error (Text.pack (show (pp e)))
+        _ -> pure ()
+      LSP.flushDiagnosticsBySource 10 (Just "cryptol")
+      mapM_ (\(u,d) -> SLSP.publishDiagnostics 10 u Nothing d) ds
+      k res
 
 doModuleCmd_ :: ModuleCmd a -> M ()
 doModuleCmd_ m = doModuleCmd m (const (pure ()))

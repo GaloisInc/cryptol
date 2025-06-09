@@ -268,7 +268,7 @@ loadModuleFrom quiet isrc =
      case mb of
        Just m -> return (lmFilePath m, lmData m)
        Nothing ->
-         do path <- findModule n
+         do path <- findModule isrc n
             errorInFile path $
               do (fp, deps, pms) <- parseModule path
                  ms <- mapM (loadModuleAndDeps True quiet isrc path fp deps) pms
@@ -395,8 +395,8 @@ moduleFile n = addExtension (joinPath (modNameChunks n))
 
 
 -- | Discover a module.
-findModule :: ModName -> ModuleM ModulePath
-findModule n = do
+findModule :: ImportSource -> ModName -> ModuleM ModulePath
+findModule isrc n = do
   paths <- getSearchPath
   loop (possibleFiles paths)
   where
@@ -416,7 +416,7 @@ findModule n = do
         | m == suiteBName  -> pure (InMem "SuiteB" suiteBContents)
         | m == primeECName -> pure (InMem "PrimeEC" primeECContents)
         | m == preludeReferenceName -> pure (InMem "Cryptol::Reference" preludeReferenceContents)
-      _ -> moduleNotFound n =<< getSearchPath
+      _ -> moduleNotFound isrc n =<< getSearchPath
 
   -- generate all possible search paths
   possibleFiles paths = do
@@ -482,7 +482,7 @@ findDeps m = appEndo (snd (findDeps' m)) []
 
 findDepsOfModule :: ModName -> ModuleM (ModulePath, FileInfo)
 findDepsOfModule m =
-  do mpath <- findModule m
+  do mpath <- findModule (FromModule m) m
      findDepsOf mpath
 
 findDepsOf :: ModulePath -> ModuleM (ModulePath, FileInfo)
