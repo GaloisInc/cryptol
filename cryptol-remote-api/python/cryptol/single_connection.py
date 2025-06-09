@@ -137,9 +137,9 @@ def load_project(path : str, mode: str, *, timeout:Optional[float] = None) -> An
     """
     return __get_designated_connection().load_project(path, mode, timeout=timeout)
 
-def check_docstrings(*, timeout:Optional[float] = None) -> Any:
+def check_docstrings(cache_id: str, *, timeout:Optional[float] = None) -> Any:
     """Check loaded module docstrings."""
-    return __get_designated_connection().check_docstrings(timeout=timeout)
+    return __get_designated_connection().check_docstrings(cache_id, timeout=timeout)
 
 def load_module(module_name : str, *, timeout:Optional[float] = None) -> None:
     """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""

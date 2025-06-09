@@ -10,29 +10,37 @@ module CryptolServer.LoadProject
   )
   where
 
-import qualified Argo.Doc as Doc
+import Control.Monad (join)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Data.Aeson ((.:), (.=),FromJSON, ToJSON)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson as JSON
-import CryptolServer
-import CryptolServer.Exceptions (configLoadError)
-import qualified Cryptol.Project as Proj
-import qualified Cryptol.Project.Cache as Proj
-import Cryptol.ModuleSystem.Monad (runModuleM)
 import Data.Map (Map)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+
+import Data.Typeable (typeRep, Proxy (Proxy))
+import Data.Aeson.Types (Pair)
+import Data.Aeson ((.:), (.=),FromJSON, ToJSON)
+import qualified Data.Aeson as JSON
+
+import qualified Argo.Doc as Doc
+
+import Cryptol.Utils.PP (pp)
+import Cryptol.Parser.Position(thing)
+import Cryptol.Parser.AST (ModuleG(mName))
+
+import Cryptol.ModuleSystem.Monad (runModuleM)
 import Cryptol.ModuleSystem.Env (ModulePath(..))
 import Cryptol.ModuleSystem.Fingerprint (fingerprintHexString)
 import Cryptol.Project (ScanStatus)
-import Cryptol.Project.Cache (FullFingerprint(..), CacheModulePath, LoadCache)
+import Cryptol.Project.Cache (FullFingerprint(..), CacheModulePath, LoadCache, CacheId)
 import Cryptol.Project.Monad (ChangeStatus(..), InvalidStatus(..), Parsed, ScanStatus(..), LoadProjectMode (..))
-import Cryptol.Utils.PP (pp)
-import Data.Aeson.Types (Pair)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Cryptol.Parser.AST (ModuleG(mName))
-import Control.Monad (join)
-import Data.Typeable (typeRep, Proxy (Proxy))
+import qualified Cryptol.Project as Proj
+import qualified Cryptol.Project.Cache as Proj
+
+import CryptolServer
+import CryptolServer.Exceptions (configLoadError)
+import CryptolServer.Utils
+
+
 
 loadProjectDescr :: Doc.Block
 loadProjectDescr =
@@ -49,15 +57,17 @@ loadProject params = do
      do (fingerprints, scanStatus, testResults) <-
           liftModuleCmd (\minp -> runModuleM minp (Proj.loadProject (paramRefresh params) cfg))
         let testResults' = validateTestResults scanStatus testResults
-        liftIO (Proj.saveLoadCache (buildNewCache testResults' fingerprints))
+        cid <- liftIO (Proj.saveLoadCache (buildNewCache testResults' fingerprints))
         pure LoadProjectResult {
           resultScanStatus = scanStatus,
-          cachedTestResults = Map.mapMaybe id testResults'
+          cachedTestResults = Map.mapMaybe id testResults',
+          cacheId = cid
           }
 
 data LoadProjectResult = LoadProjectResult {
   resultScanStatus :: Map ModulePath ScanStatus,
-  cachedTestResults :: Map CacheModulePath Bool
+  cachedTestResults :: Map CacheModulePath Bool,
+  cacheId :: !CacheId
 }
 
 validateTestResults :: Map ModulePath ScanStatus -> Map CacheModulePath (Maybe Bool) -> Map CacheModulePath (Maybe Bool)
@@ -84,6 +94,7 @@ instance ToJSON LoadProjectResult where
   toJSON LoadProjectResult{..} = JSON.object
     [ "scan_status"  .= [encodeSSEntry k v | (k, v) <- Map.assocs resultScanStatus]
     , "test_results" .= [encodeTREntry k v | (k, v) <- Map.assocs cachedTestResults]
+    , "cache_id"     .= BS cacheId
     ]
 
 encodeTREntry :: CacheModulePath -> Bool -> JSON.Value
@@ -112,7 +123,7 @@ encodeSSEntry mp status =
 encodeParsed :: Parsed -> [JSON.Value]
 encodeParsed p = [
    JSON.object [
-    "module" .= show (pp (mName k)),
+    "module" .= show (pp (thing (mName k))),
     "deps" .= [
       JSON.object (encodeMP path : [ "source" .= show (pp src)])
       | (src, path) <- v
