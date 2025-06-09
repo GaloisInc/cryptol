@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 module Definitions where
 
 import Data.Text(Text)
@@ -59,6 +60,10 @@ instance (GetVarTypes a) => GetVarTypes [a] where
       [] -> id
       x : ys -> getVarTypes nm (x,ys)
 
+instance GetVarTypes (T.ModuleG name) where
+  getVarTypes nm mo = getVarTypes nm (T.mDecls mo, Map.elems (T.mNominalTypes mo))
+
+
 instance GetVarTypes T.DeclGroup where
   getVarTypes nm = getVarTypes nm . T.groupDecls
 
@@ -69,7 +74,6 @@ instance GetVarTypes T.Decl where
       T.DPrim         -> id
       T.DForeign _ i  -> getVarTypes nm i
       T.DExpr e       -> getVarTypes nm e
-
 
 instance GetVarTypes T.Expr where
   getVarTypes nm expr =
@@ -102,6 +106,14 @@ instance GetVarTypes T.Match where
     case m of
       T.From x _ t e -> getVarTypes nm e . Map.insert x (nm, T.tMono t)
       T.Let d -> getVarTypes nm d
+
+instance GetVarTypes T.NominalType where
+  getVarTypes nm nom = flip (foldr (\(x,t) -> Map.insert x (nm1,t))) cons 
+    where
+    cons = T.nominalTypeConTypes nom
+    nm1  = T.addTNames (T.ntParams nom) nm
+
+
 
 class RangedVars t where
   rangedVars ::
@@ -194,24 +206,39 @@ instance RangedVars (TopDecl Name) where
     case td of
       Decl d -> rangedVars d
       DPrimType pt -> rangedVars pt
+      TDNewtype nt -> rangedVars nt
+      TDEnum en -> rangedVars en
+      DInterfaceConstraint _ xs -> rangedVars xs
       _ -> const id -- XXX
       
       {-
-  | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
-  | TDEnum (TopLevel (EnumDecl name))   -- ^ @enum T as = cons@
-  | Include (Located FilePath) -- ^ @include File@ (until NoInclude)
-
+  
+  
   | DParamDecl Range (Signature name)   -- ^ @parameter ...@ (parser only)
 
   | DModule (TopLevel (NestedModule name))      -- ^ @submodule M where ...@
   | DImport (Located (ImportG (ImpName name)))  -- ^ @import X@
   | DModParam (ModParam name)                   -- ^ @import interface X ...@
-  | DInterfaceConstraint (Maybe (Located Text)) (Located [Prop name]) -}
+  
+-}
+
+instance RangedVars (Newtype Name) where
+  rangedVars nt =
+    rangedVars (Def <$> nm, (con, map (uncurry Located) (recordElements (nBody nt))))
+    where
+    nm = nName nt
+    con = Def (nConName nt) <$ nm
+
+instance RangedVars (EnumDecl Name) where
+  rangedVars ed = rangedVars (Def <$> eName ed, eCons ed)
+
+instance RangedVars (EnumCon Name) where
+  rangedVars c = rangedVars (Def <$> ecName c, ecFields c)
 
 
 instance RangedVars (PrimType Name) where
   rangedVars pt = rangedVars (Def <$> primTName pt, snd (primTCts pt))
-
+       
 
 instance RangedVars a => RangedVars (TopLevel a) where
   rangedVars a ctx = rangedVars (tlValue a) ctx { curDoc = thing <$> tlDoc a }

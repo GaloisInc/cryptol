@@ -77,7 +77,7 @@ updateIndexes loaded ixes = foldl' updateIndex ixes loaded
   updateIndex cur ent =
     case ent of
       ALoadedModule lm ->
-        let getTys m = getVarTypes T.emptyNameMap (T.mDecls (lmdModule m)) mempty in
+        let getTys m = getVarTypes T.emptyNameMap (lmdModule m) mempty in
         case entityFileInfo getTys lm of
           Just (uri, rm, tys) ->
             let i           = rangedVars (mDef rm) noCtxt emptyIndex
