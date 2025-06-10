@@ -80,20 +80,27 @@ updateIndexes loaded ixes = foldl' updateIndex ixes loaded
   where
   updateIndex cur ent =
     case ent of
-      ALoadedModule lm ->
-        let getTys m = getVarTypes T.emptyNameMap (lmdModule m) mempty in
-        case entityFileInfo getTys lm of
-          Just (uri, rm, tys) ->
-            let i           = rangedVars (mDef rm) noCtxt emptyIndex
-                addTy n inf = inf { defType = Map.lookup n tys }
-                defs        = Map.mapWithKey addTy (ixDefs i)
-            in IndexDB {
-                posIndex = Map.insert uri (Map.fromList (ixUse i)) (posIndex cur),
-                allDefs  = Map.union defs (allDefs cur)
-            }
-          Nothing -> cur
-      ALoadedFunctor lm -> cur -- XXX
-      ALoadedInterface li -> cur  -- XXX
+      ALoadedModule lm -> doLoadedModule lm cur
+      ALoadedFunctor lm -> doLoadedModule lm cur
+      ALoadedInterface _li -> cur
+        -- for now we skip these as there's noting interesting to report
+
+
+doLoadedModule :: LoadedModule -> IndexDB -> IndexDB
+doLoadedModule lm cur =
+
+  case entityFileInfo getTys lm of
+    Just (uri, rm, tys) ->
+      let i           = rangedVars (mDef rm) noCtxt emptyIndex
+          addTy n inf = inf { defType = Map.lookup n tys }
+          defs        = Map.mapWithKey addTy (ixDefs i)
+      in IndexDB {
+          posIndex = Map.insert uri (Map.fromList (ixUse i)) (posIndex cur),
+          allDefs  = Map.union defs (allDefs cur)
+      }
+    Nothing -> cur
+  where
+  getTys m = getVarTypes T.emptyNameMap (lmdModule m) mempty
 
 entityFileInfo ::
   (a -> Map Name (T.NameMap, T.Schema)) ->
