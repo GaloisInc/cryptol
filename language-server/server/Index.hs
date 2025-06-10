@@ -10,7 +10,7 @@ import Data.List(foldl')
 import Data.Map(Map)
 import Data.Map qualified as Map
 import Control.Lens((^.))
-import Control.Monad(guard)
+import Control.Monad(guard,mplus)
 
 import Language.LSP.Protocol.Types qualified as LSP
 import Language.LSP.Protocol.Lens qualified as LSP
@@ -63,7 +63,11 @@ lookupPosition uri pos db =
     (r,n) <- step 3 $ Map.lookupMin (Map.dropWhileAntitone tooEarly info)
     step 4 $ guard (from r <= tgt && tgt <= to r)
     def <- step 5 $ Map.lookup n (allDefs db)
-    pure (snd (rangeToLSP r) , def)
+    def' <- case defSeeAlso def of
+              Just a | Just b <- Map.lookup a (allDefs db) ->
+                pure def { defDoc = defDoc b `mplus` defDoc def }
+              _ -> pure def
+    pure (snd (rangeToLSP r) , def')
   where
   step n = maybe (Left n) Right
 

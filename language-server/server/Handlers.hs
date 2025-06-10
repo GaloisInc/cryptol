@@ -66,7 +66,7 @@ onHover :: LSP.HoverParams -> M (LSP.Hover |? LSP.Null)
 onHover ps =
   do
     s <- getState
-    lspLog Info (Text.pack (show (pp (cryIndex s))))
+    -- lspLog Info (Text.pack (show (pp (cryIndex s))))
     case lookupPosition doc pos (cryIndex s) of
         Left n -> lspLog Info ("not found " <> Text.pack (show n)) >> pure (LSP.InR LSP.Null)
         Right (rng,def) ->

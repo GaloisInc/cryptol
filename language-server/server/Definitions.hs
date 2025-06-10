@@ -7,6 +7,7 @@ import Data.Map qualified as Map
 
 import Cryptol.Utils.PP
 import Cryptol.Utils.RecordMap
+import Cryptol.Utils.Ident
 import Cryptol.Parser.AST
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST qualified as T
@@ -17,6 +18,9 @@ import Cryptol.Parser.Position
 data DefInfo = DefInfo {
   defName  :: !Name,
   -- ^ The name of the definition
+
+  defSeeAlso :: !(Maybe Name),
+  -- ^ A related name, for example name in functor or name in interface
 
   defRange :: Range,
   -- ^ Location of the definition (specifically, the name)
@@ -37,8 +41,13 @@ instance PP DefInfo where
     "",
     maybe mempty pp (defDoc di),
     "",
-    case nameModPathMaybe (defName di) of
-      Just p  -> "*Defined in `" <> pp p <> "`*"
+    case asOrigName (defName di) of
+      Just og  -> "*Defined in `" <> pp nm <> "`*"
+        where
+        m = ogModule og
+        nm = case ogFromParam og of
+                Just i -> Nested m i
+                Nothing -> m
       Nothing -> "*Local definition*"
     ]
 
@@ -169,37 +178,72 @@ instance RangedVars Use where
           Just r  -> rest { ixUse = (r,a) : ixUse rest }
 
 newtype Def = Def Name
+data Def' = Def' Bool Name Name
 
-instance RangedVars Def where
-  rangedVars (Def a) ctx rest =
-    case nameInfo a of
+
+
+addDef :: Bool -> Maybe Name -> Name -> Ctxt -> Index -> Index
+addDef addUse also nm ctx rest =
+    case nameInfo nm of
       GlobalName SystemName _ -> rest
       _ -> rest {
-        ixDefs = Map.insert a info (ixDefs rest),
-        ixUse = (r,a) : ixUse rest
+        ixDefs = Map.insert nm info (ixDefs rest),
+        ixUse = if addUse then (rng,nm) : ixUse rest else ixUse rest
       }
     where
-    r = nameLoc a
+    rng =
+      case also of
+        Nothing -> nameLoc nm
+        Just r  -> nameLoc r
+
     blankInfo = DefInfo {
-      defName  = a,
-      defRange = r,
+      defName  = nm,
+      defSeeAlso = also,
+      defRange = rng,
       defDoc   = Nothing,
       defType  = Nothing   -- added later
     }
     info =
-      case nameInfo a of 
+      case nameInfo nm of 
         GlobalName {} -> blankInfo { defDoc = curDoc ctx }
         _             -> blankInfo
-    
+
+
+
+instance RangedVars Def' where
+  rangedVars (Def' use rel a) = addDef use (Just rel) a
+
+
+instance RangedVars Def where
+  rangedVars (Def x) = addDef True Nothing x
 
 --------------------------------------------------------------------------------
 
+ 
 instance RangedVars (ModuleDefinition Name) where
   rangedVars mdef =
     case mdef of
       NormalModule tds -> rangedVars tds
-      FunctorInstance f as is -> const id -- XXX
-      InterfaceModule sig -> const id -- XXX
+      FunctorInstance f as is -> rangedVars (f,(as, map mk (Map.toList is)))
+        where mk (x,y) = Def' False x y
+      InterfaceModule sig -> rangedVars sig
+
+instance RangedVars (ModuleInstanceArgs Name) where
+  rangedVars ma =
+    case ma of
+      DefaultInstArg a -> rangedVars a
+      DefaultInstAnonArg a -> rangedVars a
+      NamedInstArgs as -> rangedVars as
+
+instance RangedVars (ModuleInstanceArg Name) where
+  rangedVars a =
+    case a of
+      ModuleArg i -> rangedVars i
+      ParameterArg {} -> const id
+      AddParams {} -> const id
+
+instance RangedVars (ModuleInstanceNamedArg Name) where
+  rangedVars (ModuleInstanceNamedArg _ x) = rangedVars x
 
 instance RangedVars (TopDecl Name) where
   rangedVars td =
@@ -212,11 +256,37 @@ instance RangedVars (TopDecl Name) where
       DModule nm -> rangedVars nm
       DImport i -> rangedVars i
       DModParam mp -> rangedVars mp
-      DParamDecl r s -> const id -- XXX: Signatures
+      DParamDecl r s -> \ctx -> rangedVars s ctx { curRange = Just r }
       Include {} -> const id
 
+instance RangedVars (Signature Name) where
+  rangedVars sd =
+    rangedVars
+      (sigImports sd,
+      (sigTypeParams sd,
+      (sigConstraints sd,
+      (sigDecls sd,
+       sigFunParams sd))))
+
+instance RangedVars (SigDecl Name) where
+  rangedVars sd ctx =
+    case sd of
+      SigTySyn ts d -> rangedVars ts ctx { curDoc = d }
+      SigPropSyn ps d -> rangedVars ps ctx { curDoc = d }
+
+instance RangedVars (ParameterType Name) where
+  rangedVars pt ctx =
+    rangedVars (Def <$> ptName pt) ctx { curDoc = thing <$> ptDoc pt }
+
+instance RangedVars (ParameterFun Name) where
+  rangedVars pf ctx =
+    rangedVars (pfSchema pf) ctx .
+    rangedVars (Def <$> pfName pf) ctx { curDoc = thing <$> pfDoc pf }
+
 instance RangedVars (ModParam Name) where
-  rangedVars mp = rangedVars (mpSignature mp)
+  rangedVars mp = rangedVars (mpSignature mp, map mk (Map.toList (mpRenaming mp)))
+    where
+    mk (k,v) = Def' True v k
 
 instance RangedVars (ImpName Name) where
   rangedVars imp =

@@ -190,7 +190,7 @@ data ModuleDefinition name =
 
 {- | Maps names in the original functor with names in the instnace.
 Does *NOT* include the parameters, just names for the definitions.
-This *DOES* include entrirs for all the name in the instantiated functor,
+This *DOES* include entries for all the name in the instantiated functor,
 including names in modules nested inside the functor. -}
 type ModuleInstance name = Map name name
 
