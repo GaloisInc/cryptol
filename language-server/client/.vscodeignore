@@ -8,3 +8,8 @@ src/**
 **/*.map
 **/*.ts
 **/.vscode-test.*
+out
+node_modules
+tsconfig.js
+esbuild.js
+eslint.config.mjs

@@ -4,32 +4,7 @@ import * as vsc from 'vscode-languageclient/node'
 
 let client: vsc.LanguageClient;
 
-
-async function callServer(command: string, args: any[]): Promise<void> {
-	const params = { command: command, arguments: args }
-	return new Promise<void>(
-	  () => client.sendRequest(vsc.ExecuteCommandRequest.type, params))
-}
-
-
 export function activate(context: vscode.ExtensionContext) {
-
-	function getCurrentDoc(): string | null {
-	  const editor = vscode.window.activeTextEditor
-	  if (editor === undefined) { return null }
-	  return editor.document.uri.toString()
-	}
-
-	function callWithCurrentDoc(cmd: string) {
-	  const uri = getCurrentDoc()
-	  if (uri === null) { return }
-	  callServer(cmd,[uri])
-	}
-
-	const cmdReload =
-	  vscode.commands.registerCommand('cryptol.reload', () =>
-		callWithCurrentDoc("reload")
-	)
 
 	const cfg= vscode.workspace.getConfiguration("cryptol") 
 	let serverExe = cfg["language-server-path"]
@@ -46,7 +21,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	});
 
-	context.subscriptions.push(cmdReload)
 	client.start();
 
 }
