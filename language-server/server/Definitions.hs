@@ -20,7 +20,8 @@ data DefInfo = DefInfo {
   -- ^ The name of the definition
 
   defSeeAlso :: !(Maybe Name),
-  -- ^ A related name, for example name in functor or name in interface
+  -- ^ A related name, for example name in functor or name in interface.
+  -- See `Index` for how it used (e.g., we use the doc from this name, if any)
 
   defRange :: Range,
   -- ^ Location of the definition (specifically, the name)
@@ -70,8 +71,16 @@ instance (GetVarTypes a) => GetVarTypes [a] where
       x : ys -> getVarTypes nm (x,ys)
 
 instance GetVarTypes (T.ModuleG name) where
-  getVarTypes nm mo = getVarTypes nm (T.mDecls mo, Map.elems (T.mNominalTypes mo))
+  getVarTypes nm mo =
+    getVarTypes nm1 (Map.elems (T.mParamFuns mo), 
+                    (Map.elems (T.mFunctors mo),
+                    (T.mDecls mo,
+                     Map.elems (T.mNominalTypes mo))))
+    where
+    nm1 = T.addTNames (map T.mtpParam (Map.elems (T.mParamTypes mo))) nm
 
+instance GetVarTypes T.ModVParam where
+  getVarTypes nm mp = Map.insert (T.mvpName mp)  (nm, T.mvpType mp)
 
 instance GetVarTypes T.DeclGroup where
   getVarTypes nm = getVarTypes nm . T.groupDecls
