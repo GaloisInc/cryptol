@@ -31,6 +31,8 @@ handlers _caps = mconcat [
   lspSyncRequest LSP.SMethod_TextDocumentHover onHover,
   lspSyncRequest LSP.SMethod_TextDocumentDefinition onGotoDefinition,
 
+  lspSyncRequest LSP.SMethod_TextDocumentFoldingRange onFoldingRange,
+
   lspSyncRequest LSP.SMethod_TextDocumentSemanticTokensFull onSemTokFull,
   lspSyncRequest LSP.SMethod_TextDocumentSemanticTokensRange onSemTokRange
   ]
@@ -109,13 +111,13 @@ requestSemTokUpdate =
 
 onSemTokFull :: LSP.SemanticTokensParams -> M (LSP.SemanticTokens |? LSP.Null)
 onSemTokFull ps =
-  do let doc = ps ^. (LSP.textDocument . LSP.uri)
-     sendSemanticTokens =<< semanticTokens doc Nothing
+  do let doc = ps ^. LSP.textDocument . LSP.uri
+     sendSemanticTokens . fst =<< semanticTokens doc Nothing
 
 onSemTokRange :: LSP.SemanticTokensRangeParams -> M  (LSP.SemanticTokens |? LSP.Null)
 onSemTokRange ps =
   do let doc = ps ^. (LSP.textDocument . LSP.uri)
-     sendSemanticTokens =<< semanticTokens doc (Just (ps ^. LSP.range))
+     sendSemanticTokens . fst =<< semanticTokens doc (Just (ps ^. LSP.range))
     
 sendSemanticTokens :: [LSP.SemanticTokenAbsolute] -> M  (LSP.SemanticTokens |? LSP.Null)
 sendSemanticTokens toks
@@ -127,3 +129,11 @@ sendSemanticTokens toks
         do
           lspShow Error err
           pure (LSP.InR LSP.Null)
+
+onFoldingRange :: LSP.FoldingRangeParams -> M ([LSP.FoldingRange] |? LSP.Null)
+onFoldingRange ps =
+  do
+    let doc = ps ^. LSP.textDocument . LSP.uri
+    (_,rngs) <- semanticTokens doc Nothing
+    lspLog Info (Text.pack (show rngs))
+    pure (LSP.InL rngs)

@@ -30,7 +30,7 @@ data Config = Config {
 }
 
 data State = State {
-  lexedFiles  :: Map LSP.Uri [LSP.SemanticTokenAbsolute],
+  lexedFiles  :: Map LSP.Uri ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange]),
   cryIndex    :: IndexDB,
   cryState    :: ModuleInput IO
 }

@@ -72,6 +72,7 @@ lookupPosition uri pos db =
   step n = maybe (Left n) Right
 
 -- | Update indexes based on what's currently loaded
+-- XXX: Remove old entries as names have changed and we are just leaking
 updateIndexes ::
   [LoadedEntity] {- ^ Loaded modules -} ->
   IndexDB {- ^ Current index -} ->
