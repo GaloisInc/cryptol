@@ -23,6 +23,12 @@
           "type": "string",
           "default": "cryptol-language-server",
           "description": "Path to the Cryptol language server"
+        },
+        "cryptol.search-path": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Path to search for Cryptol modules"
         }
       }
     },

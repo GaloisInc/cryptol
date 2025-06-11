@@ -47,7 +47,7 @@ lexFile uri =
     Just file ->
       do txt <- Text.readFile file
          let (ls,_) = primLexer defaultConfig txt
-         pure (mapMaybe toAbsolute ls, mapMaybe tokenRange ls)
+         pure (concatMap toAbsolute ls, mapMaybe tokenRange ls)
 
 
 tokenRange :: Located Token -> Maybe LSP.FoldingRange
@@ -77,25 +77,53 @@ tokenRange ltok =
     }
 
 -- | Convert a Cryptol token to an LSP one
-toAbsolute :: Located Token -> Maybe LSP.SemanticTokenAbsolute
+toAbsolute :: Located Token -> [LSP.SemanticTokenAbsolute]
 toAbsolute ltok =
   do
     ty <- tokType (tokenType (thing ltok))
     let rng   = srcRange ltok
         start = Cry.from rng
         end   = Cry.to rng
-    pure LSP.SemanticTokenAbsolute {
-       _line = fromIntegral (Cry.line start - 1),
-       _startChar = fromIntegral (Cry.colOffset start),
-       _length = if Cry.line start == Cry.line end
-                   then fromIntegral (Cry.colOffset end - Cry.colOffset start + 1)
-                   else fromIntegral (Text.length (tokenText (thing ltok))),
-       _tokenType = ty,
-       _tokenModifiers = []
-     }
+        startL = fromIntegral (Cry.line start - 1)
+        startC = fromIntegral (Cry.colOffset start)
+        endC   = fromIntegral (Cry.colOffset end)
+    if Cry.line start == Cry.line end
+      then
+        [ LSP.SemanticTokenAbsolute {
+           _line = startL,
+           _startChar = fromIntegral (Cry.colOffset start),
+           _length = endC - startC + 1,
+           _tokenType = ty,
+           _tokenModifiers = []
+         } ]
+      else loop ty startL startC endC (tokenText (thing ltok))
+
+  where
+  loop ty l startC endC txt =
+    case Text.break (== '\n') txt of
+      (as,bs)
+        | Text.null bs -> [
+          LSP.SemanticTokenAbsolute {
+             _line = l,
+             _startChar = startC,
+             _length = endC - startC + 1,
+             _tokenType = ty,
+             _tokenModifiers = []
+           }
+        ]
+        | otherwise ->
+          LSP.SemanticTokenAbsolute {
+             _line = l,
+             _startChar = startC,
+             _length = fromIntegral (Text.length as),
+             _tokenType = ty,
+             _tokenModifiers = []
+           } : loop ty (l+1) 0 endC (Text.drop 1 bs)
+      
+      
 
 -- | Classify tokens
-tokType :: TokenT -> Maybe LSP.SemanticTokenTypes
+tokType :: TokenT -> [LSP.SemanticTokenTypes]
 tokType tok =
   case tok of
     Num {}      -> pure LSP.SemanticTokenTypes_Number
@@ -118,10 +146,10 @@ tokType tok =
         _       -> pure LSP.SemanticTokenTypes_Keyword
     Op  {}      -> pure LSP.SemanticTokenTypes_Operator
     Sym {}      -> pure LSP.SemanticTokenTypes_Decorator
-    Virt {}     -> Nothing
+    Virt {}     -> []
     White w ->
       case w of
-        Space -> Nothing
+        Space -> []
         _     -> pure LSP.SemanticTokenTypes_Comment
-    Err {}      -> Nothing
-    EOF {}      -> Nothing
+    Err {}      -> []
+    EOF {}      -> []
