@@ -40,7 +40,7 @@
 //!
 //! ```
 //! # use cry_ffi::*;
-// #
+//! #
 //! // For a Cryptol function `foreign abstract example : [64] -> [64] -> [64]`
 //!
 //! #[no_mangle]
