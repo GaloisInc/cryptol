@@ -10,7 +10,7 @@ import Data.List(foldl')
 import Data.Map(Map)
 import Data.Map qualified as Map
 import Control.Lens((^.))
-import Control.Monad(guard,mplus)
+import Control.Monad(guard,mplus,void)
 
 import Language.LSP.Protocol.Types qualified as LSP
 import Language.LSP.Protocol.Lens qualified as LSP
@@ -30,15 +30,15 @@ data IndexDB = IndexDB {
   allDefs :: Map Name DefInfo,
   -- ^ Information about names
 
-  posIndex :: Map ModulePath (Map Range Name)
-  -- ^ Locations of identifiers in a module
+  posIndex :: Map ModulePath (Map Range Name, Map Name ())
+  -- ^ Locations of identifiers in a module and definitions coming from this module
 }
 
 instance PP IndexDB where
   ppPrec _ db = vcat [ ppFs, vcat [ pp x $$ indent 2 (pp y) | (x,y) <- Map.toList (allDefs db) ]]
     where
     ppFs = vcat (map ppF (Map.toList (posIndex db)))
-    ppF (f,rs) = pp f $$ indent 2 (ppRs rs)
+    ppF (f,(rs,_)) = pp f $$ indent 2 (ppRs rs)
     ppRs rs = vcat [ hcat [ppR r, ": ", pp n] | (r,n) <- Map.toList rs ]
     ppR r = hcat [ pp (from r), "--", pp (to r)]
 
@@ -55,7 +55,7 @@ lookupPosition :: LSP.Uri -> LSP.Position -> IndexDB -> Either Int (LSP.Range, D
 lookupPosition uri pos db =
   do
     file <- step 1 $ LSP.uriToFilePath uri
-    info <- step 2 $ Map.lookup (InFile file) (posIndex db)
+    (info,_) <- step 2 $ Map.lookup (InFile file) (posIndex db)
     let l   = fromIntegral (pos ^. LSP.line) + 1
         c   = fromIntegral (pos ^. LSP.character)
         tgt = replPosition (l,c)
@@ -96,8 +96,12 @@ doLoadedModule lm cur =
           addTy n inf = inf { defType = Map.lookup n tys }
           defs        = Map.mapWithKey addTy (ixDefs i)
       in IndexDB {
-          posIndex = Map.insert uri (Map.fromList (ixUse i)) (posIndex cur),
-          allDefs  = Map.union defs (allDefs cur)
+          posIndex = Map.insert uri (Map.fromList (ixUse i), void defs) (posIndex cur),
+          allDefs  =
+            Map.union defs
+            case Map.lookup uri (posIndex cur) of
+              Just (_,old) -> allDefs cur `Map.difference` old
+              Nothing -> allDefs cur
       }
     Nothing -> cur
   where
