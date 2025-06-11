@@ -3,7 +3,6 @@ name = "cry_ffi"
 version = "0.1.0"
 edition = "2021"
 license = "BSD-3-Clause"
-license-files = "LICENSE"
 
 [lib]
 crate-type = ["lib"]
