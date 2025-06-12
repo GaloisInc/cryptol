@@ -3,8 +3,6 @@ module Handlers where
 import Data.Text qualified as Text
 import Data.Map qualified as Map
 import Control.Lens((^.))
-import Data.Aeson qualified as JS
-import Data.Aeson.Types qualified as JS
 import Language.LSP.Server qualified as LSP
 import Language.LSP.Protocol.Types(type (|?))
 import qualified Language.LSP.Protocol.Types as LSP
@@ -12,7 +10,6 @@ import qualified Language.LSP.Protocol.Message as LSP
 import qualified Language.LSP.Protocol.Lens as LSP
 
 import Cryptol.Utils.PP(pp)
-import Cryptol.ModuleSystem qualified as Cry
 
 import Monad
 import State
@@ -44,19 +41,7 @@ onInitialized :: LSP.InitializedParams -> M ()
 onInitialized _ = lspShow Info "Welcome to Cryptol!"
 
 onConfigChanged :: LSP.DidChangeConfigurationParams -> M ()
-onConfigChanged c =
-  case JS.parseMaybe opts (c ^. LSP.settings) of
-    Just yes -> update_ \s -> 
-      let inp   = cryState s
-          me    = Cry.minpModuleEnv inp
-          meNew = me { Cry.meSearchPath = yes }
-      in s { cryState = inp { Cry.minpModuleEnv = meNew } }
-    Nothing -> lspLog Error (Text.pack (show c))
-  where
-  opts = JS.withObject "Configuration" \obj ->
-    do
-      obj JS..: "search-path"
-
+onConfigChanged _ = pure ()
       
 onDocumentOpen :: LSP.DidOpenTextDocumentParams -> M ()
 onDocumentOpen ps = doLoad (ps ^. LSP.textDocument . LSP.uri)

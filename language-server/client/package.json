@@ -17,7 +17,7 @@
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": {
-      "title": "Cryptol configuation",
+      "title": "Cryptol",
       "properties": {
         "cryptol.language-server-path": {
           "type": "string",

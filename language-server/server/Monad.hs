@@ -38,7 +38,12 @@ type M = LSP.LspM Config
 
 -- | Do this when the client-side configuration changes.
 onConfigChange :: Config -> M ()
-onConfigChange _cfg = pure ()
+onConfigChange cfg =
+  update_ \s -> 
+    let inp   = cryState s
+        me    = minpModuleEnv inp
+        meNew = me { meSearchPath = crySearchPath cfg }
+    in s { cryState = inp { minpModuleEnv = meNew } }
 
 getConfig :: M Config
 getConfig = LSP.getConfig
