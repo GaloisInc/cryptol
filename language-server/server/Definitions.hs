@@ -28,7 +28,7 @@ data DefInfo = DefInfo {
   defDoc   :: Maybe Text,
   -- ^ Documentation, if any
 
-  defType  :: Maybe (TCtxt, T.Schema)
+  defType  :: Maybe (T.NameMap, T.Schema)
   -- ^ Type, if known
 }
 
@@ -37,7 +37,7 @@ instance PP DefInfo where
     case defType di of
       Nothing -> mempty
       Just (nms,s) -> "__" <> pp (nameIdent (defName di)) <> "__: "
-        <> T.ppWithNames (tctxNames nms) s,
+        <> T.ppWithNames nms s,
     "",
     maybe mempty pp (defDoc di),
     "",
@@ -56,17 +56,52 @@ instance PP DefInfo where
 class GetVarTypes t where
   getVarTypes :: TCtxt -> t -> TIndex -> TIndex
 
-type TIndex = Map TKey (TCtxt, T.Schema)
+-- | Various type information we collect.
+data TIndex = TIndex {
+  defTys :: Map Name (T.NameMap, T.Schema),
+  -- ^ Types of names
 
-data TKey =
-    Name Name
-  | Expr Range
-    deriving (Eq,Ord)
+  exprTys :: Map Range (T.NameMap, T.Schema),
+  -- ^ Types of interesting expressions (e.g., constant)
 
+  exprTyArgs :: Map Range (Name, T.NameMap, [T.Type])
+  -- ^ Type arguments for various occurances of names 
+}
+
+emptyTIndex :: TIndex
+emptyTIndex = TIndex { defTys = mempty, exprTys = mempty, exprTyArgs = mempty }
+
+addDefTy :: TCtxt -> Name -> T.Schema -> TIndex -> TIndex
+addDefTy c x t i = i {
+  defTys = Map.insert x (tctxNames c, t) (defTys i)
+}
+
+addExprTy :: TCtxt -> T.Schema -> TIndex -> TIndex
+addExprTy c t i =
+  case tctxRange c of
+    Nothing -> i
+    Just r -> i { exprTys = Map.insert r (tctxNames c, t) (exprTys i) }
+
+addTyArgs :: TCtxt -> Name -> TIndex -> TIndex
+addTyArgs c x i =
+  case tctxRange c of
+    Just r
+      | notSys && not (null as) ->
+        i { exprTyArgs = Map.insert r (x,tctxNames c, as) (exprTyArgs i) }
+      where
+      as = tctxTApp c
+      notSys = case nameInfo x of
+                 GlobalName SystemName _ -> False
+                 _ -> True
+    _ -> i
+     
+
+
+-- | Context while collecting type information
 data TCtxt = TCtxt {
-  tctxRange :: Maybe Range,
-  tctxNames :: T.NameMap,
-  tctxTApp :: [T.Type]
+  tctxRange :: Maybe Range,   -- ^ Where are we
+  tctxNames :: T.NameMap,     -- ^ How to pretty print type variables
+  tctxTApp :: [T.Type]        -- ^ Type arguments (for type applications)
 }
 
 emptyTCtxt :: TCtxt 
@@ -99,14 +134,14 @@ instance GetVarTypes (T.ModuleG name) where
 
 
 instance GetVarTypes T.ModVParam where
-  getVarTypes nm mp = Map.insert (Name (T.mvpName mp)) (nm, T.mvpType mp)
+  getVarTypes nm mp = addDefTy nm (T.mvpName mp) (T.mvpType mp)
 
 instance GetVarTypes T.DeclGroup where
   getVarTypes nm = getVarTypes nm . T.groupDecls
 
 instance GetVarTypes T.Decl where
   getVarTypes nm d =
-    Map.insert (Name (T.dName d)) (nm, T.dSignature d) .
+    addDefTy nm (T.dName d) (T.dSignature d) .
     case T.dDefinition d of
       T.DPrim         -> id
       T.DForeign _ i  -> getVarTypes nm i
@@ -123,17 +158,12 @@ instance GetVarTypes T.Expr where
       T.EIf e1 e2 e3 -> getVarTypes nm (e1,(e2,e3))
       T.ECase e ps d -> getVarTypes nm (e,(Map.elems ps,d))
       T.EComp _ _ e m -> getVarTypes nm (e,m)
-      T.EVar x
-        | Just pri <- asPrim x,
-          pri == prelPrim "number",
-          [_,rep] <- tctxTApp nm,
-          Just rng <- tctxRange nm -> Map.insert (Expr rng) (nm, T.tMono rep)
-        | otherwise -> id
+      T.EVar x ->  addTyArgs nm x
       T.ETAbs t e -> getVarTypes (addTNames [t] nm) e
       T.ETApp e t   -> getVarTypes nm1 e
         where nm1 = nm { tctxTApp = t : tctxTApp nm }
       T.EApp e1 e2  -> getVarTypes nm (e1,e2)
-      T.EAbs x t e  -> getVarTypes nm e . Map.insert (Name x) (nm, T.tMono t)
+      T.EAbs x t e  -> getVarTypes nm e . addDefTy nm x (T.tMono t)
       T.ELocated r e -> getVarTypes nm1 e
         where nm1 = nm { tctxRange = Just r }
       T.EProofAbs _ e -> getVarTypes nm e
@@ -143,16 +173,16 @@ instance GetVarTypes T.Expr where
     
 instance GetVarTypes T.CaseAlt where
   getVarTypes nm (T.CaseAlt xs e) =
-    getVarTypes nm e . flip (foldr (\(x,t) -> Map.insert (Name x) (nm, T.tMono t))) xs
+    getVarTypes nm e . flip (foldr (\(x,t) -> addDefTy nm x (T.tMono t))) xs
 
 instance GetVarTypes T.Match where
   getVarTypes nm m =
     case m of
-      T.From x _ t e -> getVarTypes nm e . Map.insert (Name x) (nm, T.tMono t)
+      T.From x _ t e -> getVarTypes nm e . addDefTy nm x (T.tMono t)
       T.Let d -> getVarTypes nm d
 
 instance GetVarTypes T.NominalType where
-  getVarTypes nm nom = flip (foldr (\(x,t) -> Map.insert (Name x) (nm1,t))) cons 
+  getVarTypes nm nom = flip (foldr (uncurry (addDefTy nm1))) cons 
     where
     cons = T.nominalTypeConTypes nom
     nm1  = addTNames (T.ntParams nom) nm
@@ -241,7 +271,7 @@ addDef addUse also nm ctx rest =
       defSeeAlso = also,
       defRange = rng,
       defDoc   = Nothing,
-      defType  = Nothing   -- added later
+      defType  = Nothing  -- added later
     }
     info =
       case nameInfo nm of 
