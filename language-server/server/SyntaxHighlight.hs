@@ -26,6 +26,7 @@ semanticTokens uri mbRange =
         Nothing ->
           do ts <- liftIO (lexFile uri)
              update \_ s -> pure (s { lexedFiles = Map.insert uri ts (lexedFiles s) }, ts)
+    -- mapM_ (lspLog Info . Text.pack . show) toks
     case mbRange of
       Nothing -> pure (toks,fs)
       Just r  ->
@@ -92,7 +93,7 @@ toAbsolute ltok =
         [ LSP.SemanticTokenAbsolute {
            _line = startL,
            _startChar = fromIntegral (Cry.colOffset start),
-           _length = endC - startC + 1,
+           _length = endC - startC,
            _tokenType = ty,
            _tokenModifiers = []
          } ]
@@ -106,7 +107,7 @@ toAbsolute ltok =
           LSP.SemanticTokenAbsolute {
              _line = l,
              _startChar = startC,
-             _length = endC - startC + 1,
+             _length = endC - startC,
              _tokenType = ty,
              _tokenModifiers = []
            }
@@ -145,7 +146,7 @@ tokType tok =
         KW_fin  -> pure LSP.SemanticTokenTypes_Type
         _       -> pure LSP.SemanticTokenTypes_Keyword
     Op  {}      -> pure LSP.SemanticTokenTypes_Operator
-    Sym {}      -> pure LSP.SemanticTokenTypes_Decorator
+    Sym {}      -> pure LSP.SemanticTokenTypes_Operator
     Virt {}     -> []
     White w ->
       case w of
