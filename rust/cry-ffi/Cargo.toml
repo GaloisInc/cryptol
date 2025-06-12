@@ -3,7 +3,6 @@ name = "cry_ffi"
 version = "0.1.0"
 edition = "2021"
 license = "BSD-3-Clause"
-license-files = "LICENSE"
 
 [lib]
 crate-type = ["lib"]
@@ -14,4 +13,4 @@ path = "src/example.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-num = "0.4.0"
+num = { version = "0.4.0", default-features = false, features = ["alloc"] }
