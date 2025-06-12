@@ -106,13 +106,14 @@ onGotoDefinition ps =
     s <- getState
     case lookupPosition doc pos (cryIndex s) of
       Left n -> lspLog Info ("not found " <> Text.pack (show n)) >> pure (LSP.InR (LSP.InR LSP.Null))
-      Right (_,def) ->
+      Right (_,RangeName def) ->
         do
           let (uri,rng) = rangeToLSP (defRange def)
           pure $ LSP.InL $ LSP.Definition $ LSP.InL LSP.Location {
             _uri = uri,
             _range = rng
           }
+      Right _ -> lspLog Info "expr" >> pure (LSP.InR (LSP.InR LSP.Null))
   where
   doc = ps ^. LSP.textDocument . LSP.uri
   pos = ps ^. LSP.position

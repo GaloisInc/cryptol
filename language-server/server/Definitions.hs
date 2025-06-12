@@ -1,4 +1,3 @@
-{-# LANGUAGE InstanceSigs #-}
 module Definitions where
 
 import Data.Text(Text)
@@ -29,7 +28,7 @@ data DefInfo = DefInfo {
   defDoc   :: Maybe Text,
   -- ^ Documentation, if any
 
-  defType  :: Maybe (T.NameMap, T.Schema)
+  defType  :: Maybe (TCtxt, T.Schema)
   -- ^ Type, if known
 }
 
@@ -38,7 +37,7 @@ instance PP DefInfo where
     case defType di of
       Nothing -> mempty
       Just (nms,s) -> "__" <> pp (nameIdent (defName di)) <> "__: "
-        <> T.ppWithNames nms s,
+        <> T.ppWithNames (tctxNames nms) s,
     "",
     maybe mempty pp (defDoc di),
     "",
@@ -55,8 +54,27 @@ instance PP DefInfo where
 -- | Collect the types of declared variables.
 -- Assumes all variables have distinct names
 class GetVarTypes t where
-  getVarTypes ::
-    T.NameMap -> t -> Map Name (T.NameMap, T.Schema) -> Map Name (T.NameMap, T.Schema)
+  getVarTypes :: TCtxt -> t -> TIndex -> TIndex
+
+type TIndex = Map TKey (TCtxt, T.Schema)
+
+data TKey =
+    Name Name
+  | Expr Range
+    deriving (Eq,Ord)
+
+data TCtxt = TCtxt {
+  tctxRange :: Maybe Range,
+  tctxNames :: T.NameMap,
+  tctxTApp :: [T.Type]
+}
+
+emptyTCtxt :: TCtxt 
+emptyTCtxt = TCtxt { tctxRange = Nothing, tctxNames = mempty, tctxTApp = [] }
+
+addTNames :: [T.TParam] -> TCtxt -> TCtxt
+addTNames xs t = t { tctxNames = T.addTNames xs (tctxNames t) }
+
 
 instance (GetVarTypes a, GetVarTypes b) => GetVarTypes (a,b) where
   getVarTypes nm (a,b) = getVarTypes nm a . getVarTypes nm b
@@ -77,17 +95,18 @@ instance GetVarTypes (T.ModuleG name) where
                     (T.mDecls mo,
                      Map.elems (T.mNominalTypes mo))))
     where
-    nm1 = T.addTNames (map T.mtpParam (Map.elems (T.mParamTypes mo))) nm
+    nm1 = addTNames (map T.mtpParam (Map.elems (T.mParamTypes mo))) nm
+
 
 instance GetVarTypes T.ModVParam where
-  getVarTypes nm mp = Map.insert (T.mvpName mp)  (nm, T.mvpType mp)
+  getVarTypes nm mp = Map.insert (Name (T.mvpName mp)) (nm, T.mvpType mp)
 
 instance GetVarTypes T.DeclGroup where
   getVarTypes nm = getVarTypes nm . T.groupDecls
 
 instance GetVarTypes T.Decl where
   getVarTypes nm d =
-    Map.insert (T.dName d) (nm, T.dSignature d) .
+    Map.insert (Name (T.dName d)) (nm, T.dSignature d) .
     case T.dDefinition d of
       T.DPrim         -> id
       T.DForeign _ i  -> getVarTypes nm i
@@ -104,34 +123,46 @@ instance GetVarTypes T.Expr where
       T.EIf e1 e2 e3 -> getVarTypes nm (e1,(e2,e3))
       T.ECase e ps d -> getVarTypes nm (e,(Map.elems ps,d))
       T.EComp _ _ e m -> getVarTypes nm (e,m)
-      T.EVar _ -> id
-      T.ETAbs t e -> getVarTypes (T.addTNames [t] nm) e
-      T.ETApp e _   -> getVarTypes nm e
+      T.EVar x
+        | Just pri <- asPrim x,
+          pri == prelPrim "number",
+          [_,rep] <- tctxTApp nm,
+          Just rng <- tctxRange nm -> Map.insert (Expr rng) (nm, T.tMono rep)
+        | otherwise -> id
+      T.ETAbs t e -> getVarTypes (addTNames [t] nm) e
+      T.ETApp e t   -> getVarTypes nm1 e
+        where nm1 = nm { tctxTApp = t : tctxTApp nm }
       T.EApp e1 e2  -> getVarTypes nm (e1,e2)
-      T.EAbs x t e  -> getVarTypes nm e . Map.insert x (nm, T.tMono t)
-      T.ELocated _ e -> getVarTypes nm e
+      T.EAbs x t e  -> getVarTypes nm e . Map.insert (Name x) (nm, T.tMono t)
+      T.ELocated r e -> getVarTypes nm1 e
+        where nm1 = nm { tctxRange = Just r }
       T.EProofAbs _ e -> getVarTypes nm e
       T.EProofApp e -> getVarTypes nm e
       T.EWhere e ds     -> getVarTypes nm (e,ds)
       T.EPropGuards gs _ -> getVarTypes nm (map snd gs)
-
+    
 instance GetVarTypes T.CaseAlt where
   getVarTypes nm (T.CaseAlt xs e) =
-    getVarTypes nm e . flip (foldr (\(x,t) -> Map.insert x (nm, T.tMono t))) xs
+    getVarTypes nm e . flip (foldr (\(x,t) -> Map.insert (Name x) (nm, T.tMono t))) xs
 
 instance GetVarTypes T.Match where
   getVarTypes nm m =
     case m of
-      T.From x _ t e -> getVarTypes nm e . Map.insert x (nm, T.tMono t)
+      T.From x _ t e -> getVarTypes nm e . Map.insert (Name x) (nm, T.tMono t)
       T.Let d -> getVarTypes nm d
 
 instance GetVarTypes T.NominalType where
-  getVarTypes nm nom = flip (foldr (\(x,t) -> Map.insert x (nm1,t))) cons 
+  getVarTypes nm nom = flip (foldr (\(x,t) -> Map.insert (Name x) (nm1,t))) cons 
     where
     cons = T.nominalTypeConTypes nom
-    nm1  = T.addTNames (T.ntParams nom) nm
+    nm1  = addTNames (T.ntParams nom) nm
 
 
+--------------------------------------------------------------------------------
+
+-- XXX: Would it be good enough to just use the type checked syntax?
+-- The renamed on might be more accurate (less rewriting has happened),
+-- and it could be used for files with type errors, in principle.x
 
 class RangedVars t where
   rangedVars ::
