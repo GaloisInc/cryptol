@@ -1359,7 +1359,10 @@ patternEnv :: Pattern PName -> RenameM NamingEnv
 patternEnv  = go
   where
   go (PVar Located { .. }) =
-    do n <- liftSupply (mkLocal NSValue (getIdent thing) srcRange)
+    do let src = case thing of
+                   NewName {} -> SystemName
+                   _          -> UserName
+       n <- liftSupply (mkLocal src NSValue (getIdent thing) srcRange)
        -- XXX: for deps, we should record a use
        return (singletonNS NSValue thing n)
   go (PCon _ ps)      = bindVars ps
@@ -1399,7 +1402,7 @@ patternEnv  = go
            -- of the type of the pattern.
            | null ps ->
              do loc <- curLoc
-                n   <- liftSupply (mkLocal NSType (getIdent pn) loc)
+                n   <- liftSupply (mkLocalPName NSType pn loc)
                 return (singletonNS NSType pn n)
 
            -- This references a type synonym that's not in scope. Record an
@@ -1407,7 +1410,7 @@ patternEnv  = go
            | otherwise ->
              do loc <- curLoc
                 recordError (UnboundName NSType (Located loc pn))
-                n   <- liftSupply (mkLocal NSType (getIdent pn) loc)
+                n   <- liftSupply (mkLocalPName NSType pn loc)
                 return (singletonNS NSType pn n)
 
   typeEnv (TRecord fs)      = bindTypes (map snd (recordElements fs))

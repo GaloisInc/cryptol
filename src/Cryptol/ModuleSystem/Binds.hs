@@ -437,7 +437,7 @@ newTop ns m thing fx rng =
   where src = if isGeneratedName thing then SystemName else UserName
 
 newLocal :: FreshM m => Namespace -> PName -> Range -> m Name
-newLocal ns thing rng = liftSupply (mkLocal ns (getIdent thing) rng)
+newLocal ns thing rng = liftSupply (mkLocalPName ns thing rng)
 
 -- | Given a name in a signature, make a name for the parameter corresponding
 -- to the signature.

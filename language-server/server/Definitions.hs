@@ -61,38 +61,27 @@ data TIndex = TIndex {
   defTys :: Map Name (T.NameMap, T.Schema),
   -- ^ Types of names
 
-  exprTys :: Map Range (T.NameMap, T.Schema),
-  -- ^ Types of interesting expressions (e.g., constant)
-
   exprTyArgs :: Map Range (Name, T.NameMap, [T.Type])
   -- ^ Type arguments for various occurances of names 
 }
 
 emptyTIndex :: TIndex
-emptyTIndex = TIndex { defTys = mempty, exprTys = mempty, exprTyArgs = mempty }
+emptyTIndex = TIndex { defTys = mempty, exprTyArgs = mempty }
 
 addDefTy :: TCtxt -> Name -> T.Schema -> TIndex -> TIndex
 addDefTy c x t i = i {
   defTys = Map.insert x (tctxNames c, t) (defTys i)
 }
 
-addExprTy :: TCtxt -> T.Schema -> TIndex -> TIndex
-addExprTy c t i =
-  case tctxRange c of
-    Nothing -> i
-    Just r -> i { exprTys = Map.insert r (tctxNames c, t) (exprTys i) }
-
 addTyArgs :: TCtxt -> Name -> TIndex -> TIndex
 addTyArgs c x i =
   case tctxRange c of
     Just r
-      | notSys && not (null as) ->
+      | nameSrc x == UserName && not (null as) ->
         i { exprTyArgs = Map.insert r (x,tctxNames c, as) (exprTyArgs i) }
       where
       as = tctxTApp c
-      notSys = case nameInfo x of
-                 GlobalName SystemName _ -> False
-                 _ -> True
+
     _ -> i
      
 
@@ -240,8 +229,8 @@ newtype Use = Use Name
 
 instance RangedVars Use where
   rangedVars (Use a) ctx rest =
-    case nameInfo a of
-      GlobalName SystemName _ -> rest
+    case nameSrc a of
+      SystemName -> rest
       _ ->
         case curRange ctx of
           Nothing -> rest
@@ -254,8 +243,8 @@ data Def' = Def' Bool Name Name
 
 addDef :: Bool -> Maybe Name -> Name -> Ctxt -> Index -> Index
 addDef addUse also nm ctx rest =
-    case nameInfo nm of
-      GlobalName SystemName _ -> rest
+    case nameSrc nm of
+      SystemName -> rest
       _ -> rest {
         ixDefs = Map.insert nm info (ixDefs rest),
         ixUse = if addUse then (rng,nm) : ixUse rest else ixUse rest

@@ -4,7 +4,7 @@ import Data.Text(Text)
 import Data.Text qualified as Text
 import Data.Map(Map)
 import Data.Map qualified as Map
-import Data.Maybe(mapMaybe,maybeToList)
+import Data.Maybe(mapMaybe)
 import Language.LSP.Protocol.Types qualified as LSP
 import Language.LSP.Diagnostics qualified as LSP
 import Cryptol.Utils.PP
@@ -46,8 +46,6 @@ noExtra = Extra { fallbackRange = mempty, nameMap = mempty }
 class Diag t where
   toDiag :: Extra -> t -> [(LSP.Uri, LSP.Diagnostic)]
 
-todo :: [a]
-todo = []
 
 instance Diag a => Diag (Maybe a) where
   toDiag fp = maybe [] (toDiag fp)
@@ -57,8 +55,8 @@ instance Diag a => Diag [a] where
 
 
 instance Diag ModuleWarning where
-  toDiag _ warn =
-    case warn of
+  toDiag _ wa =
+    case wa of
       TypeCheckWarnings nm ws ->
         [ mkWarn r (ppWithNames nm w) | (r,w) <- ws ]
       RenamerWarnings ws ->

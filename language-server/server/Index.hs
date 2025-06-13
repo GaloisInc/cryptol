@@ -24,6 +24,7 @@ import Cryptol.TypeCheck.Subst qualified as T
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Env
 import Cryptol.Utils.PP
+import Cryptol.Utils.Ident
 
 import Position
 import Definitions
@@ -47,19 +48,9 @@ data RangeInfo a = RangeInfo {
   -- ^ Type parameters at call cite
 }
 
-mkRangeDef :: a -> RangeInfo a
-mkRangeDef a = RangeInfo { rangeDef = a, rangeType = Nothing, rangeTArgs = Nothing }
-
-mkRangeTArgs :: (Name, T.NameMap, [T.Type]) -> RangeInfo Name
-mkRangeTArgs (x,nm,ts) = RangeInfo { rangeDef = x, rangeType = Nothing, rangeTArgs = Just (nm,ts) }
-
-
-joinInfo :: RangeInfo Name -> RangeInfo Name -> RangeInfo Name
-joinInfo x y =
-  case (rangeDef x, rangeDef y) of
-    (a, b)
-      | a == b -> x { rangeTArgs = rangeTArgs x `mplus` rangeTArgs y }
-    _ -> x
+mkRangeDef :: Name -> Maybe (T.NameMap, [T.Type]) -> RangeInfo Name
+mkRangeDef a as =
+  RangeInfo { rangeDef = a, rangeType = Nothing, rangeTArgs = as }
 
 instance PP a => PP (RangeInfo a) where
   ppPrec _ ri =
@@ -67,13 +58,13 @@ instance PP a => PP (RangeInfo a) where
       Just (nm,ty) ->
         vcat [
           "__" <> T.ppWithNames nm ty <> "__",
-          "---",
+          "",
           pp (rangeDef ri)
         ]
       Nothing -> pp (rangeDef ri)
 
 instance PP IndexDB where
-  ppPrec _ db = vcat [ ppFs, vcat [ pp x $$ indent 2 (pp y) | (x,y) <- Map.toList (allDefs db) ]]
+  ppPrec _ db = vcat [ ppFs ] -- , vcat [ pp x $$ indent 2 (pp y) | (x,y) <- Map.toList (allDefs db) ]]
     where
     ppFs = vcat (map ppF (Map.toList (posIndex db)))
     ppF (f,(rs,_)) = pp f $$ indent 2 (ppRs rs)
@@ -103,22 +94,21 @@ lookupPosition uri pos db =
     (r,i) <- step 3 $ Map.lookupMin (Map.dropWhileAntitone tooEarly info)
     step 4 $ guard (from r <= tgt && tgt <= to r)
     let rrange = snd (rangeToLSP r)
-    case rangeDef i of
-      n ->
-        do 
-          def <- step 5 $ Map.lookup n (allDefs db)
-          def' <- case defSeeAlso def of
-                    Just a | Just b <- Map.lookup a (allDefs db) ->
-                      pure def { defDoc = defDoc b `mplus` defDoc def }
-                    _ -> pure def
-          let ty =
-                case rangeTArgs i of
-                  Just (nm,ts) | Just (_nm1,s) <- defType def' ->
-                    let su = T.listParamSubst (zip (T.sVars s) ts)
-                    in Just (nm, T.tMono (T.apSubst su (T.sType s)))-- assumes fully applied
-                  _ -> Nothing
-          pure (rrange, i { rangeDef = def', rangeType = ty, rangeTArgs = Nothing })
-      -- Nothing -> pure (rrange, i { rangeDef = Nothing, rangeTArgs = Nothing })
+    let n = rangeDef i
+    def <- step 5 $ Map.lookup n (allDefs db)
+    def' <- case defSeeAlso def of
+              Just a | Just b <- Map.lookup a (allDefs db) ->
+                pure def { defDoc = defDoc b `mplus` defDoc def }
+              _ -> pure def
+    let ty =
+          do
+            (nm,ts)   <- rangeTArgs i
+            (_nm1, s) <- defType def'
+            let su = T.listParamSubst (zip (T.sVars s) ts)
+            pure (nm, T.tMono (T.apSubst su (T.sType s)))-- assumes fully applied
+            
+    pure (rrange, i { rangeDef = def', rangeType = ty, rangeTArgs = Nothing })
+ 
   where
   step n = maybe (Left n) Right
 
@@ -145,14 +135,21 @@ doLoadedModule lm cur =
       let i           = rangedVars (mDef rm) noCtxt emptyIndex
           addTy n inf = inf { defType = Map.lookup n (defTys tys) }
           defs        = Map.mapWithKey addTy (ixDefs i)
-          locs = [ (r, mkRangeDef x) | (r,x) <- ixUse i ] ++
-          {-
-                 [ (r, mkRangeType (ct,t))
-                 | (r,(ct,t)) <- Map.toList (exprTys tys) ] ++ -}
-                 [ (r, mkRangeTArgs t)
-                 | (r,t) <- Map.toList (exprTyArgs tys) ]
+          targs       = exprTyArgs tys
+          getTArgs r x  =
+            do
+              (y,nm,t) <- Map.lookup r targs
+              guard (x == y)
+              pure (nm,t)
+          isNumLit (x,nm,t) =
+            do
+              p <- asPrim x
+              guard (p == prelPrim "number")
+              pure (mkRangeDef x (Just (nm,t)))
+          locs = Map.fromList [ (r, mkRangeDef x (getTArgs r x)) | (r,x) <- ixUse i ]  
+                  `Map.union` Map.mapMaybe isNumLit targs               
       in IndexDB {
-          posIndex = Map.insert uri (Map.fromListWith joinInfo locs, void defs) (posIndex cur),
+          posIndex = Map.insert uri (locs, void defs) (posIndex cur),
           allDefs  =
             Map.union defs
             case Map.lookup uri (posIndex cur) of

@@ -578,7 +578,7 @@ solveHasGoal n e =
 newLocalName :: Namespace -> Ident -> InferM Name
 newLocalName ns x =
   do r <- curRange
-     liftSupply (mkLocal ns x r)
+     liftSupply (mkLocal SystemName ns x r)
 
 newName :: (NameSeeds -> (a , NameSeeds)) -> InferM a
 newName upd = IM $ sets $ \s -> let (x,seeds) = upd (iNameSeeds s)
