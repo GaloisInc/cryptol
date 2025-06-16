@@ -11,7 +11,8 @@ module Monad (
   update, update_,
   getState,
   liftIO,
-  doModuleCmd', doModuleCmd, doModuleCmd_
+  doModuleCmd', doModuleCmd,
+  sendDiagnostics
 )where
 
 import Data.Text(Text)
@@ -104,8 +105,9 @@ lspShow ty msg = LSP.logToShowMessage <& WithSeverity msg ty
 -- | Execute a Cryptol command.  All interactions with Cryptol should happen
 -- through this, as it coordinates the acces to the Cryptol environment.
 doModuleCmd' ::
+  (Text -> M ()) ->
   ModuleCmd a -> ([ModuleWarning] -> Either ModuleError a -> M ()) -> M ()
-doModuleCmd' m k =
+doModuleCmd' doLog m k =
   do
     refs  <- getConfig
     senv <- LSP.getLspEnv
@@ -114,12 +116,14 @@ doModuleCmd' m k =
         (warns,res) <-
           withMVar (cryWorking refs) \_ ->
             do
+              putMVar (cryLog refs) (LSP.runLspT senv . doLog)
               s <- readMVar (stateRef refs)
               (a,ws) <- m (cryState s)
               case a of
                 Left err -> pure (ws, Left err)
                 Right (res,newEnv) ->
                   do
+                    _ <- takeMVar (cryLog refs)
                     modifyMVar_ (stateRef refs) \s1 ->
                       pure s1 { cryState =
                                   (cryState s) { minpModuleEnv = newEnv } }
@@ -128,25 +132,28 @@ doModuleCmd' m k =
     pure ()
 
 
+sendDiagnostics :: [ModuleWarning] -> [ModuleError] -> M ()
+sendDiagnostics ws es =
+  do
+    case es of
+      e : _ | not haveErrs -> lspShow Error (Text.pack (show (pp e)))
+      _ -> pure ()
+    LSP.flushDiagnosticsBySource 10 (Just "cryptol")
+    mapM_ (\(u,d) -> SLSP.publishDiagnostics 50 u Nothing d) ds
+  where
+  (haveErrs, dsMap) = diagnostics es ws
+  ds = Map.toList dsMap
+  
+
 doModuleCmd ::
-  ModuleCmd a -> (Maybe a -> M ()) -> M ()
-doModuleCmd m k =
-  doModuleCmd' m \ws mbRes ->
+  (Text -> M ()) -> ModuleCmd a -> (Maybe a -> M ()) -> M ()
+doModuleCmd doLog m k =
+  doModuleCmd' doLog m \ws mbRes ->
     do
       let (err,res) =
             case mbRes of
-              Left e -> (Just e, Nothing)
-              Right a -> (Nothing, Just a)
-          (haveErrs, dsMap) = diagnostics err ws
-          ds = Map.toList dsMap
-      case err of
-        Just e | not haveErrs ->
-          lspShow Error (Text.pack (show (pp e)))
-        _ -> pure ()
-      LSP.flushDiagnosticsBySource 10 (Just "cryptol")
-      mapM_ (\(u,d) -> SLSP.publishDiagnostics 10 u Nothing d) ds
+              Left e -> ([e], Nothing)
+              Right a -> ([], Just a)
+      sendDiagnostics ws err
       k res
-
-doModuleCmd_ :: ModuleCmd a -> M ()
-doModuleCmd_ m = doModuleCmd m (const (pure ()))
 

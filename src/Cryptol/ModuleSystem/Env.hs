@@ -32,7 +32,7 @@ import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.Interface as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.Utils.Ident as I
-import Cryptol.Utils.PP (PP(..),text,parens,NameDisp)
+import Cryptol.Utils.PP (pp, PP(..),text,parens,NameDisp)
 
 import Data.ByteString(ByteString)
 import Control.Monad (guard,mplus)
@@ -57,7 +57,6 @@ import Prelude ()
 import Prelude.Compat
 
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.PP(pp)
 
 -- Module Environment ----------------------------------------------------------
 

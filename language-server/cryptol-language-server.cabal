@@ -38,13 +38,15 @@ executable cryptol-language-server
         TypeOperators,
         DataKinds,
         KindSignatures,
-        FlexibleInstances
+        FlexibleInstances,
+        GeneralizedNewtypeDeriving
         
     build-depends:
         base, bytestring, text, containers,
         aeson, lens,
         lsp,
         cryptol,
-        co-log-core
+        co-log-core,
+        monadLib
     hs-source-dirs:   server
     default-language: Haskell2010

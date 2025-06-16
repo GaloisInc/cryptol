@@ -77,7 +77,6 @@ loadModuleByPath :: FilePath -> ModuleCmd (ModulePath,T.TCTopEntity)
 loadModuleByPath path minp = do
   moduleEnv' <- resetModuleEnv $ minpModuleEnv minp
   runModuleM minp{ minpModuleEnv = moduleEnv' } $ do
-    unloadModule ((InFile path ==) . lmFilePath)  -- XXX: unnecessary, already reset
     m <- Base.loadModuleByPath True path
     setFocusedModule (P.ImpTop (T.tcTopEntitytName m))
     return (InFile path,m)
@@ -87,7 +86,6 @@ loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.TCTopEntity)
 loadModuleByName n minp = do
   moduleEnv' <- resetModuleEnv $ minpModuleEnv minp
   runModuleM minp{ minpModuleEnv = moduleEnv' } $ do
-    unloadModule ((n ==) . lmName)
     (path,m') <- Base.loadModuleFrom False (FromModule n)
     setFocusedModule (P.ImpTop (T.tcTopEntitytName m'))
     return (path,m')

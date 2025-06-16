@@ -25,11 +25,11 @@ import Position
 
 -- | Render diagnostics.  The `Bool` is true if there's at least one error.
 diagnostics ::
-  Maybe ModuleError -> [ModuleWarning] ->
+  [ModuleError] -> [ModuleWarning] ->
   (Bool, Map LSP.NormalizedUri LSP.DiagnosticsBySource)
-diagnostics mbErr ws = (not (null errDs), LSP.partitionBySource <$> grp)
+diagnostics errs ws = (not (null errDs), LSP.partitionBySource <$> grp)
   where
-  errDs = toDiag noExtra mbErr
+  errDs = toDiag noExtra errs
   allDs = errDs ++ toDiag noExtra ws
   grp   = Map.fromListWith (++) [ (LSP.toNormalizedUri x,[y]) | (x,y) <- allDs ]
 

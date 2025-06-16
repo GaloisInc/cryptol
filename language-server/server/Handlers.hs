@@ -2,6 +2,7 @@ module Handlers where
 
 import Data.Text qualified as Text
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Control.Lens((^.))
 import Language.LSP.Server qualified as LSP
 import Language.LSP.Protocol.Types(type (|?))
@@ -41,10 +42,14 @@ onInitialized :: LSP.InitializedParams -> M ()
 onInitialized _ = lspShow Info "Welcome to Cryptol!"
 
 onConfigChanged :: LSP.DidChangeConfigurationParams -> M ()
-onConfigChanged _ = pure ()
+onConfigChanged _ = reload
       
 onDocumentOpen :: LSP.DidOpenTextDocumentParams -> M ()
-onDocumentOpen ps = doLoad (ps ^. LSP.textDocument . LSP.uri)
+onDocumentOpen ps =
+  do
+    let doc = ps ^. LSP.textDocument . LSP.uri
+    update_ \s -> s { cryRoots = Set.insert doc (cryRoots s) }
+    reload
 
 onDocumentChange :: LSP.DidChangeTextDocumentParams -> M ()
 onDocumentChange _ps = pure ()
@@ -54,14 +59,14 @@ onDocumentSave ps =
   do let doc = ps ^. LSP.textDocument . LSP.uri
      update_ \s -> s { lexedFiles = Map.delete doc (lexedFiles s) }
      requestSemTokUpdate
-     doLoad doc
-     pure ()
+     reload
 
 onDocumentClose :: LSP.DidCloseTextDocumentParams -> M ()
 onDocumentClose ps =
   do
     let doc = ps ^. LSP.textDocument . LSP.uri
-    update_ \s -> s { lexedFiles = Map.delete doc (lexedFiles s) }
+    update_ \s -> s { cryRoots = Set.delete doc (cryRoots s),
+                      lexedFiles = Map.delete doc (lexedFiles s) }
   
 
 onHover :: LSP.HoverParams -> M (LSP.Hover |? LSP.Null)

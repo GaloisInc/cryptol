@@ -37,6 +37,9 @@ data IndexDB = IndexDB {
   -- ^ Locations of identifiers in a module and definitions coming from this module
 }
 
+
+
+
 data RangeInfo a = RangeInfo {
   rangeDef :: a,
   -- ^ Definition (or name of definition)
@@ -127,13 +130,27 @@ updateIndexes loaded ixes = foldl' updateIndex ixes loaded
         -- for now we skip these as there's noting interesting to report
 
 
+-- | Remove the given module from the index
+unload :: ModulePath -> IndexDB -> IndexDB
+unload mo i =
+  case Map.lookup mo (posIndex i) of
+    Nothing -> i
+    Just (_, ours) ->
+      IndexDB {
+        allDefs  = allDefs i `Map.difference` ours,
+        posIndex = Map.delete mo (posIndex i)
+      }
+
+-- | Add indexing information for this loaded module.
 doLoadedModule :: LoadedModule -> IndexDB -> IndexDB
 doLoadedModule lm cur =
 
-  case entityFileInfo getTys lm of
-    Just (uri, rm, tys) ->
-      let i           = rangedVars (mDef rm) noCtxt emptyIndex
+  case lmRenamedModule lm of
+    Just rm ->
+      let uri         = lmFilePath lm
+          tys         = getTys (lmData lm)
           addTy n inf = inf { defType = Map.lookup n (defTys tys) }
+          i           = rangedVars (mDef rm) noCtxt emptyIndex
           defs        = Map.mapWithKey addTy (ixDefs i)
           targs       = exprTyArgs tys
           getTArgs r x  =
@@ -160,12 +177,5 @@ doLoadedModule lm cur =
   where
   getTys m = getVarTypes emptyTCtxt (lmdModule m) emptyTIndex
 
-entityFileInfo ::
-  (a -> TIndex) ->
-  LoadedModuleG a ->
-  Maybe (ModulePath,Module Name, TIndex)
-entityFileInfo getTys lm =
-  do rm <- lmRenamedModule lm
-     pure (lmFilePath lm, rm, getTys (lmData lm))
 
 

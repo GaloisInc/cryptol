@@ -3,6 +3,7 @@ module State where
 import Data.ByteString qualified as BS
 import Data.Text(Text)
 import Data.Text qualified as Text
+import Data.Set(Set)
 import Data.Map(Map)
 import Control.Exception
 import Control.Concurrent
@@ -10,7 +11,7 @@ import Data.Aeson qualified as JS
 import Data.Aeson.Types qualified as JS
 import Language.LSP.Protocol.Types qualified as LSP
 
-import Cryptol.Utils.Logger(quietLogger)
+import Cryptol.Utils.Logger(funLogger)
 import Cryptol.ModuleSystem
 import Cryptol.TypeCheck.Solver.SMT (startSolver, killSolver)
 import Cryptol.TypeCheck.InferTypes(defaultSolverConfig)
@@ -30,15 +31,20 @@ data Config = Config {
   -- We do this instead of taking the `stateRef` so that the server can still
   -- read the state while we are working on computing the new Cryptol state.
 
+  cryLog :: MVar (Text -> IO ()),
+  -- ^ A callback to use to send messages to the client
+
   crySearchPath :: [FilePath]
   -- ^ Search path for modules
 }
 
 data State = State {
   lexedFiles  :: Map LSP.Uri ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange]),
+  cryRoots    :: Set LSP.Uri,
   cryIndex    :: IndexDB,
   cryState    :: ModuleInput IO
 }
+
 
 -- | Make a fresh server state with the default configuration.
 newConfig :: IO Config
@@ -46,14 +52,22 @@ newConfig =
   do
     solver <- startSolver (pure ()) (defaultSolverConfig [])
     me     <- initialModuleEnv
+    logCallback <- newEmptyMVar
     work   <- newMVar ()
     ref    <- newMVar State {
       lexedFiles = mempty,
       cryIndex = emptyIndexDB,
+      cryRoots = mempty,
       cryState = ModuleInput {
         minpCallStacks = True,
-        minpEvalOpts = pure EvalOpts {
-          evalLogger  = quietLogger,
+        minpEvalOpts =
+          pure EvalOpts {
+          evalLogger  = funLogger \str ->
+            do
+              mb <- tryReadMVar logCallback
+              case mb of
+                Nothing  -> pure ()
+                Just msg -> msg (Text.pack str),
           evalPPOpts  = defaultPPOpts
         },
         minpByteReader  = BS.readFile,
@@ -62,7 +76,7 @@ newConfig =
         minpSaveRenamed = True
       }
     }
-    pure Config { stateRef = ref, cryWorking = work, crySearchPath = [] } 
+    pure Config { stateRef = ref, cryLog = logCallback, cryWorking = work, crySearchPath = [] } 
 
 -- | Kill the SMT solver for this configuration.
 stopConfig :: Config -> IO ()
