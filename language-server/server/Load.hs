@@ -86,8 +86,8 @@ getLoadStatus = LoadM (loadStatus <$> get)
 setLoadStatus :: ModulePath -> Status -> LoadM ()
 setLoadStatus m sta = LoadM (sets_ \s -> s { loadStatus = Map.insert m sta (loadStatus s) })
 
-doMsg :: Doc -> LoadM ()
-doMsg m =
+_doMsg :: Doc -> LoadM ()
+_doMsg m =
   doLift (withLogger logPutStr (show m))
 
 

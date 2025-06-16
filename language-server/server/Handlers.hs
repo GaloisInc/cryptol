@@ -11,6 +11,8 @@ import qualified Language.LSP.Protocol.Message as LSP
 import qualified Language.LSP.Protocol.Lens as LSP
 
 import Cryptol.Utils.PP(pp)
+import Cryptol.ModuleSystem.Env
+import Cryptol.ModuleSystem.Monad
 
 import Monad
 import State
@@ -41,8 +43,21 @@ handlers _caps = mconcat [
 onInitialized :: LSP.InitializedParams -> M ()
 onInitialized _ = lspShow Info "Welcome to Cryptol!"
 
+-- XXX: What's this for???
 onConfigChanged :: LSP.DidChangeConfigurationParams -> M ()
-onConfigChanged _ = reload
+onConfigChanged _ = pure ()
+
+-- | Do this when the client-side configuration changes.
+onConfigChange :: Config -> M ()
+onConfigChange cfg =
+  do
+    update_ \s -> 
+      let inp   = cryState s
+          me    = minpModuleEnv inp
+          meNew = me { meSearchPath = crySearchPath cfg }
+      in s { cryState = inp { minpModuleEnv = meNew } }
+    reload
+  
       
 onDocumentOpen :: LSP.DidOpenTextDocumentParams -> M ()
 onDocumentOpen ps =
