@@ -422,6 +422,13 @@ getLoadedEntities lm =
                  [ (lmName x, ALoadedFunctor x) | x <- lmLoadedParamModules lm ] ++
                  [ (lmName x, ALoadedInterface x) | x <- lmLoadedSignatures lm ]
 
+withLoadedEntity :: LoadedEntity -> (forall a. LoadedModuleG a -> b) -> b
+withLoadedEntity ent k =
+  case ent of
+    ALoadedModule lm -> k lm
+    ALoadedFunctor lm -> k lm
+    ALoadedInterface lm -> k lm
+
 getLoadedModules :: LoadedModules -> [LoadedModule]
 getLoadedModules x = lmLoadedParamModules x ++ lmLoadedModules x
 

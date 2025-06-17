@@ -25,6 +25,7 @@ import State
 import Monad
 import Index
 
+
 -- | Reload all open modules
 reload :: M ()
 reload =
@@ -34,18 +35,26 @@ reload =
     let paths = mapMaybe LSP.uriToFilePath (Set.toList uris)
         m = runLoadM emptyLoadS
               (updateLoadedFiles >> mapM_ (loadPath Nothing . InFile) paths)
-    doModuleCmd' (\x -> lspLog Info x >> sendMsg x) (`runModuleM` m) \ws mb ->
+    doModuleCmd' (\x -> lspLog Info (pp x) >> sendMsg x) (`runModuleM` m) \ws mb ->
       case mb of
         Left err -> sendDiagnostics ws [err]
         Right (_,loadS) ->
-          do 
+          do
             sendDiagnostics ws (loadErrs loadS)
-            let new = Map.keysSet (Map.filter (== Loaded) (loadStatus loadS))
-                reindex ent = loadedEntPath ent `Set.member` new
+            let status      = loadModStatus loadS
+                dead mo     = not (lmName mo `Map.member` status)
+                new         = Map.keysSet (Map.filter (== Loaded) status)
+                reindex ent = withLoadedEntity ent lmName `Set.member` new
             update_ \s ->
                 let env  = minpModuleEnv (cryState s)
-                    ents = filter reindex (Map.elems (getLoadedEntities (meLoadedModules env)))
-                in s { cryIndex = updateIndexes ents (cryIndex s) }
+                    lm0  = meLoadedModules env
+                    lm1  = removeLoadedModule dead lm0
+                    env1 = env { meLoadedModules = lm1 }
+                    ents = filter reindex (Map.elems (getLoadedEntities lm1))
+                in s { cryIndex = updateIndexes ents (cryIndex s),
+                       cryState = (cryState s) { minpModuleEnv = env1 }
+                      }
+            pure ()
 
 dbg :: Doc -> LoadM ()
 dbg x = when False (doLift (withLogger logPutStr (show x)))
@@ -222,14 +231,6 @@ setModStatus m sta = LoadM (sets_ \s -> s { loadModStatus = Map.insert m sta (lo
 -- | Get the status for a module
 getModStatus :: P.ModName -> LoadM (Maybe Status)
 getModStatus mo = LoadM (Map.lookup mo . loadModStatus <$> get)
-
--- | Get the path for a loaded entity
-loadedEntPath :: LoadedEntity -> ModulePath
-loadedEntPath ent =
-  case ent of
-    ALoadedModule lm -> lmFilePath lm
-    ALoadedFunctor lm -> lmFilePath lm
-    ALoadedInterface lm -> lmFilePath lm
 
 -- | Get the location of an import
 impSrcLoc :: ImportSource -> Maybe Range

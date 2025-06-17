@@ -10,7 +10,7 @@ import qualified Language.LSP.Protocol.Types as LSP
 import qualified Language.LSP.Protocol.Message as LSP
 import qualified Language.LSP.Protocol.Lens as LSP
 
-import Cryptol.Utils.PP(pp)
+import Cryptol.Utils.PP(pp,int)
 import Cryptol.ModuleSystem.Env
 import Cryptol.ModuleSystem.Monad
 
@@ -88,9 +88,9 @@ onHover :: LSP.HoverParams -> M (LSP.Hover |? LSP.Null)
 onHover ps =
   do
     s <- getState
-    -- lspLog Info (Text.pack (show (pp (cryIndex s))))
+    -- lspLog Info ((pp (cryIndex s)))
     case lookupPosition doc pos (cryIndex s) of
-        Left n -> lspLog Info ("not found " <> Text.pack (show n)) >> pure (LSP.InR LSP.Null)
+        Left n -> lspLog Info ("not found " <> int n) >> pure (LSP.InR LSP.Null)
         Right (rng,def) ->
           pure $ 
           LSP.InL LSP.Hover {
@@ -110,7 +110,7 @@ onGotoDefinition ps =
   do
     s <- getState
     case lookupPosition doc pos (cryIndex s) of
-      Left n -> lspLog Info ("not found " <> Text.pack (show n)) >> pure (LSP.InR (LSP.InR LSP.Null))
+      Left n -> lspLog Info ("not found " <> int n) >> pure (LSP.InR (LSP.InR LSP.Null))
       Right (_, thing) ->
         do
           let rng0 = case thing of

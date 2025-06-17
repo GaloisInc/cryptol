@@ -6,7 +6,8 @@ module Index (
   Thing(..),
   emptyIndexDB,
   updateIndexes,
-  lookupPosition
+  lookupPosition,
+  doLoadedModule
 ) where
 
 import Data.List(foldl')
@@ -76,14 +77,17 @@ instance PP a => PP (RangeInfo a) where
 instance (PP a, PP b) => PP (Thing a b) where
   ppPrec _ th =
     case th of
-      NamedThing x -> "name" <+> pp x
-      ModThing x -> "module" <+> pp x
+      NamedThing x -> pp x
+      ModThing x -> pp x
 
 instance PP IndexDB where
-  ppPrec _ db = vcat [ ppFs ] -- , vcat [ pp x $$ indent 2 (pp y) | (x,y) <- Map.toList (allDefs db) ]]
+  ppPrec _ db = ppFs -- , vcat [ pp x $$ indent 2 (pp y) | (x,y) <- Map.toList (allDefs db) ]]
     where
-    ppFs = vcat (map ppF (Map.toList (posIndex db)))
-    ppF (f,(rs,_,_)) = pp f $$ indent 2 (ppRs rs)
+    ppFs = vcat (concatMap ppF (Map.toList (posIndex db)))
+    ppF (f,(rs,_,_)) =
+      case f of
+        InFile _ -> [pp f $$ indent 2 (ppRs rs)]
+        InMem {} -> []
     ppRs rs = vcat [ hcat [ppR r, ": ", pp n] | (r,n) <- Map.toList rs ]
     ppR r = hcat [ pp (from r), "--", pp (to r)]
     
@@ -136,13 +140,25 @@ lookupPosition uri pos db =
   where
   step n = maybe (Left n) Right
 
+unload :: ModulePath -> IndexDB -> IndexDB
+unload pa i =
+  case Map.lookup pa (posIndex i) of
+    Nothing -> i
+    Just (_,nms,ms) ->
+      IndexDB {
+        allDefs = allDefs i `Map.difference` nms,
+        allModDefs = allModDefs i `Map.difference` ms,
+        posIndex = Map.delete pa (posIndex i)
+      }
+
 -- | Update indexes based on what's currently loaded
 updateIndexes ::
   [LoadedEntity] {- ^ Loaded modules -} ->
   IndexDB {- ^ Current index -} ->
   IndexDB {- ^ Updated index -}
-updateIndexes loaded ixes = foldl' updateIndex ixes loaded
+updateIndexes loaded ixes = foldl' updateIndex ix0 loaded
   where
+  ix0 = foldl' (\i ent -> unload (withLoadedEntity ent lmFilePath) i) ixes loaded
   updateIndex cur ent =
     case ent of
       ALoadedModule lm -> doLoadedModule lm cur
@@ -151,17 +167,6 @@ updateIndexes loaded ixes = foldl' updateIndex ixes loaded
         -- for now we skip these as there's noting interesting to report
 
 
--- | Remove the given module from the index
-unload :: ModulePath -> IndexDB -> IndexDB
-unload mo i =
-  case Map.lookup mo (posIndex i) of
-    Nothing -> i
-    Just (_, ours,ourMods) ->
-      IndexDB {
-        allDefs  = allDefs i `Map.difference` ours,
-        allModDefs = allModDefs i `Map.difference` ourMods,
-        posIndex = Map.delete mo (posIndex i)
-      }
 
 -- | Add indexing information for this loaded module.
 doLoadedModule :: LoadedModule -> IndexDB -> IndexDB
@@ -187,23 +192,16 @@ doLoadedModule lm cur =
               pure (NamedThing (mkRangeDef x (Just (nm,t))))
           locs = Map.unions
                   [ Map.fromList [ (r, NamedThing (mkRangeDef x (getTArgs r x)))
-                                 | (r,x) <- ixUse i ]  
+                                 | (r,x) <- ixUse i ] 
                   , Map.fromList [ (r, ModThing x) | (r,x) <- ixMod i ]
                   , Map.mapMaybe isNumLit targs
                   ]
           modDefs = ixModDefs i
-          oldDefs = Map.lookup uri (posIndex cur)
+          jn (a,b,c) (x,y,z) = (Map.union a x, Map.union b y, Map.union c z)
       in IndexDB {
-          posIndex = Map.insert uri (locs, void defs, void modDefs) (posIndex cur),
-          allModDefs = Map.union modDefs
-                       case oldDefs of
-                         Just (_,_,old) -> allModDefs cur `Map.difference` old
-                         Nothing -> allModDefs cur,
-          allDefs  =
-            Map.union defs
-            case oldDefs of
-              Just (_,old,_) -> allDefs cur `Map.difference` old
-              Nothing -> allDefs cur
+          posIndex = Map.insertWith jn uri (locs, void defs, void modDefs) (posIndex cur),
+          allModDefs = Map.union modDefs (allModDefs cur),
+          allDefs  = Map.union defs (allDefs cur)
       }
     Nothing -> cur
   where

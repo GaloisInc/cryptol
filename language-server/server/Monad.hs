@@ -86,8 +86,8 @@ lspAsyncRequest m f =
       pure ()
 
   -- | Log a message to the client.
-lspLog :: Severity -> Text -> M ()
-lspLog ty msg = LSP.logToLogMessage <& WithSeverity msg ty
+lspLog :: Severity -> Doc -> M ()
+lspLog ty msg = LSP.logToLogMessage <& WithSeverity (Text.pack (show msg)) ty
 
 -- | Show a visible message to the client.
 lspShow :: Severity -> Text -> M ()

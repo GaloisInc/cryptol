@@ -60,7 +60,12 @@ instance PP DefInfo where
 
 instance PP ModDefInfo where
   ppPrec :: Int -> ModDefInfo -> Doc
-  ppPrec _ = maybe mempty pp . modDefDoc
+  ppPrec _ mo =
+    vcat [
+      "Top-level module",
+      "",
+      maybe mempty pp (modDefDoc mo)
+    ]
       
 
 -- | Collect the types of declared variables.
@@ -220,6 +225,15 @@ emptyIndex = Index { ixDefs = mempty, ixUse = [], ixModDefs = mempty, ixMod = []
 noCtxt :: Ctxt
 noCtxt = Ctxt { curRange = Nothing, curDoc = Nothing }
 
+instance PP Index where
+  ppPrec _ i =
+    vcat [
+      "Uses",
+      vcat [ pp r <+> "module" <+> pp m | (r,m) <- ixMod i ],
+      vcat [ pp r <+> "name" <+> pp n | (r,n) <- ixUse i ],
+      "End uses"
+    ]
+
 
 instance (RangedVars a, RangedVars b) => RangedVars (a,b) where
   rangedVars (a,b) mbRange = rangedVars a mbRange . rangedVars b mbRange 
@@ -253,8 +267,8 @@ instance RangedVars Use where
 instance RangedVars ModName where
   rangedVars m ctx rest =
     case curRange ctx of
-      Nothing -> rest
-      Just r  -> rest { ixMod = (r,m) : ixMod rest }
+      Just r | modNameIsNormal m -> rest { ixMod = (r,m) : ixMod rest }
+      _ -> rest
 
 
 newtype Def = Def Name
@@ -299,7 +313,11 @@ instance RangedVars Def where
   rangedVars (Def x) = addDef True Nothing x
 
 instance RangedVars ModDef where
-  rangedVars (ModDef m) ctx i = i { ixModDefs = Map.insert (thing m) info (ixModDefs i) }
+  rangedVars (ModDef m) ctx i
+    | modNameIsNormal (thing m) =
+      i { ixModDefs = Map.insert (thing m) info (ixModDefs i),
+          ixMod = (srcRange m, thing m) : ixMod i }
+    | otherwise = i
     where
     info = ModDefInfo {
       modDefRange = srcRange m,
@@ -308,7 +326,6 @@ instance RangedVars ModDef where
 
 
 --------------------------------------------------------------------------------
-
 instance RangedVars (Module Name) where
   rangedVars mo ctxt = rangedVars (ModDef (mName mo)) ctxt1
                      . rangedVars (mDef mo) ctxt
