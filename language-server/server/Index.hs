@@ -35,12 +35,16 @@ data IndexDB = IndexDB {
   -- ^ Information about names
 
   allModDefs :: Map ModName ModDefInfo,
+  -- ^ Information about top-level modules
 
   posIndex :: Map ModulePath (Map Range (Thing Name ModName), Map Name (), Map ModName ())
   -- ^ Locations of identifiers in a module and definitions coming from this module
 }
 
-data Thing a b = NamedThing (RangeInfo a) | ModThing b
+-- | Something that we have info about
+data Thing a b =
+    NamedThing (RangeInfo a)    -- ^ A name
+  | ModThing b                  -- ^ A module
 
 
 data RangeInfo a = RangeInfo {
@@ -72,8 +76,8 @@ instance PP a => PP (RangeInfo a) where
 instance (PP a, PP b) => PP (Thing a b) where
   ppPrec _ th =
     case th of
-      NamedThing x -> pp x
-      ModThing x -> pp x
+      NamedThing x -> "name" <+> pp x
+      ModThing x -> "module" <+> pp x
 
 instance PP IndexDB where
   ppPrec _ db = vcat [ ppFs ] -- , vcat [ pp x $$ indent 2 (pp y) | (x,y) <- Map.toList (allDefs db) ]]
@@ -181,9 +185,12 @@ doLoadedModule lm cur =
               p <- asPrim x
               guard (p == prelPrim "number")
               pure (NamedThing (mkRangeDef x (Just (nm,t))))
-          locs = Map.fromList [ (r, NamedThing (mkRangeDef x (getTArgs r x))) | (r,x) <- ixUse i ]  
-              --    `Map.union` Map.fromList [ (r, ModThing x) | (r,x) <- ixMod i ]
-                  `Map.union` Map.mapMaybe isNumLit targs               
+          locs = Map.unions
+                  [ Map.fromList [ (r, NamedThing (mkRangeDef x (getTArgs r x)))
+                                 | (r,x) <- ixUse i ]  
+                  , Map.fromList [ (r, ModThing x) | (r,x) <- ixMod i ]
+                  , Map.mapMaybe isNumLit targs
+                  ]
           modDefs = ixModDefs i
           oldDefs = Map.lookup uri (posIndex cur)
       in IndexDB {

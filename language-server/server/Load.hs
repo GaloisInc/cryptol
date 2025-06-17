@@ -11,6 +11,8 @@ import Cryptol.ModuleSystem
 import Cryptol.ModuleSystem.Env
 import Cryptol.ModuleSystem.Base qualified as Base
 import Cryptol.ModuleSystem.Monad
+import Cryptol.Utils.PP
+import Cryptol.Utils.Logger
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.Parser.AST qualified as P
 import Cryptol.TypeCheck.PP qualified as T
@@ -45,10 +47,14 @@ reload =
                     ents = filter reindex (Map.elems (getLoadedEntities (meLoadedModules env)))
                 in s { cryIndex = updateIndexes ents (cryIndex s) }
 
+dbg :: Doc -> LoadM ()
+dbg x = when False (doLift (withLogger logPutStr (show x)))
+
 -- | Load the modules from the given import source
 doLoadFrom :: ImportSource -> LoadM Status
 doLoadFrom isrc =
   do
+    dbg ("Load from" <+> pp isrc)
     let n = importedModule isrc
     done <- getModStatus n
     case done of
@@ -82,6 +88,7 @@ loadParsed path fp deps weChanged mbisrc pm0 =
           Errors -> badDep mbisrc >> pure Errors
       setModStatus mo status
       pure status
+  >>= maybe (badDep (Just isrc) >> pure Errors) pure
   where
   pm    = Base.addPrelude pm0
   mo    = thing (P.mName pm)
@@ -102,6 +109,7 @@ loadPath ::
   ModulePath -> LoadM Status
 loadPath mbisrc path =
   do
+    dbg ("Load path:" <+> pp path)
     mbParsed <- liftMaybe (errorInFile path (Base.parseModule path))
     case mbParsed of
       Nothing -> setLoadStatus path Errors >> badDep mbisrc >> pure Errors
@@ -183,14 +191,15 @@ doLift :: ModuleM a -> LoadM a
 doLift m = LoadM (lift m)
 
 -- | Mark a module as being loaded, to detect recursive modules
-nowLoading :: ImportSource -> LoadM a -> LoadM a
-nowLoading isrc m = LoadM
+nowLoading :: ImportSource -> LoadM a -> LoadM (Maybe a)
+nowLoading isrc m =
   do
-    s <- get
-    (a,s1) <- lift (loading isrc (runLoadM s m))
-    set s1
-    pure a
-
+    s <- LoadM get
+    mb <- liftMaybe (loading isrc (runLoadM s m))
+    case mb of
+      Nothing -> pure Nothing
+      Just (a,s1) -> LoadM (sets (const (Just a,s1)))
+    
 -- | Set information about loaded files.  Done once at the start of loading.
 updateLoadedFiles :: LoadM ()
 updateLoadedFiles =
