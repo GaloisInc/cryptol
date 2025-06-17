@@ -1,7 +1,9 @@
 module Index (
   IndexDB,
   DefInfo(..),
+  ModDefInfo(..),
   RangeInfo(..),
+  Thing(..),
   emptyIndexDB,
   updateIndexes,
   lookupPosition
@@ -17,7 +19,6 @@ import Language.LSP.Protocol.Types qualified as LSP
 import Language.LSP.Protocol.Lens qualified as LSP
 
 import Cryptol.Parser.Position
-import Cryptol.Parser.AST
 import Cryptol.TypeCheck.AST qualified as T
 import Cryptol.TypeCheck.PP qualified as T
 import Cryptol.TypeCheck.Subst qualified as T
@@ -33,11 +34,13 @@ data IndexDB = IndexDB {
   allDefs :: Map Name DefInfo,
   -- ^ Information about names
 
-  posIndex :: Map ModulePath (Map Range (RangeInfo Name), Map Name ())
+  allModDefs :: Map ModName ModDefInfo,
+
+  posIndex :: Map ModulePath (Map Range (Thing Name ModName), Map Name (), Map ModName ())
   -- ^ Locations of identifiers in a module and definitions coming from this module
 }
 
-
+data Thing a b = NamedThing (RangeInfo a) | ModThing b
 
 
 data RangeInfo a = RangeInfo {
@@ -66,11 +69,17 @@ instance PP a => PP (RangeInfo a) where
         ]
       Nothing -> pp (rangeDef ri)
 
+instance (PP a, PP b) => PP (Thing a b) where
+  ppPrec _ th =
+    case th of
+      NamedThing x -> pp x
+      ModThing x -> pp x
+
 instance PP IndexDB where
   ppPrec _ db = vcat [ ppFs ] -- , vcat [ pp x $$ indent 2 (pp y) | (x,y) <- Map.toList (allDefs db) ]]
     where
     ppFs = vcat (map ppF (Map.toList (posIndex db)))
-    ppF (f,(rs,_)) = pp f $$ indent 2 (ppRs rs)
+    ppF (f,(rs,_,_)) = pp f $$ indent 2 (ppRs rs)
     ppRs rs = vcat [ hcat [ppR r, ": ", pp n] | (r,n) <- Map.toList rs ]
     ppR r = hcat [ pp (from r), "--", pp (to r)]
     
@@ -79,39 +88,47 @@ instance PP IndexDB where
 emptyIndexDB :: IndexDB
 emptyIndexDB = IndexDB {
   allDefs = mempty,
+  allModDefs = mempty,
   posIndex = mempty
 }
 
 
 
 lookupPosition ::
-  LSP.Uri -> LSP.Position -> IndexDB -> Either Int (LSP.Range, RangeInfo DefInfo)
+  LSP.Uri -> LSP.Position -> IndexDB -> Either Int (LSP.Range, Thing DefInfo ModDefInfo)
 lookupPosition uri pos db =
   do
     file <- step 1 $ LSP.uriToFilePath uri
-    (info,_) <- step 2 $ Map.lookup (InFile file) (posIndex db)
+    (info,_,_) <- step 2 $ Map.lookup (InFile file) (posIndex db)
     let l   = fromIntegral (pos ^. LSP.line) + 1
         c   = fromIntegral (pos ^. LSP.character)
         tgt = replPosition (l,c)
         tooEarly rng = to rng < tgt
-    (r,i) <- step 3 $ Map.lookupMin (Map.dropWhileAntitone tooEarly info)
+    (r,i0) <- step 3 $ Map.lookupMin (Map.dropWhileAntitone tooEarly info)
     step 4 $ guard (from r <= tgt && tgt <= to r)
     let rrange = snd (rangeToLSP r)
-    let n = rangeDef i
-    def <- step 5 $ Map.lookup n (allDefs db)
-    def' <- case defSeeAlso def of
-              Just a | Just b <- Map.lookup a (allDefs db) ->
-                pure def { defDoc = defDoc b `mplus` defDoc def }
-              _ -> pure def
-    let ty =
-          do
-            (nm,ts)   <- rangeTArgs i
-            (_nm1, s) <- defType def'
-            let su = T.listParamSubst (zip (T.sVars s) ts)
-            pure (nm, T.tMono (T.apSubst su (T.sType s)))-- assumes fully applied
-            
-    pure (rrange, i { rangeDef = def', rangeType = ty, rangeTArgs = Nothing })
- 
+    case i0 of
+      NamedThing i ->
+        do
+          let n = rangeDef i
+          def <- step 5 $ Map.lookup n (allDefs db)
+          def' <- case defSeeAlso def of
+                    Just a | Just b <- Map.lookup a (allDefs db) ->
+                      pure def { defDoc = defDoc b `mplus` defDoc def }
+                    _ -> pure def
+          let ty =
+                do
+                  (nm,ts)   <- rangeTArgs i
+                  (_nm1, s) <- defType def'
+                  let su = T.listParamSubst (zip (T.sVars s) ts)
+                  pure (nm, T.tMono (T.apSubst su (T.sType s)))-- assumes fully applied
+
+          pure (rrange, NamedThing i { rangeDef = def', rangeType = ty, rangeTArgs = Nothing })
+      ModThing i ->
+        do
+          def <- step 5 $ Map.lookup i (allModDefs db)
+          pure (rrange, ModThing def)
+     
   where
   step n = maybe (Left n) Right
 
@@ -135,9 +152,10 @@ unload :: ModulePath -> IndexDB -> IndexDB
 unload mo i =
   case Map.lookup mo (posIndex i) of
     Nothing -> i
-    Just (_, ours) ->
+    Just (_, ours,ourMods) ->
       IndexDB {
         allDefs  = allDefs i `Map.difference` ours,
+        allModDefs = allModDefs i `Map.difference` ourMods,
         posIndex = Map.delete mo (posIndex i)
       }
 
@@ -150,7 +168,7 @@ doLoadedModule lm cur =
       let uri         = lmFilePath lm
           tys         = getTys (lmData lm)
           addTy n inf = inf { defType = Map.lookup n (defTys tys) }
-          i           = rangedVars (mDef rm) noCtxt emptyIndex
+          i           = rangedVars rm noCtxt emptyIndex
           defs        = Map.mapWithKey addTy (ixDefs i)
           targs       = exprTyArgs tys
           getTArgs r x  =
@@ -162,15 +180,22 @@ doLoadedModule lm cur =
             do
               p <- asPrim x
               guard (p == prelPrim "number")
-              pure (mkRangeDef x (Just (nm,t)))
-          locs = Map.fromList [ (r, mkRangeDef x (getTArgs r x)) | (r,x) <- ixUse i ]  
+              pure (NamedThing (mkRangeDef x (Just (nm,t))))
+          locs = Map.fromList [ (r, NamedThing (mkRangeDef x (getTArgs r x))) | (r,x) <- ixUse i ]  
+              --    `Map.union` Map.fromList [ (r, ModThing x) | (r,x) <- ixMod i ]
                   `Map.union` Map.mapMaybe isNumLit targs               
+          modDefs = ixModDefs i
+          oldDefs = Map.lookup uri (posIndex cur)
       in IndexDB {
-          posIndex = Map.insert uri (locs, void defs) (posIndex cur),
+          posIndex = Map.insert uri (locs, void defs, void modDefs) (posIndex cur),
+          allModDefs = Map.union modDefs
+                       case oldDefs of
+                         Just (_,_,old) -> allModDefs cur `Map.difference` old
+                         Nothing -> allModDefs cur,
           allDefs  =
             Map.union defs
-            case Map.lookup uri (posIndex cur) of
-              Just (_,old) -> allDefs cur `Map.difference` old
+            case oldDefs of
+              Just (_,old,_) -> allDefs cur `Map.difference` old
               Nothing -> allDefs cur
       }
     Nothing -> cur

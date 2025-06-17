@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 module Definitions where
 
 import Data.Text(Text)
@@ -32,6 +33,12 @@ data DefInfo = DefInfo {
   -- ^ Type, if known
 }
 
+-- | Information about a top-level module
+data ModDefInfo = ModDefInfo {
+  modDefRange :: Range,
+  modDefDoc :: Maybe Text
+}
+
 instance PP DefInfo where
   ppPrec _ di = vcat [
     case defType di of
@@ -50,6 +57,11 @@ instance PP DefInfo where
                 Nothing -> m
       Nothing -> "*Local definition*"
     ]
+
+instance PP ModDefInfo where
+  ppPrec :: Int -> ModDefInfo -> Doc
+  ppPrec _ = maybe mempty pp . modDefDoc
+      
 
 -- | Collect the types of declared variables.
 -- Assumes all variables have distinct names
@@ -179,10 +191,6 @@ instance GetVarTypes T.NominalType where
 
 --------------------------------------------------------------------------------
 
--- XXX: Would it be good enough to just use the type checked syntax?
--- The renamed on might be more accurate (less rewriting has happened),
--- and it could be used for files with type errors, in principle.x
-
 class RangedVars t where
   rangedVars ::
     t -> Ctxt -> Index -> Index
@@ -194,14 +202,20 @@ data Ctxt = Ctxt {
 
 data Index = Index {
   ixDefs :: Map Name DefInfo,
-  -- ^ Things that are defined in this file (XXX: nested modules, locals).
+  -- ^ Things that are defined in this file.
 
-  ixUse  :: [(Range,Name)]
+  ixUse  :: [(Range,Name)],
   -- ^ Ranges in the file containing name uses.
+
+  ixModDefs :: Map ModName ModDefInfo,
+  -- ^ Top-level modules defines in this file.
+
+  ixMod  :: [(Range,ModName)]
+  -- ^ Ranged in the file referring to top-level modules
 }
 
 emptyIndex :: Index
-emptyIndex = Index { ixDefs = mempty, ixUse = [] }
+emptyIndex = Index { ixDefs = mempty, ixUse = [], ixModDefs = mempty, ixMod = [] }
 
 noCtxt :: Ctxt
 noCtxt = Ctxt { curRange = Nothing, curDoc = Nothing }
@@ -236,8 +250,16 @@ instance RangedVars Use where
           Nothing -> rest
           Just r  -> rest { ixUse = (r,a) : ixUse rest }
 
+instance RangedVars ModName where
+  rangedVars m ctx rest =
+    case curRange ctx of
+      Nothing -> rest
+      Just r  -> rest { ixMod = (r,m) : ixMod rest }
+
+
 newtype Def = Def Name
 data Def' = Def' Bool Name Name
+newtype ModDef = ModDef (Located ModName)
 
 
 
@@ -276,8 +298,22 @@ instance RangedVars Def' where
 instance RangedVars Def where
   rangedVars (Def x) = addDef True Nothing x
 
+instance RangedVars ModDef where
+  rangedVars (ModDef m) ctx i = i { ixModDefs = Map.insert (thing m) info (ixModDefs i) }
+    where
+    info = ModDefInfo {
+      modDefRange = srcRange m,
+      modDefDoc   = curDoc ctx
+    }
+
+
 --------------------------------------------------------------------------------
 
+instance RangedVars (Module Name) where
+  rangedVars mo ctxt = rangedVars (ModDef (mName mo)) ctxt1
+                     . rangedVars (mDef mo) ctxt
+    where
+    ctxt1 = ctxt { curDoc = thing <$> mDocTop mo }
  
 instance RangedVars (ModuleDefinition Name) where
   rangedVars mdef =
@@ -351,7 +387,7 @@ instance RangedVars (ImpName Name) where
   rangedVars imp =
     case imp of
       ImpNested n -> rangedVars (Use n)
-      ImpTop {}   -> const id
+      ImpTop m    -> rangedVars m
 
 instance RangedVars (ImportG (ImpName Name)) where
   rangedVars imp = rangedVars (iModule imp)
