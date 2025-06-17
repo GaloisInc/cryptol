@@ -1,22 +1,18 @@
 module Load (reload) where
 
-import Data.Set(Set)
 import Data.Set qualified as Set
 import Data.Map(Map)
 import Data.Map qualified as Map
 import Data.Maybe(fromMaybe,mapMaybe)
 import MonadLib
 
-import Cryptol.Utils.PP
-import Cryptol.Utils.Logger
 import Cryptol.Parser.Position(thing,srcRange,Range)
 import Cryptol.ModuleSystem
 import Cryptol.ModuleSystem.Env
 import Cryptol.ModuleSystem.Base qualified as Base
 import Cryptol.ModuleSystem.Monad
-import Cryptol.Utils.Ident
+import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.Parser.AST qualified as P
-import Cryptol.TypeCheck.AST qualified as T
 import Cryptol.TypeCheck.PP qualified as T
 import Cryptol.TypeCheck.Error qualified as T
 
@@ -27,9 +23,132 @@ import State
 import Monad
 import Index
 
+-- | Reload all open modules
+reload :: M ()
+reload =
+  LSP.withIndefiniteProgress "cryptol" Nothing LSP.NotCancellable \sendMsg ->
+  do
+    uris <- cryRoots <$> getState
+    let paths = mapMaybe LSP.uriToFilePath (Set.toList uris)
+        m = runLoadM emptyLoadS
+              (updateLoadedFiles >> mapM_ (loadPath Nothing . InFile) paths)
+    doModuleCmd' (\x -> lspLog Info x >> sendMsg x) (`runModuleM` m) \ws mb ->
+      case mb of
+        Left err -> sendDiagnostics ws [err]
+        Right (_,loadS) ->
+          do 
+            sendDiagnostics ws (loadErrs loadS)
+            let new = Map.keysSet (Map.filter (== Loaded) (loadStatus loadS))
+                reindex ent = loadedEntPath ent `Set.member` new
+            update_ \s ->
+                let env  = minpModuleEnv (cryState s)
+                    ents = filter reindex (Map.elems (getLoadedEntities (meLoadedModules env)))
+                in s { cryIndex = updateIndexes ents (cryIndex s) }
 
+-- | Load the modules from the given import source
+doLoadFrom :: ImportSource -> LoadM Status
+doLoadFrom isrc =
+  do
+    let n = importedModule isrc
+    done <- getModStatus n
+    case done of
+      Just s -> pure s
+      Nothing ->
+        do
+          mbPath <- liftMaybe (Base.findModule isrc n)
+          case mbPath of
+            Nothing   -> pure Errors
+            Just path -> loadPath (Just isrc) path
+
+-- | Load an already parsed module
+loadParsed ::
+  ModulePath                {- ^ Location of module -} ->
+  Fingerprint               {- ^ Fingerprint for location -} ->
+  Map FilePath Fingerprint  {- ^ Fingerprints for includes -} ->
+  Bool                      {- ^ Did the fingerprints change -} ->
+  Maybe ImportSource        {- ^ Why are we loading this -} ->
+  P.Module P.PName          {- ^ The parsed module -} ->
+  LoadM Status
+loadParsed path fp deps weChanged mbisrc pm0 =
+  nowLoading isrc
+    do
+      changes <- mapM doLoadFrom ds
+      status <-
+        case mconcat changes of
+          Loaded -> load
+          Unchanged
+            | weChanged -> load
+            | otherwise -> pure Unchanged 
+          Errors -> badDep mbisrc >> pure Errors
+      setModStatus mo status
+      pure status
+  where
+  pm    = Base.addPrelude pm0
+  mo    = thing (P.mName pm)
+  ds    = Base.findDeps pm
+  imps  = Set.fromList (map importedModule ds)
+  isrc  = fromMaybe (FromModule mo) mbisrc
+  load  =
+    do
+      doLift (unloadModule (\lm -> lmName lm == thing (P.mName pm)))
+      mb <- liftMaybe (Base.doLoadModule False False isrc path fp deps pm imps)
+      case mb of
+        Nothing -> badDep mbisrc >> pure Errors
+        Just _  -> pure Loaded -- XXX: we could start indexing here
+
+-- | Load the modules in the given path
+loadPath ::
+  Maybe ImportSource ->
+  ModulePath -> LoadM Status
+loadPath mbisrc path =
+  do
+    mbParsed <- liftMaybe (errorInFile path (Base.parseModule path))
+    case mbParsed of
+      Nothing -> setLoadStatus path Errors >> badDep mbisrc >> pure Errors
+      Just (fp,deps,pms) ->
+        do
+          mb <- getOldFile path
+          let weChanged =
+                case mb of
+                  Just info -> fiFingerprint info /= fp || fiIncludeDeps info /= deps
+                  _ -> True
+          status <- mconcat <$> mapM (loadParsed path fp deps weChanged mbisrc) pms
+          setLoadStatus path status
+          pure status
+
+
+
+
+--------------------------------------------------------------------------------  
+
+newtype LoadM a = LoadM (StateT LoadS ModuleM a)
+  deriving (Functor,Applicative,Monad)
+
+data LoadS = LoadS {
+  loadErrs        :: [ModuleError],
+  -- ^ Errors we encounted
+
+  oldLoadedFiles  :: Map ModulePath FileInfo,
+  -- ^ Information about loaded files before we started loading
+
+  loadStatus      :: Map ModulePath Status,
+  -- ^ Information about files we've processed
+  
+  loadModStatus   :: Map P.ModName Status
+  -- ^ Information about modules we've processed
+}
+
+emptyLoadS :: LoadS
+emptyLoadS = LoadS {
+  loadErrs = [],
+  loadStatus = mempty,
+  oldLoadedFiles = mempty,
+  loadModStatus = mempty
+}
+
+-- | Status of a file or a module
 data Status = Unchanged | Errors | Loaded
-  deriving Eq
+  deriving (Eq,Show)
 
 instance Semigroup Status where
   x <> y =
@@ -45,21 +164,11 @@ instance Monoid Status where
   mempty = Unchanged
 
 
-
-newtype LoadM a = LoadM (StateT LoadS ModuleM a)
-  deriving (Functor,Applicative,Monad)
-
+-- | Do some loading
 runLoadM :: LoadS -> LoadM a -> ModuleM (a, LoadS)
 runLoadM s (LoadM m) = runStateT s m
 
-data LoadS = LoadS {
-  loadErrs   :: [ModuleError],
-  loadStatus :: Map ModulePath Status
-}
-
-emptyLoadS :: LoadS
-emptyLoadS = LoadS { loadErrs = [], loadStatus = mempty }
-
+-- | Do a command that might fail
 liftMaybe :: ModuleM a -> LoadM (Maybe a)
 liftMaybe m =
   LoadM
@@ -69,9 +178,11 @@ liftMaybe m =
       Left err -> sets \s -> (Nothing, s { loadErrs = err : loadErrs s })
       Right a  -> pure (Just a)
 
+-- | Do a command that we are sure does not fail
 doLift :: ModuleM a -> LoadM a
 doLift m = LoadM (lift m)
 
+-- | Mark a module as being loaded, to detect recursive modules
 nowLoading :: ImportSource -> LoadM a -> LoadM a
 nowLoading isrc m = LoadM
   do
@@ -80,17 +191,30 @@ nowLoading isrc m = LoadM
     set s1
     pure a
 
-getLoadStatus :: LoadM (Map ModulePath Status)
-getLoadStatus = LoadM (loadStatus <$> get)
+-- | Set information about loaded files.  Done once at the start of loading.
+updateLoadedFiles :: LoadM ()
+updateLoadedFiles =
+  do
+    env <- doLift getModuleEnv
+    LoadM $ sets_ \s -> s { oldLoadedFiles = getLoadedFiles (meLoadedModules env) }
 
+-- | Get info about previously loaded files
+getOldFile :: ModulePath -> LoadM (Maybe FileInfo)
+getOldFile path = LoadM (Map.lookup path . oldLoadedFiles <$> get)
+
+-- | Set the status for a file
 setLoadStatus :: ModulePath -> Status -> LoadM ()
 setLoadStatus m sta = LoadM (sets_ \s -> s { loadStatus = Map.insert m sta (loadStatus s) })
 
-_doMsg :: Doc -> LoadM ()
-_doMsg m =
-  doLift (withLogger logPutStr (show m))
+-- | Set the status for a module
+setModStatus :: P.ModName -> Status -> LoadM ()
+setModStatus m sta = LoadM (sets_ \s -> s { loadModStatus = Map.insert m sta (loadModStatus s) })
 
+-- | Get the status for a module
+getModStatus :: P.ModName -> LoadM (Maybe Status)
+getModStatus mo = LoadM (Map.lookup mo . loadModStatus <$> get)
 
+-- | Get the path for a loaded entity
 loadedEntPath :: LoadedEntity -> ModulePath
 loadedEntPath ent =
   case ent of
@@ -98,6 +222,7 @@ loadedEntPath ent =
     ALoadedFunctor lm -> lmFilePath lm
     ALoadedInterface lm -> lmFilePath lm
 
+-- | Get the location of an import
 impSrcLoc :: ImportSource -> Maybe Range
 impSrcLoc isrc =
   case isrc of
@@ -106,6 +231,7 @@ impSrcLoc isrc =
     FromSigImport l -> Just (srcRange l)
     FromModuleInstance l -> Just (srcRange l)
 
+-- | Record an error at the given inmport
 badDep :: Maybe ImportSource -> LoadM ()
 badDep mbisrc =
   case mbisrc of
@@ -115,121 +241,3 @@ badDep mbisrc =
           LoadM (sets_ \s -> s { loadErrs = TypeCheckingFailed isrc T.emptyNameMap [(r,T.TemporaryError "Import contains errors")] : loadErrs s })
         Nothing -> pure ()
     Nothing -> pure ()
-
-doLoadFrom :: ImportSource -> LoadM Status
-doLoadFrom isrc =
-  do
-    -- doMsg ("Considering " <+> pp isrc)
-    let n = importedModule isrc
-    mb   <- doLift (getLoadedMaybe n)
-    done <- getLoadStatus
-
-    case mb of
-
-      -- We checked this already?
-      Just m
-        | let pa = lmFilePath m,
-          Just s <- Map.lookup pa done ->
-        do
-          case s of
-            Errors -> badDep (Just isrc)
-            _ -> pure ()
-          pure s
-       
-      _ ->
-        do
-          mbPath <- liftMaybe (Base.findModule isrc n)
-          case mbPath of
-            Nothing   -> pure Errors
-            Just path -> doLoad' mb (Just isrc) path
-
-
-doLoadDeps :: P.ModuleG mname name -> LoadM (Status, Set ModName)
-doLoadDeps m0 =
-  do
-    let ds = Base.findDeps m0 
-    changes <- mapM doLoadFrom ds -- XXX: if a depency fails, it'd be nice to report a diagnostic at the imports
-    pure (mconcat changes, Set.fromList (map importedModule ds))
-
-
-doLoad' ::
-  Maybe (LoadedModuleG T.TCTopEntity) ->
-  Maybe ImportSource ->
-  ModulePath -> LoadM Status
-doLoad' mb mbisrc path =
-  do
-    -- doMsg ("Parsging" <+> pp path)
-    mbParsed <- liftMaybe $ errorInFile path $ Base.parseModule path
-    case mbParsed of
-      Nothing -> {-doMsg "Parse error" >>-} setLoadStatus path Errors >> badDep mbisrc >> pure Errors
-      Just (fp,deps,pms) ->
-        do
-          let weChanged =
-                case mb of
-                  Just m -> fiFingerprint info /= fp || fiIncludeDeps info /= deps
-                        where info = lmFileInfo m
-                  _ -> True
-          -- doMsg "Parsing OK"
-          status <- mconcat <$> forM pms \pm0 ->
-            let pm = Base.addPrelude pm0
-                isrc = fromMaybe (FromModule (thing (P.mName pm))) mbisrc in
-            nowLoading isrc
-            do
-                  
-              (status,imps) <- doLoadDeps pm
-              let 
-                  load =
-                    do
-                      doLift $ unloadModule (\lm -> lmName lm == thing (P.mName pm))
-                      -- doMsg ("Loading" <+> pp (P.mName pm))
-                      mbOk <- liftMaybe (Base.doLoadModule False False isrc path fp deps pm imps)
-                      case mbOk of
-                        Nothing -> badDep mbisrc >> pure Errors
-                        Just _  -> pure Loaded -- XXX: we could start indexing here
-              case status of
-                Loaded -> {-doMsg "Deps changes" >>-} load
-                Unchanged
-                  | weChanged -> {-doMsg ("Deps unchanged, we chanegd" <+> maybe "(not loaded)" (const "(loaded)") mb) >>-} load
-                  | otherwise -> {-doMsg "Unchanged" >>-} pure Unchanged 
-                Errors -> {-doMsg "Error in deps" >>-} badDep mbisrc >> pure Errors
-          setLoadStatus path status
-          pure status
-
-
-doLoadEntry :: FilePath -> LoadM Status
-doLoadEntry path =
-  do
-    env <- doLift getModuleEnv
-    let ents = Map.toList (getLoadedEntities (meLoadedModules env))
-        matches fp (m,ent) =
-          case ent of
-            ALoadedModule lm | lmFilePath lm == fp -> pure lm { lmData = T.TCTopModule (lmModule lm) }
-            ALoadedFunctor lm | lmFilePath lm == fp -> pure lm { lmData = T.TCTopModule (lmModule lm) }
-            ALoadedInterface lm | lmFilePath lm == fp -> pure lm { lmData = T.TCTopSignature m (lmData lm) }
-            _ -> Nothing
-        known = msum (map (matches (InFile path)) ents)
-    doLoad' known Nothing (InFile path)
-
-
-reload :: M ()
-reload =
-  LSP.withIndefiniteProgress "cryptol" Nothing LSP.NotCancellable \sendMsg ->
-  do
-    uris <- cryRoots <$> getState
-    let paths = mapMaybe LSP.uriToFilePath (Set.toList uris)
-        m = runLoadM emptyLoadS
-                (mapM_ doLoadEntry paths)
-    doModuleCmd' (\x -> lspLog Info x >> sendMsg x) (`runModuleM` m) \ws mb ->
-      case mb of
-        Left err -> sendDiagnostics ws [err]
-        Right (_,loadS) ->
-          do 
-            sendDiagnostics ws (loadErrs loadS)
-            let new = Map.keysSet (Map.filter (== Loaded) (loadStatus loadS))
-                reindex ent = loadedEntPath ent `Set.member` new
-            update_ \s ->
-                let env  = minpModuleEnv (cryState s)
-                    ents = filter reindex (Map.elems (getLoadedEntities (meLoadedModules env)))
-                in s { cryIndex = updateIndexes ents (cryIndex s) }
-
-  

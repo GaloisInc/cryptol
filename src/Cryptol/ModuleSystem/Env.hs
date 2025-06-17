@@ -432,11 +432,23 @@ getLoadedField f lm = Set.fromList
                    ++ map f (lmLoadedParamModules lm)
                    ++ map f (lmLoadedSignatures lm)
 
+getLoadedFieldMap :: Ord k =>
+  (forall b. LoadedModuleG b -> (k,v)) -> LoadedModules -> Map k v
+getLoadedFieldMap f lm =
+  Map.fromList
+      $ map f (lmLoadedModules lm)
+     ++ map f (lmLoadedParamModules lm)
+     ++ map f (lmLoadedSignatures lm)
+                   
+
 getLoadedNames :: LoadedModules -> Set ModName
 getLoadedNames = getLoadedField lmName
 
 getLoadedIds :: LoadedModules -> Set String
 getLoadedIds = getLoadedField lmModuleId
+
+getLoadedFiles :: LoadedModules -> Map ModulePath FileInfo
+getLoadedFiles = getLoadedFieldMap \lm -> (lmFilePath lm, lmFileInfo lm)
 
 instance Semigroup LoadedModules where
   l <> r = LoadedModules
@@ -686,6 +698,8 @@ fileInfo fp incDeps impDeps fsrc =
                          fpath <- getForeignSrcPath src
                          pure $ Map.singleton fpath True
     }
+
+
 
 
 -- Dynamic Environments --------------------------------------------------------
