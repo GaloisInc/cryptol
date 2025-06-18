@@ -39,8 +39,8 @@ data Config = Config {
 }
 
 data State = State {
-  lexedFiles  :: Map LSP.Uri ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange]),
-  cryRoots    :: Set LSP.Uri,
+  lexedFiles  :: Map LSP.NormalizedUri ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange]),
+  cryRoots    :: Set LSP.NormalizedUri,
   cryIndex    :: IndexDB,
   cryState    :: ModuleInput IO
 }

@@ -9,6 +9,7 @@ import Control.Lens((^.))
 
 import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Types qualified as LSP
+-- import Language.LSP.Server qualified as LSP
 
 import Cryptol.Parser.Position qualified as Cry
 import Cryptol.Parser.Lexer
@@ -17,8 +18,9 @@ import State
 import Position
 
 semanticTokens :: LSP.Uri -> Maybe LSP.Range -> M ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange])
-semanticTokens uri mbRange =
+semanticTokens uri0 mbRange =
   do
+    let uri = LSP.toNormalizedUri uri0
     done <- lexedFiles <$> getState
     (toks,fs) <-
       case Map.lookup uri done of   
@@ -39,11 +41,14 @@ semanticTokens uri mbRange =
                       sl <= l && l <= el -- only compare lines for simplicity
                   ], fs )
   
-    
+
+
+
+
 -- | Lex the given file.
-lexFile  :: LSP.Uri -> IO ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange])
+lexFile  :: LSP.NormalizedUri -> IO ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange])
 lexFile uri =
-  case LSP.uriToFilePath uri of
+  case LSP.uriToFilePath (LSP.fromNormalizedUri uri) of
     Nothing -> pure ([],[])
     Just file ->
       do txt <- Text.readFile file

@@ -32,7 +32,7 @@ reload =
   LSP.withIndefiniteProgress "cryptol" Nothing LSP.NotCancellable \sendMsg ->
   do
     uris <- cryRoots <$> getState
-    let paths = mapMaybe LSP.uriToFilePath (Set.toList uris)
+    let paths = mapMaybe (LSP.uriToFilePath . LSP.fromNormalizedUri) (Set.toList uris)
         m = runLoadM emptyLoadS
               (updateLoadedFiles >> mapM_ (loadPath Nothing . InFile) paths)
     doModuleCmd' (\x -> lspLog Info (pp x) >> sendMsg x) (`runModuleM` m) \ws mb ->

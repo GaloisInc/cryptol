@@ -62,7 +62,7 @@ onConfigChange cfg =
 onDocumentOpen :: LSP.DidOpenTextDocumentParams -> M ()
 onDocumentOpen ps =
   do
-    let doc = ps ^. LSP.textDocument . LSP.uri
+    let doc = LSP.toNormalizedUri (ps ^. LSP.textDocument . LSP.uri)
     update_ \s -> s { cryRoots = Set.insert doc (cryRoots s) }
     reload
 
@@ -71,7 +71,7 @@ onDocumentChange _ps = pure ()
 
 onDocumentSave :: LSP.DidSaveTextDocumentParams -> M ()
 onDocumentSave ps =
-  do let doc = ps ^. LSP.textDocument . LSP.uri
+  do let doc = LSP.toNormalizedUri (ps ^. LSP.textDocument . LSP.uri)
      update_ \s -> s { lexedFiles = Map.delete doc (lexedFiles s) }
      requestSemTokUpdate
      reload
@@ -79,7 +79,7 @@ onDocumentSave ps =
 onDocumentClose :: LSP.DidCloseTextDocumentParams -> M ()
 onDocumentClose ps =
   do
-    let doc = ps ^. LSP.textDocument . LSP.uri
+    let doc = LSP.toNormalizedUri (ps ^. LSP.textDocument . LSP.uri)
     update_ \s -> s { cryRoots = Set.delete doc (cryRoots s),
                       lexedFiles = Map.delete doc (lexedFiles s) }
   
