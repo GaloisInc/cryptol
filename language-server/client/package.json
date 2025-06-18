@@ -2,7 +2,8 @@
   "name": "cryptol",
   "displayName": "Cryptol",
   "description": "Language support for Cryptol",
-  "version": "0.0.1",
+  "icon": "images/icon.png",
+  "version": "0.1.0",
   "engines": {
     "vscode": "^1.100.2"
   },
