@@ -40,7 +40,7 @@
           "cryptol"
         ],
         "extensions": [
-          ".cry", ".md", ".tex"
+          ".cry"
         ],
         "configuration": "./language-configuration.json"
       }
