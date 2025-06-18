@@ -2,8 +2,9 @@ module Handlers where
 
 import Data.Text qualified as Text
 import Data.Map qualified as Map
-import Data.Set qualified as Set
 import Control.Lens((^.))
+import Control.Concurrent(killThread)
+import Control.Concurrent.STM
 import Language.LSP.Server qualified as LSP
 import Language.LSP.Protocol.Types(type (|?))
 import qualified Language.LSP.Protocol.Types as LSP
@@ -58,32 +59,39 @@ onConfigChange cfg =
       in s { cryState = inp { minpModuleEnv = meNew } }
     reload
   
-      
 onDocumentOpen :: LSP.DidOpenTextDocumentParams -> M ()
 onDocumentOpen ps =
   do
     let doc = LSP.toNormalizedUri (ps ^. LSP.textDocument . LSP.uri)
-    update_ \s -> s { cryRoots = Set.insert doc (cryRoots s) }
+    newMonitor doc
     reload
 
 onDocumentChange :: LSP.DidChangeTextDocumentParams -> M ()
-onDocumentChange _ps = pure ()
+onDocumentChange ps =
+  do let doc = LSP.toNormalizedUri (ps ^. LSP.textDocument . LSP.uri)
+     mb <- Map.lookup doc . cryRoots <$> getState
+     case mb of
+       Just (_,tv) -> liftIO (atomically (writeTVar tv True))
+       Nothing -> pure ()
 
 onDocumentSave :: LSP.DidSaveTextDocumentParams -> M ()
 onDocumentSave ps =
   do let doc = LSP.toNormalizedUri (ps ^. LSP.textDocument . LSP.uri)
      update_ \s -> s { lexedFiles = Map.delete doc (lexedFiles s) }
-     requestSemTokUpdate
      reload
 
 onDocumentClose :: LSP.DidCloseTextDocumentParams -> M ()
 onDocumentClose ps =
   do
     let doc = LSP.toNormalizedUri (ps ^. LSP.textDocument . LSP.uri)
-    update_ \s -> s { cryRoots = Set.delete doc (cryRoots s),
-                      lexedFiles = Map.delete doc (lexedFiles s) }
-  
-
+    update \_ s ->
+      do
+        let (thr,newMp) = Map.updateLookupWithKey (\_ _ -> Nothing) doc (cryRoots s)
+        case thr of
+          Just (tid,_) -> liftIO (killThread tid)
+          Nothing -> pure ()
+        pure (s { cryRoots = newMp, lexedFiles = Map.delete doc (lexedFiles s) }, ())
+        
 onHover :: LSP.HoverParams -> M (LSP.Hover |? LSP.Null)
 onHover ps =
   do
@@ -126,12 +134,7 @@ onGotoDefinition ps =
   doc = ps ^. LSP.textDocument . LSP.uri
   pos = ps ^. LSP.position
 
-requestSemTokUpdate :: M ()
-requestSemTokUpdate =
-  do
-    _ <- LSP.sendRequest LSP.SMethod_WorkspaceSemanticTokensRefresh Nothing 
-          (const (pure ()))
-    pure ()
+
 
 onSemTokFull :: LSP.SemanticTokensParams -> M (LSP.SemanticTokens |? LSP.Null)
 onSemTokFull ps =

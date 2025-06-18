@@ -11,7 +11,8 @@ module Monad (
   getState,
   liftIO,
   doModuleCmd', doModuleCmd,
-  sendDiagnostics
+  sendDiagnostics,
+  requestSemTokUpdate
 )where
 
 import Data.Text(Text)
@@ -56,6 +57,13 @@ getState :: M State
 getState =
   do cfg <- getConfig
      liftIO (readMVar (stateRef cfg))
+
+requestSemTokUpdate :: M ()
+requestSemTokUpdate =
+  do
+    _ <- LSP.sendRequest LSP.SMethod_WorkspaceSemanticTokensRefresh Nothing 
+          (const (pure ()))
+    pure ()
 
 -- | Handle a notification.
 lspNotification ::

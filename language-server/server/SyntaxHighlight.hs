@@ -1,15 +1,20 @@
-module SyntaxHighlight (semanticTokens) where
+module SyntaxHighlight (newMonitor, semanticTokens) where
 
 import Data.Maybe(mapMaybe,listToMaybe)
 import Data.Char(isSpace)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
-import Data.Text.IO qualified as Text
 import Control.Lens((^.))
+import Control.Monad(unless)
+import Control.Concurrent(forkIO)
+import Control.Monad.STM
+import Control.Concurrent.STM.TVar
 
+import Language.LSP.Server qualified as LSP
+import Language.LSP.VFS qualified as LSP (virtualFileText)
 import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Types qualified as LSP
--- import Language.LSP.Server qualified as LSP
+
 
 import Cryptol.Parser.Position qualified as Cry
 import Cryptol.Parser.Lexer
@@ -17,7 +22,44 @@ import Monad
 import State
 import Position
 
-semanticTokens :: LSP.Uri -> Maybe LSP.Range -> M ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange])
+newMonitor :: LSP.NormalizedUri -> M ()
+newMonitor uri =
+  do
+    let timeout = 1000 -- Wait for no changes for 1s before updating
+    changes <- liftIO (newTVarIO False)
+    env     <- LSP.getLspEnv
+    let loop =
+          do
+            atomically 
+              do
+                check =<< readTVar changes
+                writeTVar changes False
+            waitForPause timeout changes
+            LSP.runLspT env (lexFile uri >> requestSemTokUpdate) 
+            loop
+    tid <- liftIO (forkIO loop)
+    update_ \s -> s { cryRoots = Map.insert uri (tid, changes) (cryRoots s) }
+
+
+waitForPause :: Int -> TVar Bool -> IO ()
+waitForPause n changes =
+  do
+    itsTime <- registerDelay n
+    ready <- atomically $
+      do ch <- readTVar changes
+         check ch
+         writeTVar changes False
+         pure False
+      `orElse`
+        do check =<< readTVar itsTime
+           pure True
+          
+    unless ready (waitForPause n changes)
+
+semanticTokens ::
+  LSP.Uri ->
+  Maybe LSP.Range ->
+  M ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange])
 semanticTokens uri0 mbRange =
   do
     let uri = LSP.toNormalizedUri uri0
@@ -25,9 +67,7 @@ semanticTokens uri0 mbRange =
     (toks,fs) <-
       case Map.lookup uri done of   
         Just ts -> pure ts
-        Nothing ->
-          do ts <- liftIO (lexFile uri)
-             update \_ s -> pure (s { lexedFiles = Map.insert uri ts (lexedFiles s) }, ts)
+        Nothing -> lexFile uri
     -- mapM_ (lspLog Info . Text.pack . show) toks
     case mbRange of
       Nothing -> pure (toks,fs)
@@ -42,18 +82,20 @@ semanticTokens uri0 mbRange =
                   ], fs )
   
 
-
-
-
 -- | Lex the given file.
-lexFile  :: LSP.NormalizedUri -> IO ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange])
+lexFile  :: LSP.NormalizedUri -> M ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange])
 lexFile uri =
-  case LSP.uriToFilePath (LSP.fromNormalizedUri uri) of
-    Nothing -> pure ([],[])
-    Just file ->
-      do txt <- Text.readFile file
-         let (ls,_) = primLexer defaultConfig txt
-         pure (concatMap toAbsolute ls, mapMaybe tokenRange ls)
+  do
+    mb <- LSP.getVirtualFile uri
+    let ts =
+          case mb of
+            Nothing -> ([],[])
+            Just f ->
+              let txt = LSP.virtualFileText f
+                  (ls,_) = primLexer defaultConfig txt
+              in (concatMap toAbsolute ls, mapMaybe tokenRange ls)
+    update \_ s -> pure (s { lexedFiles = Map.insert uri ts (lexedFiles s) }, ts)
+      
 
 
 tokenRange :: Located Token -> Maybe LSP.FoldingRange

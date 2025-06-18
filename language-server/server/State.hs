@@ -3,10 +3,10 @@ module State where
 import Data.ByteString qualified as BS
 import Data.Text(Text)
 import Data.Text qualified as Text
-import Data.Set(Set)
 import Data.Map(Map)
 import Control.Exception
 import Control.Concurrent
+import Control.Concurrent.STM.TVar
 import Data.Aeson qualified as JS
 import Data.Aeson.Types qualified as JS
 import Language.LSP.Protocol.Types qualified as LSP
@@ -40,7 +40,7 @@ data Config = Config {
 
 data State = State {
   lexedFiles  :: Map LSP.NormalizedUri ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange]),
-  cryRoots    :: Set LSP.NormalizedUri,
+  cryRoots    :: Map LSP.NormalizedUri (ThreadId, TVar Bool),
   cryIndex    :: IndexDB,
   cryState    :: ModuleInput IO
 }

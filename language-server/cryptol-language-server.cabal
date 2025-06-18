@@ -45,6 +45,7 @@ executable cryptol-language-server
         base, bytestring, text, containers,
         aeson, lens,
         lsp,
+        stm,
         cryptol,
         co-log-core,
         monadLib
