@@ -40,7 +40,7 @@
 //!
 //! ```
 //! # use cry_ffi::*;
-// #
+//! #
 //! // For a Cryptol function `foreign abstract example : [64] -> [64] -> [64]`
 //!
 //! #[no_mangle]
@@ -95,9 +95,15 @@
 //! arguments, or exporting/importing different types), all of which could lead
 //! to undefined behavior.
 
-use std::ffi::*;
-use std::mem::{self, MaybeUninit};
-use std::slice::from_raw_parts_mut;
+#![cfg_attr(not(test), no_std)]
+extern crate alloc;
+
+use alloc::boxed::Box;
+use alloc::slice::from_raw_parts_mut;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::ffi::*;
+use core::mem::{self, MaybeUninit};
 use num::{BigInt, BigRational, BigUint, ToPrimitive};
 use num::bigint::{Sign, ToBigInt};
 

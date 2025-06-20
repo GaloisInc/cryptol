@@ -869,8 +869,11 @@ Check docstrings
 Parameter fields
 ++++++++++++++++
 
-No parameters
 
+``cache_id``
+  A ``string`` identifying the cache state before validation.
+  
+  
 
 Return fields
 +++++++++++++
@@ -878,6 +881,11 @@ Return fields
 
 ``results``
   A list of :ref:`docstring results <DocstringResult>` correspoding to each definition in the current module.
+  
+  
+
+``cache_id``
+  A ``string`` identifying the cache state after validation.
   
   
 

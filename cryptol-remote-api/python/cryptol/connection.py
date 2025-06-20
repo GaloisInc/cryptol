@@ -204,13 +204,14 @@ class CryptolConnection:
         self.most_recent_result = CryptolLoadFile(self, filename, timeout)
         return self.most_recent_result
 
-    def check_docstrings(self, timeout: Optional[float] = None) -> argo.Command:
+    def check_docstrings(self, cache_id: str, timeout: Optional[float] = None) -> argo.Command:
         """Check docstrings
 
+        :param cache_id: expected state of the cache
         :param timeout: Optional timeout for this request (in seconds).
         """
         timeout = timeout if timeout is not None else self.timeout
-        self.most_recent_result = CryptolCheckDocstrings(self, timeout)
+        self.most_recent_result = CryptolCheckDocstrings(self, cache_id, timeout)
         return self.most_recent_result
 
     def load_project(self, path: str, mode: str, *, timeout: Optional[float] = None) -> argo.Command:
