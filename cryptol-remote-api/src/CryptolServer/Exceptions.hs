@@ -52,8 +52,9 @@ cryptolError modErr warns =
     (errorNum, errorData) = moduleError modErr
 
     moduleError err = case err of
-      ModuleNotFound src path ->
-        (20500, [ ("source", jsonPretty src)
+      ModuleNotFound isrc src path ->
+        (20500, [ ("import", jsonPretty isrc)
+                , ("source", jsonPretty src)
                 , ("path", jsonList (map jsonString path))
                 ])
       CantFindFile path ->
