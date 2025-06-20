@@ -55,7 +55,7 @@ import           Cryptol.TypeCheck.Error( Warning(..),Error(..)
                                         )
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import           Cryptol.TypeCheck.PP(NameMap)
+import           Cryptol.TypeCheck.PP(NameMap, defaultPPCfg)
 import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets,debugShowUniques)
 import           Cryptol.Utils.Ident(Ident,Namespace(..),ModName)
 import           Cryptol.Utils.Panic(panic)
@@ -184,13 +184,20 @@ runInferM info m0 =
               errs -> inferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
+  ppcfg = defaultPPCfg
+  -- XXX: perhaps this should be a part of the input?
+  -- We use it when picking how to display names; we need to pick names
+  -- for things that don't have their own, and we need to pick names that
+  -- don't clash with existing ones.   This is affected by how things are
+  -- pretty printed.
+
   inferOk ws a b c  = 
     let ws1 = cleanupWarnings ws
-    in pure (InferOK (computeFreeVarNames ws1 []) ws1 a b c)
+    in pure (InferOK (computeFreeVarNames ppcfg ws1 []) ws1 a b c)
   inferFailed ws es =
     let es1 = cleanupErrors es
         ws1 = cleanupWarnings ws
-    in pure (InferFailed (computeFreeVarNames ws1 es1) ws1 es1)
+    in pure (InferFailed (computeFreeVarNames ppcfg ws1 es1) ws1 es1)
 
 
   rw = RW { iErrors     = []

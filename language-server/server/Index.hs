@@ -52,6 +52,9 @@ data RangeInfo a = RangeInfo {
   rangeDef :: a,
   -- ^ Definition (or name of definition)
 
+  rangeNameDisp :: NameDisp,
+  -- ^ How to show names
+
   rangeType :: Maybe (T.NameMap, T.Schema),
   -- ^ Instantiated type at a particular call site
 
@@ -59,12 +62,13 @@ data RangeInfo a = RangeInfo {
   -- ^ Type parameters at call cite
 }
 
-mkRangeDef :: Name -> Maybe (T.NameMap, [T.Type]) -> RangeInfo Name
-mkRangeDef a as =
-  RangeInfo { rangeDef = a, rangeType = Nothing, rangeTArgs = as }
+mkRangeDef :: (NameDisp,Name) -> Maybe (T.NameMap, [T.Type]) -> RangeInfo Name
+mkRangeDef (d,a) as =
+  RangeInfo { rangeDef = a, rangeNameDisp = d, rangeType = Nothing, rangeTArgs = as }
 
 instance PP a => PP (RangeInfo a) where
   ppPrec _ ri =
+    fixNameDisp (rangeNameDisp ri)
     case rangeType ri of
       Just (nm,ty) ->
         vcat [
@@ -175,23 +179,23 @@ doLoadedModule lm cur =
   case lmRenamedModule lm of
     Just rm ->
       let uri         = lmFilePath lm
-          tys         = getTys (lmData lm)
+          tys         = getVarTypes emptyTCtxt (lmdModule (lmData lm)) emptyTIndex
           addTy n inf = inf { defType = Map.lookup n (defTys tys) }
           i           = rangedVars rm noCtxt emptyIndex
           defs        = Map.mapWithKey addTy (ixDefs i)
           targs       = exprTyArgs tys
           getTArgs r x  =
             do
-              (y,nm,t) <- Map.lookup r targs
+              (y,_disp,nm,t) <- Map.lookup r targs
               guard (x == y)
               pure (nm,t)
-          isNumLit (x,nm,t) =
+          isNumLit (x,disp,nm,t) =
             do
               p <- asPrim x
               guard (p == prelPrim "number")
-              pure (NamedThing (mkRangeDef x (Just (nm,t))))
+              pure (NamedThing (mkRangeDef (disp, x) (Just (nm,t))))
           locs = Map.unions
-                  [ Map.fromList [ (r, NamedThing (mkRangeDef x (getTArgs r x)))
+                  [ Map.fromList [ (r, NamedThing (mkRangeDef x (getTArgs r (snd x))))
                                  | (r,x) <- ixUse i ] 
                   , Map.fromList [ (r, ModThing x) | (r,x) <- ixMod i ]
                   , Map.mapMaybe isNumLit targs
@@ -204,8 +208,7 @@ doLoadedModule lm cur =
           allDefs  = Map.union defs (allDefs cur)
       }
     Nothing -> cur
-  where
-  getTys m = getVarTypes emptyTCtxt (lmdModule m) emptyTIndex
+
 
 
 

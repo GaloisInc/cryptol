@@ -1,15 +1,16 @@
-{-# LANGUAGE InstanceSigs #-}
 module Definitions where
 
 import Data.Text(Text)
 import Data.Map(Map)
 import Data.Map qualified as Map
+import Data.Maybe(fromMaybe)
 
 import Cryptol.Utils.PP
 import Cryptol.Utils.RecordMap
 import Cryptol.Utils.Ident
 import Cryptol.Parser.AST
 import Cryptol.ModuleSystem.Name
+import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.TypeCheck.AST qualified as T
 import Cryptol.TypeCheck.PP qualified as T
 import Cryptol.Parser.Position
@@ -44,7 +45,7 @@ instance PP DefInfo where
     case defType di of
       Nothing -> mempty
       Just (nms,s) -> "__" <> pp (nameIdent (defName di)) <> "__: "
-        <> T.ppWithNames nms s,
+        <> fixNameDisp neverQualify (T.ppWithNames nms s),
     "",
     maybe mempty pp (defDoc di),
     "",
@@ -59,7 +60,6 @@ instance PP DefInfo where
     ]
 
 instance PP ModDefInfo where
-  ppPrec :: Int -> ModDefInfo -> Doc
   ppPrec _ mo =
     vcat [
       "Top-level module",
@@ -78,7 +78,7 @@ data TIndex = TIndex {
   defTys :: Map Name (T.NameMap, T.Schema),
   -- ^ Types of names
 
-  exprTyArgs :: Map Range (Name, T.NameMap, [T.Type])
+  exprTyArgs :: Map Range (Name, NameDisp, T.NameMap, [T.Type])
   -- ^ Type arguments for various occurances of names 
 }
 
@@ -95,7 +95,7 @@ addTyArgs c x i =
   case tctxRange c of
     Just r
       | nameSrc x == UserName && not (null as) ->
-        i { exprTyArgs = Map.insert r (x,tctxNames c, as) (exprTyArgs i) }
+        i { exprTyArgs = Map.insert r (x, tctxCurDisp c, tctxNames c, as) (exprTyArgs i) }
       where
       as = tctxTApp c
 
@@ -105,16 +105,29 @@ addTyArgs c x i =
 
 -- | Context while collecting type information
 data TCtxt = TCtxt {
+  tctxPP    :: PPCfg,         -- ^ Global pretty printing options
+  tctxCurDisp :: NameDisp,    -- ^ Display fore current definition
+  tctxScopes :: Map ModPath NameDisp, -- ^ Display for each module
   tctxRange :: Maybe Range,   -- ^ Where are we
   tctxNames :: T.NameMap,     -- ^ How to pretty print type variables
   tctxTApp :: [T.Type]        -- ^ Type arguments (for type applications)
 }
 
 emptyTCtxt :: TCtxt 
-emptyTCtxt = TCtxt { tctxRange = Nothing, tctxNames = mempty, tctxTApp = [] }
+emptyTCtxt = TCtxt { tctxPP = defaultPPCfg, tctxCurDisp = EmptyNameDisp, tctxScopes = mempty, tctxRange = Nothing, tctxNames = mempty, tctxTApp = [] }
 
 addTNames :: [T.TParam] -> TCtxt -> TCtxt
-addTNames xs t = t { tctxNames = T.addTNames xs (tctxNames t) }
+addTNames xs t = t { tctxNames = T.addTNames cfg xs (tctxNames t) }
+  where cfg = (tctxPP t) { ppcfgNameDisp = tctxCurDisp t }
+
+-- | Adpat context to given definition
+inDecl :: Name -> TCtxt -> TCtxt
+inDecl x nm =
+  fromMaybe nm
+  do
+    pa <- nameModPathMaybe x
+    disp <- Map.lookup pa (tctxScopes nm)
+    pure nm { tctxCurDisp = disp }
 
 
 instance (GetVarTypes a, GetVarTypes b) => GetVarTypes (a,b) where
@@ -129,14 +142,32 @@ instance (GetVarTypes a) => GetVarTypes [a] where
       [] -> id
       x : ys -> getVarTypes nm (x,ys)
 
-instance GetVarTypes (T.ModuleG name) where
+
+-- | Get the ModPath for the name of amodule
+class AsModPath name where
+  asModPath :: name -> ModPath
+
+instance AsModPath Name where
+  asModPath = nameModPath
+
+instance AsModPath ModName where
+  asModPath = TopModule
+
+instance AsModPath name => GetVarTypes (T.ModuleG name) where
   getVarTypes nm mo =
-    getVarTypes nm1 (Map.elems (T.mParamFuns mo), 
+    getVarTypes nm2 (Map.elems (T.mParamFuns mo), 
                     (Map.elems (T.mFunctors mo),
                     (T.mDecls mo,
                      Map.elems (T.mNominalTypes mo))))
     where
     nm1 = addTNames (map T.mtpParam (Map.elems (T.mParamTypes mo))) nm
+    nm2 = nm1 {
+      tctxScopes =
+        Map.fromList $
+          (asModPath (T.mName mo), toNameDisp (T.mInScope mo)) :
+          [ (asModPath x, toNameDisp (T.smInScope y))
+          | (x,y) <- Map.toList (T.mSubmodules mo) ]
+      }
 
 
 instance GetVarTypes T.ModVParam where
@@ -147,11 +178,14 @@ instance GetVarTypes T.DeclGroup where
 
 instance GetVarTypes T.Decl where
   getVarTypes nm d =
-    addDefTy nm (T.dName d) (T.dSignature d) .
+    addDefTy nm1 (T.dName d) (T.dSignature d) .
     case T.dDefinition d of
       T.DPrim         -> id
-      T.DForeign _ i  -> getVarTypes nm i
-      T.DExpr e       -> getVarTypes nm e
+      T.DForeign _ i  -> getVarTypes nm1 i
+      T.DExpr e       -> getVarTypes nm1 e
+    where
+    nm1 = inDecl (T.dName d) nm
+
 
 instance GetVarTypes T.Expr where
   getVarTypes nm expr =
@@ -188,10 +222,11 @@ instance GetVarTypes T.Match where
       T.Let d -> getVarTypes nm d
 
 instance GetVarTypes T.NominalType where
-  getVarTypes nm nom = flip (foldr (uncurry (addDefTy nm1))) cons 
+  getVarTypes nm nom = flip (foldr (uncurry (addDefTy nm2))) cons 
     where
     cons = T.nominalTypeConTypes nom
-    nm1  = addTNames (T.ntParams nom) nm
+    nm1  = inDecl (T.ntName nom) nm
+    nm2  = addTNames (T.ntParams nom) nm1
 
 
 --------------------------------------------------------------------------------
@@ -201,15 +236,16 @@ class RangedVars t where
     t -> Ctxt -> Index -> Index
 
 data Ctxt = Ctxt {
-  curRange :: Maybe Range,
-  curDoc   :: Maybe Text
+  curNamingEnv  :: NameDisp,
+  curRange      :: Maybe Range,
+  curDoc        :: Maybe Text
 }
 
 data Index = Index {
   ixDefs :: Map Name DefInfo,
   -- ^ Things that are defined in this file.
 
-  ixUse  :: [(Range,Name)],
+  ixUse  :: [(Range,(NameDisp,Name))],
   -- ^ Ranges in the file containing name uses.
 
   ixModDefs :: Map ModName ModDefInfo,
@@ -223,14 +259,14 @@ emptyIndex :: Index
 emptyIndex = Index { ixDefs = mempty, ixUse = [], ixModDefs = mempty, ixMod = [] }
 
 noCtxt :: Ctxt
-noCtxt = Ctxt { curRange = Nothing, curDoc = Nothing }
+noCtxt = Ctxt { curNamingEnv = mempty, curRange = Nothing, curDoc = Nothing }
 
 instance PP Index where
   ppPrec _ i =
     vcat [
       "Uses",
       vcat [ pp r <+> "module" <+> pp m | (r,m) <- ixMod i ],
-      vcat [ pp r <+> "name" <+> pp n | (r,n) <- ixUse i ],
+      vcat [ pp r <+> "name" <+> fixNameDisp di (pp n) | (r,(di,n)) <- ixUse i ],
       "End uses"
     ]
 
@@ -262,7 +298,7 @@ instance RangedVars Use where
       _ ->
         case curRange ctx of
           Nothing -> rest
-          Just r  -> rest { ixUse = (r,a) : ixUse rest }
+          Just r  -> rest { ixUse = (r,(curNamingEnv ctx,a)) : ixUse rest }
 
 instance RangedVars ModName where
   rangedVars m ctx rest =
@@ -283,7 +319,7 @@ addDef addUse also nm ctx rest =
       SystemName -> rest
       _ -> rest {
         ixDefs = Map.insert nm info (ixDefs rest),
-        ixUse = if addUse then (rng,nm) : ixUse rest else ixUse rest
+        ixUse = if addUse then (rng,(curNamingEnv ctx, nm)) : ixUse rest else ixUse rest
       }
     where
     rng =
@@ -328,9 +364,10 @@ instance RangedVars ModDef where
 --------------------------------------------------------------------------------
 instance RangedVars (Module Name) where
   rangedVars mo ctxt = rangedVars (ModDef (mName mo)) ctxt1
-                     . rangedVars (mDef mo) ctxt
+                     . rangedVars (mDef mo) ctxt2
     where
     ctxt1 = ctxt { curDoc = thing <$> mDocTop mo }
+    ctxt2 = ctxt { curNamingEnv = toNameDisp (mInScope mo) }
  
 instance RangedVars (ModuleDefinition Name) where
   rangedVars mdef =
@@ -410,7 +447,8 @@ instance RangedVars (ImportG (ImpName Name)) where
   rangedVars imp = rangedVars (iModule imp)
 
 instance RangedVars (NestedModule Name) where
-  rangedVars (NestedModule nm) = rangedVars (Def <$> mName nm, mDef nm)
+  rangedVars (NestedModule nm) ctx = rangedVars (Def <$> mName nm, mDef nm) ctx1
+    where ctx1 = ctx { curNamingEnv = toNameDisp (mInScope nm) }
 
 instance RangedVars (Newtype Name) where
   rangedVars nt =

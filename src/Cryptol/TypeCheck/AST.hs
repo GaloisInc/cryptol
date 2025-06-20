@@ -403,21 +403,24 @@ instance PP CaseAlt where
 ppLam :: NameMap -> Int -> [TParam] -> [Prop] -> [(Name,Type)] -> Expr -> Doc
 ppLam nm prec [] [] [] e = nest 2 (ppWithNamesPrec nm prec e)
 ppLam nm prec ts ps xs e =
+  withPPCfg $ \cfg ->
+  let
+    ns1 = addTNames cfg ts nm
+
+    tsD = if null ts then [] else [braces $ commaSep $ map ppT ts]
+    psD = if null ps then [] else [parens $ commaSep $ map ppP ps]
+    xsD = if null xs then [] else [sep    $ map ppArg xs]
+  
+    ppT = ppWithNames ns1
+    ppP = ppWithNames ns1
+    ppArg (x,t) = parens (pp x <+> text ":" <+> ppWithNames ns1 t)
+  in
   optParens (prec > 0) $
   nest 2 $ sep
     [ text "\\" <.> hsep (tsD ++ psD ++ xsD ++ [text "->"])
     , ppWithNames ns1 e
     ]
-  where
-  ns1 = addTNames ts nm
 
-  tsD = if null ts then [] else [braces $ commaSep $ map ppT ts]
-  psD = if null ps then [] else [parens $ commaSep $ map ppP ps]
-  xsD = if null xs then [] else [sep    $ map ppArg xs]
-
-  ppT = ppWithNames ns1
-  ppP = ppWithNames ns1
-  ppArg (x,t) = parens (pp x <+> text ":" <+> ppWithNames ns1 t)
 
 
 splitWhile :: (a -> Maybe (b,a)) -> a -> ([b],a)
@@ -531,6 +534,15 @@ instance PP n => PP (ModuleG n) where
 
 instance PP n => PP (WithNames (ModuleG n)) where
   ppPrec _ (WithNames Module { .. } nm) =
+    withPPCfg $ \cfg ->
+      let
+        mps = map mtpParam (Map.elems mParamTypes)
+        pp' :: PP (WithNames a) => a -> Doc
+        pp' = ppWithNames (addTNames cfg mps nm)
+        ppSig (x,y) = "interface module" <+> pp x <+> "where"
+                      $$ indent 2 (pp y)
+        vcat' xs = if null xs then Nothing else Just (vcat xs)
+      in
     vcat $
     catMaybes
          [ Just (text "module" <+> pp mName)
@@ -544,12 +556,7 @@ instance PP n => PP (WithNames (ModuleG n)) where
 
          , vcat' (map ppSig (Map.toList mSignatures))
          ]
-    where mps = map mtpParam (Map.elems mParamTypes)
-          pp' :: PP (WithNames a) => a -> Doc
-          pp' = ppWithNames (addTNames mps nm)
-          ppSig (x,y) = "interface module" <+> pp x <+> "where"
-                        $$ indent 2 (pp y)
-          vcat' xs = if null xs then Nothing else Just (vcat xs)
+
 
 instance PP (WithNames TCTopEntity) where
   ppPrec _ (WithNames ent nm) =

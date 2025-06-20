@@ -177,7 +177,7 @@ ppName :: Name -> Doc
 ppName nm =
   case nInfo nm of
     GlobalName _ og -> pp og
-    LocalName _ _ i   -> pp i
+    LocalName _ _ i -> pp i
   <.>
   withPPCfg \cfg ->
     if ppcfgShowNameUniques cfg then "_" <.> int (nameUnique nm)
