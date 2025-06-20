@@ -1,8 +1,9 @@
 {
-  "name": "cryptol",
+  "name": "cryptol-language-server",
   "displayName": "Cryptol",
   "description": "Language support for Cryptol",
   "icon": "images/icon.png",
+  "publisher": "GaloisInc",
   "version": "0.1.0",
   "engines": {
     "vscode": "^1.100.2"
