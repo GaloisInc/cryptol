@@ -45,7 +45,7 @@ instance PP DefInfo where
     case defType di of
       Nothing -> mempty
       Just (nms,s) -> "__" <> pp (nameIdent (defName di)) <> "__: "
-        <> fixNameDisp neverQualify (T.ppWithNames nms s),
+        <> T.ppWithNames nms s,
     "",
     maybe mempty pp (defDoc di),
     "",
