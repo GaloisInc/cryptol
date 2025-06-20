@@ -25,7 +25,7 @@ import Cryptol.TypeCheck.Type (Kind(..), PC(..), TC(..), TCon(..),
           NominalType(..), NominalTypeDef(..)
           )
 import Cryptol.Utils.Ident (mkIdent)
-import Cryptol.Utils.PP (pp)
+import Cryptol.Utils.PP (pp, defaultPPCfg)
 import Cryptol.Utils.RecordMap (canonicalFields)
 
 import qualified Argo.Doc as Doc
@@ -37,13 +37,14 @@ newtype JSONSchema = JSONSchema Schema
 newtype JSONPType = JSONPType { unJSONPType :: C.Type C.PName }
 
 data JSONType = JSONType NameMap Type
-  deriving (Eq, Show)
+  deriving (Show)
 
 newtype JSONKind = JSONKind Kind
 
 instance JSON.ToJSON JSONSchema where
   toJSON (JSONSchema (Forall vars props ty)) =
-    let ns = addTNames vars emptyNameMap
+    let cfg = defaultPPCfg
+        ns = addTNames cfg vars emptyNameMap
     in JSON.object [ "forall" .=
                       [JSON.object
                         [ "name" .= show (ppWithNames ns v)

@@ -23,7 +23,7 @@ import           Data.List(transpose)
 import           Cryptol.Utils.PP
 
 
-type NameMap = IntMap String
+type NameMap = IntMap Doc
 
 emptyNameMap :: NameMap
 emptyNameMap = IntMap.empty

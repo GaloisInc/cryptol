@@ -149,6 +149,7 @@ import qualified System.Random.TF as TF
 
 import Prelude ()
 import Prelude.Compat
+import Cryptol.ModuleSystem.Monad (ModuleInput(minpSaveRenamed))
 
 -- REPL Environment ------------------------------------------------------------
 
@@ -716,6 +717,7 @@ getModuleInput = do
     , minpByteReader = BS.readFile
     , minpModuleEnv  = env
     , minpTCSolver   = tcSolver
+    , minpSaveRenamed = False
     }
 
 -- | Given an existing qualified name, prefix it with a

@@ -397,6 +397,35 @@ instance PP (WithNames Goal) where
 
 instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
+    withPPCfg $ \cfg ->
+    let
+      bullets xs = [ "•" <+> x | x <- xs ]
+  
+      sig = case name of
+              Just n -> "in the definition of" <+> quotes (pp n) <.>
+                        comma <+> "at" <+> pp (nameLoc n) <.> comma
+              Nothing -> "when checking the module's parameters,"
+  
+      name  = dctSource d
+      vars = case otherTPs of
+               [] -> []
+               xs -> ["for any type" <+> commaSep (map (ppWithNames ns1) xs)]
+      asmps = case dctAsmps d of
+                [] -> []
+                xs -> [hang "assuming"
+                         2 (vcat (bullets (map (ppWithNames ns1) xs)))]
+  
+      tvars = fvs (dctAsmps d, dctGoals d)
+      used = filter ((`Set.member` tvars) . TVBound) (dctForall d)
+      isModP tp =
+        case tpFlav tp of
+          TPModParam {} -> True
+          _ -> False
+      (mpTPs,otherTPs) = partition isModP used
+      explain = addTVarsDescsAfterFVS ns1 (Set.fromList (map TVBound mpTPs))
+      mps = computeModParamNames cfg mpTPs names
+      ns1 = addTNames cfg otherTPs mps
+    in
     sig $$
     hang "we need to show that"
     
@@ -406,36 +435,9 @@ instance PP (WithNames DelayedCt) where
                        $ bullets
                        $ map (ppWithNames ns1)
                        $ dctGoals d )])))
-    where
  
-
-    bullets xs = [ "•" <+> x | x <- xs ]
-
-    sig = case name of
-            Just n -> "in the definition of" <+> quotes (pp n) <.>
-                      comma <+> "at" <+> pp (nameLoc n) <.> comma
-            Nothing -> "when checking the module's parameters,"
-
-    name  = dctSource d
-    vars = case otherTPs of
-             [] -> []
-             xs -> ["for any type" <+> commaSep (map (ppWithNames ns1) xs)]
-    asmps = case dctAsmps d of
-              [] -> []
-              xs -> [hang "assuming"
-                       2 (vcat (bullets (map (ppWithNames ns1) xs)))]
-
-    tvars = fvs (dctAsmps d, dctGoals d)
-    used = filter ((`Set.member` tvars) . TVBound) (dctForall d)
-    isModP tp =
-      case tpFlav tp of
-        TPModParam {} -> True
-        _ -> False
-    (mpTPs,otherTPs) = partition isModP used
-    explain = addTVarsDescsAfterFVS ns1 (Set.fromList (map TVBound mpTPs))
     
-    mps = computeModParamNames mpTPs names
-    ns1 = addTNames otherTPs mps
+ 
 
 
 
@@ -454,12 +456,12 @@ nameVariant n x = if n == 0 then x else x ++ suff
 -- | Pick names for the type parameters that correspond to module parameters,
 -- avoiding strings that already appear in the given name map.
 -- Returns an extended name map.
-computeModParamNames :: [TParam] -> NameMap -> NameMap
-computeModParamNames tps names = IntMap.fromList newNames `IntMap.union` names
+computeModParamNames :: PPCfg -> [TParam] -> NameMap -> NameMap
+computeModParamNames cfg tps names = IntMap.fromList newNames `IntMap.union` names
   where
   newNames = snd (mapAccumL pickName used0 (mapMaybe isModP tps))
 
-  used0 = Set.fromList (IntMap.elems names)
+  used0 = Set.fromList (map (show . fixPPCfg cfg) (IntMap.elems names))
 
   pickName used (u,i) =
     let ns   = filter (not . (`Set.member` used))
@@ -467,7 +469,7 @@ computeModParamNames tps names = IntMap.fromList newNames `IntMap.union` names
         name = case ns of
                  x : _ -> x
                  []    -> panic "computeModParamNames" ["Out of names!"]
-    in (Set.insert name used, (u,name))
+    in (Set.insert name used, (u,text name))
 
   isModP tp =
     case tpFlav tp of

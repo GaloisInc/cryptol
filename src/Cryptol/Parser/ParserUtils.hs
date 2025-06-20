@@ -1302,7 +1302,7 @@ exprToFieldPath e0 = reverse <$> go noLoc e0
         , Just (_,bs) <- T.uncons bs'
         , Just b <- readMaybe (T.unpack bs)
         , let fromP = from loc
-        , let midP  = fromP { col = col fromP + T.length as + 1 } ->
+        , let midP  = advanceColBy (T.length as + 1) fromP ->
           -- these are backward because we reverse above
           pure [ Located { thing    = TupleSel b Nothing
                          , srcRange = loc { from = midP }

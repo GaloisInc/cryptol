@@ -26,6 +26,7 @@ module Cryptol.ModuleSystem.Name (
   , nameIdent
   , mapNameIdent
   , nameInfo
+  , nameSrc
   , nameLoc
   , nameFixity
   , nameNamespace
@@ -44,6 +45,7 @@ module Cryptol.ModuleSystem.Name (
     -- ** Creation
   , mkDeclared
   , mkLocal
+  , mkLocalPName
   , asLocal
   , mkModParam
 
@@ -80,7 +82,7 @@ import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
 
 data NameInfo = GlobalName NameSource OrigName
-              | LocalName Namespace Ident
+              | LocalName NameSource Namespace Ident
                 deriving (Generic, NFData, Show)
 
 -- Names -----------------------------------------------------------------------
@@ -175,7 +177,7 @@ ppName :: Name -> Doc
 ppName nm =
   case nInfo nm of
     GlobalName _ og -> pp og
-    LocalName _ i   -> pp i
+    LocalName _ _ i -> pp i
   <.>
   withPPCfg \cfg ->
     if ppcfgShowNameUniques cfg then "_" <.> int (nameUnique nm)
@@ -208,20 +210,26 @@ nameInfo = nInfo
 nameIdent :: Name -> Ident
 nameIdent n = case nInfo n of
                 GlobalName _ og -> ogName og
-                LocalName _ i   -> i
+                LocalName _ _ i   -> i
 
 mapNameIdent :: (Ident -> Ident) -> Name -> Name
 mapNameIdent f n =
   n { nInfo =
         case nInfo n of
           GlobalName x og -> GlobalName x og { ogName = f (ogName og) }
-          LocalName x i   -> LocalName x (f i)
+          LocalName s x i   -> LocalName s x (f i)
     }
 
 nameNamespace :: Name -> Namespace
 nameNamespace n = case nInfo n of
                     GlobalName _ og -> ogNamespace og
-                    LocalName ns _  -> ns
+                    LocalName _ ns _  -> ns
+
+nameSrc :: Name -> NameSource
+nameSrc nm =
+  case nameInfo nm of
+    GlobalName x _ -> x
+    LocalName x _ _ -> x
 
 nameLoc :: Name -> Range
 nameLoc  = nLoc
@@ -236,7 +244,7 @@ nameToDefPName :: Name -> PName
 nameToDefPName n =
   case nInfo n of
     GlobalName _ og -> PName.origNameToDefPName og
-    LocalName _ txt -> PName.mkUnqual txt
+    LocalName _ _ txt -> PName.mkUnqual txt
 
 -- | Primtiives must be in a top level module, at least for now.
 asPrim :: Name -> Maybe PrimIdent
@@ -386,14 +394,23 @@ mkDeclared ns m sys ident fixity loc s = (name, s')
               }
 
 -- | Make a new parameter name.
-mkLocal :: Namespace -> Ident -> Range -> Supply -> (Name,Supply)
-mkLocal ns ident loc s = (name, s')
+mkLocalPName :: Namespace -> PName -> Range -> Supply -> (Name,Supply)
+mkLocalPName ns nm = mkLocal src ns ident
+  where
+  ident = PName.getIdent nm
+  src   = case nm of
+            PName.NewName {} -> SystemName
+            _                -> UserName
+
+-- | Make a new parameter name.
+mkLocal :: NameSource -> Namespace -> Ident -> Range -> Supply -> (Name,Supply)
+mkLocal src ns ident loc s = (name, s')
   where
   (u,s')  = nextUnique s
   name    = Name { nUnique = u
                  , nLoc    = loc
                  , nFixity = Nothing
-                 , nInfo   = LocalName ns ident
+                 , nInfo   = LocalName src ns ident
                  }
 
 {- | Make a local name derived from the given name.
@@ -402,7 +419,7 @@ but it is used by the translation to SAW Core -}
 asLocal :: Namespace -> Name -> Name
 asLocal ns x =
   case nameInfo x of
-    GlobalName _ og -> x { nInfo = LocalName ns (ogName og) }
+    GlobalName src og -> x { nInfo = LocalName src ns (ogName og) }
     LocalName {}    -> x
 
 mkModParam ::

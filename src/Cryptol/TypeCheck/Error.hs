@@ -851,8 +851,8 @@ explainUnsolvable names gs =
 
 
 -- | This picks the names to use when showing errors and warnings.
-computeFreeVarNames :: [(Range,Warning)] -> [(Range,Error)] -> NameMap
-computeFreeVarNames warns errs =
+computeFreeVarNames :: PPCfg -> [(Range,Warning)] -> [(Range,Error)] -> NameMap
+computeFreeVarNames cfg warns errs =
   mkMap numRoots numVaras `IntMap.union` mkMap otherRoots otherVars
     `IntMap.union` mpNames
 
@@ -864,14 +864,14 @@ computeFreeVarNames warns errs =
      so for now we just go with the simple approximation. -}
 
   where
-  mkName x v = (tvUnique x, v)
+  mkName x v = (tvUnique x, text v)
   mkMap roots vs = IntMap.fromList (zipWith mkName vs (variants roots))
 
   (uvars,non_uvars) = partition isFreeTV
                     $ Set.toList
                     $ fvs (map snd warns, map snd errs)
         
-  mpNames = computeModParamNames [ tp | TVBound tp <- non_uvars ] mempty
+  mpNames = computeModParamNames cfg [ tp | TVBound tp <- non_uvars ] mempty
         
   (numVaras,otherVars) = partition ((== KNum) . kindOf) uvars
 

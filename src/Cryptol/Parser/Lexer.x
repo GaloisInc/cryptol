@@ -227,7 +227,7 @@ primLexer cfg cs = run inp Normal
 
   eofR p = Range p' p' (cfgSource cfg)
     where
-    p' = Position { line = line p + 1, col = 0 }
+    p' = beforeStartOfLine (line p + 1)
 
   run i s =
     case alexScan i (stateToInt s) of
