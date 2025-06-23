@@ -305,11 +305,10 @@ modContextOf (ImpTop mname) me =
   do lm <- lookupSignature mname me
      pure (lmSignatureContext me lm)
 
+-- | Find all normal modules named `Main`
 mainContexts :: ModuleEnv -> [ModContext]
-mainContexts me =
-  (lmModContext me <$> lookupMainModules me)
-  `mplus`
-  (lmSignatureContext me <$> lookupMainSignatures me)
+mainContexts me = lmModContext me <$> lookupMainModules me
+
 
 lmModContext :: ModuleEnv -> LoadedModule -> ModContext
 lmModContext me lm =
@@ -596,34 +595,26 @@ lookupTCEntity m env =
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
 lookupModule mn = lookupModuleWith ((mn ==) . lmName)
 
+-- | Find all loaded `Main` modules
 lookupMainModules :: ModuleEnv -> [LoadedModule]
-lookupMainModules = lookupModulesWith (("Main" ==) . I.modNameToText . lmName)
-
+lookupMainModules me =
+  [ lm | lm <- lmLoadedModules (meLoadedModules me),
+         "Main" == I.modNameToText (lmName lm) ]
+  
 lookupModuleWith :: (LoadedModule -> Bool) -> ModuleEnv -> Maybe LoadedModule
 lookupModuleWith p me =
   search lmLoadedModules `mplus` search lmLoadedParamModules
   where
   search how = List.find p (how (meLoadedModules me))
 
-lookupModulesWith :: (LoadedModule -> Bool) -> ModuleEnv -> [LoadedModule]
-lookupModulesWith p me =
-  search lmLoadedModules `mplus` search lmLoadedParamModules
-  where
-  search how = List.filter p (how (meLoadedModules me))
-
 lookupSignature :: ModName -> ModuleEnv -> Maybe LoadedSignature
 lookupSignature mn = lookupSignatureWith ((mn ==) . lmName)
-
-lookupMainSignatures :: ModuleEnv -> [LoadedSignature]
-lookupMainSignatures = lookupSignaturesWith (("Main" ==) . I.modNameToText . lmName)
 
 lookupSignatureWith ::
   (LoadedSignature -> Bool) -> ModuleEnv -> Maybe LoadedSignature
 lookupSignatureWith p me = List.find p (lmLoadedSignatures (meLoadedModules me))
 
-lookupSignaturesWith ::
-  (LoadedSignature -> Bool) -> ModuleEnv -> [LoadedSignature]
-lookupSignaturesWith p me = List.filter p (lmLoadedSignatures (meLoadedModules me))
+
 
 addLoadedSignature ::
   ModulePath -> String ->
