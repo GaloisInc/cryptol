@@ -4,7 +4,7 @@ The extension relies on a language server which needs to be installed
 separately.
 
 Packaging and Installing the VSCode Client
-------------------------------------------
+==========================================
 
 The source code for teh client is in the `client` subdirectory.
 You'll need `node` already installed.
@@ -12,6 +12,9 @@ You'll need `node` already installed.
 Install dependencies:
 
     client> npm install
+
+Installing Locally
+------------------
 
 Build a VSCode package:
 
@@ -24,9 +27,24 @@ the menu (three little dots) select "Install from VSIX".  Once the extension
 is installed, open the settings, and find its settings to specify the
 path to the language server binary.
 
+Publishing to the VSCode Marketplace
+------------------------------------
+
+To publish the current version of the client to the VSCode marketplace,
+you'll need a personal access token with Azuzre DevOps, which should be
+added to the Galois publisher:
+
+   https://marketplace.visualstudio.com/manage/publishers/GaloisInc
+
+Once you have one of those, you can publish a new extension like this:
+
+    client> npm run publish
+
+You'll need to provide your personal access token when asked.
+
 
 Installing the Language Server
--------------------------------
+==============================
 
 To build the server run the `./build` script.  If successful, there
 should be a bonary called `cryptol-language-server` in a `bin` subdirectory.
