@@ -69,6 +69,7 @@ build() {
   retry ./cry build exe:cryptol-html "$@" # retry due to flakiness with windows builds
   retry ./cry build exe:cryptol-remote-api "$@"
   retry ./cry build exe:cryptol-eval-server "$@"
+  retry ./cry build exe:cryptol-language-server "$@"
   retry ./cry build test:cryptol-api-tests "$@"
 }
 
