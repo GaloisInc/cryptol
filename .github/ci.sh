@@ -70,6 +70,7 @@ build() {
   retry ./cry build exe:cryptol-remote-api "$@"
   retry ./cry build exe:cryptol-eval-server "$@"
   retry ./cry build test:cryptol-api-tests "$@"
+  cd language-server && ./build && cd -
 }
 
 install_system_deps() {
