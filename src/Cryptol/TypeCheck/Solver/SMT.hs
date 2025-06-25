@@ -76,6 +76,7 @@ data Solver = Solver
 setupSolver :: Solver -> SolverConfig -> IO ()
 setupSolver s cfg = do
   _ <- SMT.setOptionMaybe (solver s) ":global-decls" "false"
+  SMT.setLogic (solver s) "ALL"
   loadTcPrelude s (solverPreludePath cfg)
 
 -- | Start a fresh solver instance
@@ -142,7 +143,7 @@ withSolver onExit cfg = bracket (startSolver onExit cfg) stopSolver
 loadTcPrelude :: Solver -> [FilePath] {- ^ Search in this paths -} -> IO ()
 loadTcPrelude s [] = loadString s cryptolTcContents
 loadTcPrelude s (p : ps) =
-  do let file = p </> "CryptolTC.z3"
+  do let file = p </> "CryptolTC.smt2"
      yes <- doesFileExist file
      if yes then loadFile s file
             else loadTcPrelude s ps
