@@ -143,7 +143,7 @@ withSolver onExit cfg = bracket (startSolver onExit cfg) stopSolver
 loadTcPrelude :: Solver -> [FilePath] {- ^ Search in this paths -} -> IO ()
 loadTcPrelude s [] = loadString s cryptolTcContents
 loadTcPrelude s (p : ps) =
-  do let file = p </> "CryptolTC.z3"
+  do let file = p </> "CryptolTC.smt2"
      yes <- doesFileExist file
      if yes then loadFile s file
             else loadTcPrelude s ps

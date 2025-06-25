@@ -45,4 +45,4 @@ primeECContents :: ByteString
 primeECContents = $(embedFileRelative "lib/PrimeEC.cry")
 
 cryptolTcContents :: String
-cryptolTcContents = B.unpack $(embedFileRelative "lib/CryptolTC.z3")
+cryptolTcContents = B.unpack $(embedFileRelative "lib/CryptolTC.smt2")
