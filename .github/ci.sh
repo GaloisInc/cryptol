@@ -56,6 +56,7 @@ setup_dist_bins() {
   extract_exe "exe:cryptol" "dist/bin"
   extract_exe "exe:cryptol-html" "dist/bin"
   extract_exe "exe:cryptol-remote-api" "dist/bin"
+  extract_exe "exe:cryptol-language-server" "dist/bin"
   extract_exe "exe:cryptol-eval-server" "dist/bin"
   strip dist/bin/cryptol* || echo "Strip failed: Ignoring harmless error"
 }
