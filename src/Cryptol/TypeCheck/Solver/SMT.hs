@@ -76,6 +76,7 @@ data Solver = Solver
 setupSolver :: Solver -> SolverConfig -> IO ()
 setupSolver s cfg = do
   _ <- SMT.setOptionMaybe (solver s) ":global-decls" "false"
+  SMT.setLogic (solver s) "ALL"
   loadTcPrelude s (solverPreludePath cfg)
 
 -- | Start a fresh solver instance
