@@ -1,13 +1,13 @@
 ; ------------------------------------------------------------------------------
 ; Basic datatypes
 
-(declare-datatypes ()
-  ( (InfNat (mk-infnat (value Int) (isFin Bool) (isErr Bool)))
+(declare-datatypes ((InfNat 0))
+  ( ((mk-infnat (value Int) (isFin Bool) (isErr Bool)))
   )
 )
 
-(declare-datatypes ()
-  ( (MaybeBool (mk-mb (prop Bool) (isErrorProp Bool)))
+(declare-datatypes ((MaybeBool 0))
+  ( ((mk-mb (prop Bool) (isErrorProp Bool)))
   )
 )
 

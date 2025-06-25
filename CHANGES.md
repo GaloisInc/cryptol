@@ -17,6 +17,11 @@
   section](https://galoisinc.github.io/cryptol/master/FFI.html#the-abstract-calling-convention)
   for more information.
 
+## Bug fixes
+
+* Allow changing the `tcSolver` setting to non-Z3 solvers (e.g., CVC5) without
+  crashing. ([#1874](https://github.com/GaloisInc/cryptol/issues/1874))
+
 ## New Features
 
 * New REPL command `:saw` to run SAW on a SAW file, usable in docstrings.
