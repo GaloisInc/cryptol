@@ -1448,6 +1448,10 @@ browseCmd input
       Nothing -> do
         rPutStrLn "Invalid module name"
         pure emptyCommandResult { crSuccess = False }
+      Just (P.ImpTop mn) | M.modNameToText mn == "Main" -> do
+        mainContexts <- M.mainContexts <$> getModuleEnv
+        mapM_ (rPrint . browseModContext BrowseExported) mainContexts
+        pure emptyCommandResult
       Just pimpName -> do
         impName <- liftModuleCmd (`M.runModuleM` M.renameImpNameInCurrentEnv pimpName)
         mb <- M.modContextOf impName <$> getModuleEnv
