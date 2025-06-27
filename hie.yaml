@@ -10,3 +10,5 @@ cradle:
       component: "cryptol-remote-api:exe:cryptol-eval-server"
     - path: "./cryptol-remote-api/src"
       component: "cryptol-remote-api:lib:cryptol-remote-api"
+    - path: "./language-server"
+      component: "cryptol-language-server:exe:cryptol-language-server"

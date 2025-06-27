@@ -70,14 +70,13 @@ getPrimMap me = runModuleM me Base.getPrimMap
 
 -- | Find the file associated with a module name in the module search path.
 findModule :: P.ModName -> ModuleCmd ModulePath
-findModule n env = runModuleM env (Base.findModule n)
+findModule n env = runModuleM env (Base.findModule (FromModule n) n)
 
 -- | Load the module contained in the given file.
 loadModuleByPath :: FilePath -> ModuleCmd (ModulePath,T.TCTopEntity)
 loadModuleByPath path minp = do
   moduleEnv' <- resetModuleEnv $ minpModuleEnv minp
   runModuleM minp{ minpModuleEnv = moduleEnv' } $ do
-    unloadModule ((InFile path ==) . lmFilePath)
     m <- Base.loadModuleByPath True path
     setFocusedModule (P.ImpTop (T.tcTopEntitytName m))
     return (InFile path,m)
@@ -87,7 +86,6 @@ loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.TCTopEntity)
 loadModuleByName n minp = do
   moduleEnv' <- resetModuleEnv $ minpModuleEnv minp
   runModuleM minp{ minpModuleEnv = moduleEnv' } $ do
-    unloadModule ((n ==) . lmName)
     (path,m') <- Base.loadModuleFrom False (FromModule n)
     setFocusedModule (P.ImpTop (T.tcTopEntitytName m'))
     return (path,m')

@@ -18,6 +18,7 @@ module Cryptol.TypeCheck.Solver.SMT
   , withSolver
   , startSolver
   , stopSolver
+  , killSolver
   , isNumeric
   , resetSolver
 
@@ -125,6 +126,10 @@ startSolver onExit sCfg =
                            , SMT.logTab     = return ()
                            , SMT.logUntab   = return ()
                            }
+
+-- | Kill the process running the solver
+killSolver :: Solver -> IO ()
+killSolver s = void $ SMT.forceStop (solver s)
 
 -- | Shut down a solver instance
 stopSolver :: Solver -> IO ()

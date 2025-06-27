@@ -11,6 +11,6 @@ Showing a specific instance of polymorphic result:
   • `1/1` is not a valid literal of type `?a`
       arising from
       use of fractional literal
-      at T820.icry:2:1--2:8
+      at T820.icry:2:1--2:4
   where
-  ?a is type argument 'a' of 'fraction' at T820.icry:2:1--2:8
+  ?a is type argument 'a' of 'fraction' at T820.icry:2:1--2:4

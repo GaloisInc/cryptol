@@ -56,6 +56,7 @@ setup_dist_bins() {
   extract_exe "exe:cryptol" "dist/bin"
   extract_exe "exe:cryptol-html" "dist/bin"
   extract_exe "exe:cryptol-remote-api" "dist/bin"
+  extract_exe "exe:cryptol-language-server" "dist/bin"
   extract_exe "exe:cryptol-eval-server" "dist/bin"
   strip dist/bin/cryptol* || echo "Strip failed: Ignoring harmless error"
 }
@@ -69,6 +70,7 @@ build() {
   retry ./cry build exe:cryptol-html "$@" # retry due to flakiness with windows builds
   retry ./cry build exe:cryptol-remote-api "$@"
   retry ./cry build exe:cryptol-eval-server "$@"
+  retry ./cry build exe:cryptol-language-server "$@"
   retry ./cry build test:cryptol-api-tests "$@"
 }
 

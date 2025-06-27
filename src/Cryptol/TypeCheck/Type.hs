@@ -1027,36 +1027,49 @@ instance PP TParam where
 instance PP (WithNames TParam) where
   ppPrec _ (WithNames p mp) = ppWithNames mp (tpVar p)
 
-addTNames :: [TParam] -> NameMap -> NameMap
-addTNames as ns = foldr (uncurry IntMap.insert) ns
-                $ named ++ zip unnamed_nums numNames
-                        ++ zip unnamed_vals valNames
+addTNames :: PPCfg -> [TParam] -> NameMap -> NameMap
+addTNames cfg as ns =
+  foldr (uncurry IntMap.insert) ns
+  $ named ++ zip unnamed_nums numNames
+          ++ zip unnamed_vals valNames
 
-  where avail xs = filter (`notElem` used) (nameList xs)
+  where avail xs = map text (filter (`notElem` used) (nameList xs))
         numNames = avail ["n","m","i","j","k"]
         valNames = avail ["a","b","c","d","e"]
 
         nm x = (tpUnique x, tpName x, tpKind x)
 
-        named        = [ (u,show (pp n)) | (u,Just n,_)  <- map nm as ]
-        unnamed_nums = [ u               | (u,Nothing,KNum)  <- map nm as ]
-        unnamed_vals = [ u               | (u,Nothing,KType) <- map nm as ]
+        named        = [ (u,pp n) | (u,Just n,_)  <- map nm as ]
+        unnamed_nums = [ u        | (u,Nothing,KNum)  <- map nm as ]
+        unnamed_vals = [ u        | (u,Nothing,KType) <- map nm as ]
 
-        used    = map snd named ++ IntMap.elems ns
+        used = map (show . fixPPCfg cfg) (map snd named ++ IntMap.elems ns)
 
 ppNominalShort :: NominalType -> Doc
 ppNominalShort nt =
-  kw <+> pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps)
-  where
-  ps = ntParams nt
-  nm = addTNames ps emptyNameMap
-  kw = case ntDef nt of
-         Struct {} -> "newtype"
-         Enum {}   -> "enum"
-         Abstract {} -> "primitive type"
+  withPPCfg $ \cfg ->
+  let
+    ps = ntParams nt
+    nm = addTNames cfg ps emptyNameMap
+    kw = case ntDef nt of
+           Struct {} -> "newtype"
+           Enum {}   -> "enum"
+           Abstract {} -> "primitive type"
+  in
+    kw <+> pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps)
+
 
 ppNominalFull :: NominalType -> Doc
 ppNominalFull nt =
+  withPPCfg $ \cfg ->
+  let
+    ps = ntParams nt
+    cs = vcat (map pp (ntConstraints nt))
+    nm = addTNames cfg ps emptyNameMap
+    ppTyUse = pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps)
+    ppKWDef kw def = (kw <+> ppTyUse) $$ nest 2 (cs $$ def)
+  in
+
   case ntDef nt of
 
     Struct con -> ppKWDef "newtype" ("=" <+> pp (ntConName con) $$ nest 2 fs)
@@ -1081,54 +1094,55 @@ ppNominalFull nt =
       ctrs = case ntConstraints nt of
                [] -> mempty
                _  -> parens (commaSep (map ppC (ntConstraints nt))) <+> "=>"
-  where
-  ps = ntParams nt
-  cs = vcat (map pp (ntConstraints nt))
-  nm = addTNames ps emptyNameMap
-  ppTyUse = pp (ntName nt) <+> hsep (map (ppWithNamesPrec nm 9) ps)
-  ppKWDef kw def = (kw <+> ppTyUse) $$ nest 2 (cs $$ def)
-
+  
 
 
 instance PP Schema where
   ppPrec = ppWithNamesPrec IntMap.empty
 
 instance PP (WithNames Schema) where
-  ppPrec _ (WithNames s ns)
-    | null (sVars s) && null (sProps s) = body
-    | otherwise = nest 2 (sep (vars ++ props ++ [body]))
-    where
-    body = ppWithNames ns1 (sType s)
+  ppPrec _ (WithNames s ns) =
+    withPPCfg $ \cfg ->
+    let
+      body = ppWithNames ns1 (sType s)
+  
+      vars = case sVars s of
+        [] -> []
+        vs -> [nest 1 (braces (commaSepFill (map (ppWithNames ns1) vs)))]
+  
+      props = case sProps s of
+        [] -> []
+        ps -> [nest 1 (parens (commaSepFill (map (ppWithNames ns1) ps))) <+> text "=>"]
+  
+      ns1 = addTNames cfg (sVars s) ns
+    in if null (sVars s) && null (sProps s)
+        then body
+        else nest 2 (sep (vars ++ props ++ [body]))
 
-    vars = case sVars s of
-      [] -> []
-      vs -> [nest 1 (braces (commaSepFill (map (ppWithNames ns1) vs)))]
-
-    props = case sProps s of
-      [] -> []
-      ps -> [nest 1 (parens (commaSepFill (map (ppWithNames ns1) ps))) <+> text "=>"]
-
-    ns1 = addTNames (sVars s) ns
 
 instance PP TySyn where
   ppPrec = ppWithNamesPrec IntMap.empty
 
 instance PP (WithNames TySyn) where
   ppPrec _ (WithNames ts ns) =
+    withPPCfg $ \cfg ->
+    let
+      ns1 = addTNames cfg (tsParams ts) ns
+      ctr = case kindResult (kindOf ts) of
+              KProp -> [text "constraint"]
+              _     -> []
+      n = tsName ts
+      lhs = case (nameFixity n, tsParams ts) of
+              (Just _, [x, y]) ->
+                [ppWithNames ns1 x, pp (nameIdent n), ppWithNames ns1 y]
+              (_, ps) ->
+                [pp n] ++ map (ppWithNames ns1) ps
+    in
     nest 2 $ sep
       [ fsep ([text "type"] ++ ctr ++ lhs ++ [char '='])
       , ppWithNames ns1 (tsDef ts)
       ]
-    where ns1 = addTNames (tsParams ts) ns
-          ctr = case kindResult (kindOf ts) of
-                  KProp -> [text "constraint"]
-                  _     -> []
-          n = tsName ts
-          lhs = case (nameFixity n, tsParams ts) of
-                  (Just _, [x, y]) ->
-                    [ppWithNames ns1 x, pp (nameIdent n), ppWithNames ns1 y]
-                  (_, ps) ->
-                    [pp n] ++ map (ppWithNames ns1) ps
+
 
 instance PP NominalType where
   ppPrec = ppWithNamesPrec IntMap.empty
@@ -1247,7 +1261,7 @@ instance PP (WithNames TVar) where
       TVFree {} -> "?" <.> nmTxt
     where
     nmTxt
-      | Just a <- IntMap.lookup (tvUnique tv) mp = text a
+      | Just a <- IntMap.lookup (tvUnique tv) mp = a
       | otherwise =
           case tv of
             TVBound x ->
@@ -1266,6 +1280,12 @@ instance PP (WithNames TVar) where
 
 pickTVarName :: Kind -> TypeSource -> Int -> Doc
 pickTVarName k src uni =
+  withPPCfg $ \cfg ->
+  let
+    sh a      = show (fixPPCfg cfg (pp a))
+    using a   = mk (sh a)
+    mk a      = a ++ "`" ++ show uni
+  in
   text $
   case src of
     TVFromModParam n       -> using n
@@ -1296,10 +1316,6 @@ pickTVarName k src uni =
     TypeErrorPlaceHolder   -> "err"
     CasedExpression        -> "case"
     ConPat                 -> "conp"
-  where
-  sh a      = show (pp a)
-  using a   = mk (sh a)
-  mk a      = a ++ "`" ++ show uni
 
 instance PP TVar where
   ppPrec = ppWithNamesPrec IntMap.empty

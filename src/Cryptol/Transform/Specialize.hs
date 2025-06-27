@@ -267,12 +267,13 @@ freshName :: Name -> [Type] -> SpecM Name
 freshName n _ =
   case nameInfo n of
     GlobalName s og -> liftSupply (mkDeclared ns (ogModule og) s ident fx loc)
-    LocalName {}    -> liftSupply (mkLocal ns ident loc)
+    LocalName {}    -> liftSupply (mkLocal src ns ident loc)
   where
   ns    = nameNamespace n
   fx    = nameFixity n
   ident = nameIdent n
   loc   = nameLoc n
+  src   = nameSrc n
 
 -- matchingBoundNames :: (Maybe ModName) -> SpecM [String]
 -- matchingBoundNames m = do
