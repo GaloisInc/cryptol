@@ -99,7 +99,7 @@ import qualified Cryptol.Testing.Random  as TestR
 import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
     ,parseModName,parseHelpName,parseImpName)
-import           Cryptol.Parser.Position (Position(..),Range(..),HasLoc(..))
+import           Cryptol.Parser.Position (replPosition,startOfLine,Range(..),HasLoc(..))
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Docstrings as T
 import qualified Cryptol.TypeCheck.Error as T
@@ -1576,26 +1576,27 @@ replParseInput :: String -> Int -> Maybe FilePath -> REPL (P.ReplInput P.PName)
 replParseInput str lineNum fnm = replParse (parseReplWith cfg . T.pack) str
   where
   cfg = case fnm of
-          Nothing -> interactiveConfig{ cfgStart = Position lineNum 1 }
+          Nothing -> interactiveConfig{ cfgStart = startOfLine lineNum }
           Just f  -> defaultConfig
                      { cfgSource = f
-                     , cfgStart  = Position lineNum 1
+                     , cfgStart  = startOfLine lineNum
                      }
 
 replParseExpr :: String -> (Int,Int) -> Maybe FilePath -> REPL (P.Expr P.PName)
-replParseExpr str (l,c) fnm = replParse (parseExprWith cfg. T.pack) str
+replParseExpr str p fnm = replParse (parseExprWith cfg. T.pack) str
   where
+  pos = replPosition p
   cfg = case fnm of
-          Nothing -> interactiveConfig{ cfgStart = Position l c }
+          Nothing -> interactiveConfig{ cfgStart = pos }
           Just f  -> defaultConfig
                      { cfgSource = f
-                     , cfgStart  = Position l c
+                     , cfgStart  = pos
                      }
 
 mkInteractiveRange :: (Int,Int) -> Maybe FilePath -> Range
-mkInteractiveRange (l,c) mb = Range p p src
+mkInteractiveRange p mb = Range pos pos src
   where
-  p = Position l c
+  pos = replPosition p
   src = case mb of
           Nothing -> "<interactive>"
           Just b  -> b

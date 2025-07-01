@@ -98,6 +98,7 @@ liftModuleCmd cmd =
        reader <- CryptolCommand $ const Argo.getFileReader
        let minp = ModuleInput
                   { minpCallStacks = callStacks
+                  , minpSaveRenamed = False
                   , minpEvalOpts   = pure evOpts
                   , minpByteReader = reader
                   , minpModuleEnv  = view moduleEnv s

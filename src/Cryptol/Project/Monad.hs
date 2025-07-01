@@ -202,7 +202,7 @@ findModule' isrc =
      case Map.lookup (mname, searchPath) (findModuleCache ls) of
        Just mpath -> pure mpath
        Nothing ->
-         do modLoc <- doModule (findModule mname)
+         do modLoc <- doModule (findModule isrc mname)
             mpath  <- case modLoc of
                         InFile path -> InFile <$> doIO (canonicalizePath path)
                         InMem l c   -> pure (InMem l c)

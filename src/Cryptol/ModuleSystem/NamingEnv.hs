@@ -131,11 +131,10 @@ toNameDisp env = NameDisp (`Map.lookup` names)
             [ (og, qn)
               | ns            <- allNamespaces
               , (pn,xs)       <- Map.toList (namespaceMap ns env)
+              , let qn = maybe UnQualified Qualified (getModName pn)
               , x             <- namesToList xs
               , og            <- maybeToList (asOrigName x)
-              , let qn = case getModName pn of
-                          Just q  -> Qualified q
-                          Nothing -> UnQualified
+             
             ]
 
 

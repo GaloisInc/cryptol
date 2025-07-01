@@ -92,7 +92,7 @@ importedModule is =
 
 
 data ModuleError
-  = ModuleNotFound P.ModName [FilePath]
+  = ModuleNotFound ImportSource P.ModName [FilePath]
     -- ^ Unable to find the module given, tried looking in these paths
   | CantFindFile FilePath
     -- ^ Unable to open a file
@@ -132,7 +132,7 @@ data ModuleError
 
 instance NFData ModuleError where
   rnf e = case e of
-    ModuleNotFound src path              -> src `deepseq` path `deepseq` ()
+    ModuleNotFound is src path           -> is `deepseq` src `deepseq` path `deepseq` ()
     CantFindFile path                    -> path `deepseq` ()
     BadUtf8 path fp ue                   -> rnf (path, fp, ue)
     OtherIOError path exn                -> path `deepseq` exn `seq` ()
@@ -155,9 +155,13 @@ instance NFData ModuleError where
 instance PP ModuleError where
   ppPrec prec e = case e of
 
-    ModuleNotFound src path ->
+    ModuleNotFound isrc src path ->
       text "[error]" <+>
       text "Could not find module" <+> pp src
+      $$
+        case isrc of
+          FromModule {} -> mempty
+          _ -> "arising from" <+> pp isrc
       $$
       hang (text "Searched paths:")
          4 (vcat (map text path))
@@ -216,8 +220,8 @@ instance PP ModuleError where
 
     ErrorInFile _ x -> ppPrec prec x
 
-moduleNotFound :: P.ModName -> [FilePath] -> ModuleM a
-moduleNotFound name paths = ModuleT (raise (ModuleNotFound name paths))
+moduleNotFound :: ImportSource -> P.ModName -> [FilePath] -> ModuleM a
+moduleNotFound isrc name paths = ModuleT (raise (ModuleNotFound isrc name paths))
 
 cantFindFile :: FilePath -> ModuleM a
 cantFindFile path = ModuleT (raise (CantFindFile path))
@@ -314,6 +318,7 @@ data RO m =
   RO { roLoading    :: [ImportSource]
      , roEvalOpts   :: m EvalOpts
      , roCallStacks :: Bool
+     , roSaveRenamed :: Bool
      , roFileReader :: FilePath -> m ByteString
      , roTCSolver   :: SMT.Solver
      }
@@ -323,6 +328,7 @@ emptyRO minp =
   RO { roLoading = []
      , roEvalOpts   = minpEvalOpts minp
      , roCallStacks = minpCallStacks minp
+     , roSaveRenamed = minpSaveRenamed minp
      , roFileReader = minpByteReader minp
      , roTCSolver   = minpTCSolver minp
      }
@@ -374,6 +380,7 @@ instance MonadIO m => MonadIO (ModuleT m) where
 data ModuleInput m =
   ModuleInput
   { minpCallStacks :: Bool
+  , minpSaveRenamed :: Bool
   , minpEvalOpts   :: m EvalOpts
   , minpByteReader :: FilePath -> m ByteString
   , minpModuleEnv  :: ModuleEnv
@@ -550,8 +557,9 @@ loadedModule ::
   NamingEnv ->
   Maybe ForeignSrc ->
   T.TCTopEntity ->
+  Maybe (P.Module T.Name) ->
   ModuleM ()
-loadedModule path fi nameEnv fsrc m = ModuleT $ do
+loadedModule path fi nameEnv fsrc m renMod = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
@@ -559,8 +567,8 @@ loadedModule path fi nameEnv fsrc m = ModuleT $ do
 
   let newLM =
         case m of
-          T.TCTopModule mo -> addLoadedModule path ident fi nameEnv fsrc mo
-          T.TCTopSignature x s -> addLoadedSignature path ident fi nameEnv x s
+          T.TCTopModule mo -> addLoadedModule path ident fi nameEnv fsrc renMod mo
+          T.TCTopSignature x s -> addLoadedSignature path ident fi nameEnv x renMod s
 
   set $! env { meLoadedModules = newLM (meLoadedModules env) }
 
@@ -586,6 +594,9 @@ getEvalOpts :: ModuleM EvalOpts
 getEvalOpts =
   do act <- getEvalOptsAction
      liftIO act
+
+getSaveRenamed :: ModuleM Bool
+getSaveRenamed = ModuleT (roSaveRenamed <$> ask)
 
 getNominalTypes :: ModuleM (Map T.Name T.NominalType)
 getNominalTypes = ModuleT (loadedNominalTypes <$> get)

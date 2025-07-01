@@ -32,7 +32,7 @@ import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.Interface as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.Utils.Ident as I
-import Cryptol.Utils.PP (PP(..),text,parens,NameDisp)
+import Cryptol.Utils.PP (pp, PP(..),text,parens,NameDisp)
 
 import Data.ByteString(ByteString)
 import Control.Monad (guard,mplus)
@@ -57,7 +57,6 @@ import Prelude ()
 import Prelude.Compat
 
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.PP(pp)
 
 -- Module Environment ----------------------------------------------------------
 
@@ -437,6 +436,13 @@ getLoadedEntities lm =
                  [ (lmName x, ALoadedFunctor x) | x <- lmLoadedParamModules lm ] ++
                  [ (lmName x, ALoadedInterface x) | x <- lmLoadedSignatures lm ]
 
+withLoadedEntity :: LoadedEntity -> (forall a. LoadedModuleG a -> b) -> b
+withLoadedEntity ent k =
+  case ent of
+    ALoadedModule lm -> k lm
+    ALoadedFunctor lm -> k lm
+    ALoadedInterface lm -> k lm
+
 getLoadedModules :: LoadedModules -> [LoadedModule]
 getLoadedModules x = lmLoadedParamModules x ++ lmLoadedModules x
 
@@ -447,11 +453,23 @@ getLoadedField f lm = Set.fromList
                    ++ map f (lmLoadedParamModules lm)
                    ++ map f (lmLoadedSignatures lm)
 
+getLoadedFieldMap :: Ord k =>
+  (forall b. LoadedModuleG b -> (k,v)) -> LoadedModules -> Map k v
+getLoadedFieldMap f lm =
+  Map.fromList
+      $ map f (lmLoadedModules lm)
+     ++ map f (lmLoadedParamModules lm)
+     ++ map f (lmLoadedSignatures lm)
+                   
+
 getLoadedNames :: LoadedModules -> Set ModName
 getLoadedNames = getLoadedField lmName
 
 getLoadedIds :: LoadedModules -> Set String
 getLoadedIds = getLoadedField lmModuleId
+
+getLoadedFiles :: LoadedModules -> Map ModulePath FileInfo
+getLoadedFiles = getLoadedFieldMap \lm -> (lmFilePath lm, lmFileInfo lm)
 
 instance Semigroup LoadedModules where
   l <> r = LoadedModules
@@ -486,6 +504,9 @@ data LoadedModuleG a = LoadedModule
     -- ^ What's in scope in this module
 
   , lmFileInfo          :: !FileInfo
+
+  , lmRenamedModule     :: Maybe (Module Name)
+    -- ^ The renamed AST, if we chose to save it
 
   , lmData              :: a
   } deriving (Show, Generic, NFData)
@@ -620,9 +641,9 @@ addLoadedSignature ::
   ModulePath -> String ->
   FileInfo ->
   R.NamingEnv ->
-  ModName -> T.ModParamNames ->
+  ModName -> Maybe (Module T.Name) -> T.ModParamNames ->
   LoadedModules -> LoadedModules
-addLoadedSignature path ident fi nameEnv nm si lm
+addLoadedSignature path ident fi nameEnv nm rm si lm
   | isLoadedStrict (ImpTop nm) ident lm = lm
   | otherwise = lm { lmLoadedSignatures = loaded : lmLoadedSignatures lm }
   where
@@ -633,6 +654,7 @@ addLoadedSignature path ident fi nameEnv nm si lm
             , lmNamingEnv   = nameEnv
             , lmData        = si
             , lmFileInfo    = fi
+            , lmRenamedModule = rm
             }
 
 -- | Add a freshly loaded module.  If it was previously loaded, then
@@ -643,8 +665,9 @@ addLoadedModule ::
   FileInfo ->
   R.NamingEnv ->
   Maybe ForeignSrc ->
+  Maybe (Module T.Name) ->
   T.Module -> LoadedModules -> LoadedModules
-addLoadedModule path ident fi nameEnv fsrc tm lm
+addLoadedModule path ident fi nameEnv fsrc rm tm lm
   | isLoadedStrict (ImpTop (T.mName tm)) ident lm = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
@@ -656,6 +679,7 @@ addLoadedModule path ident fi nameEnv fsrc tm lm
     , lmFilePath        = path
     , lmModuleId        = ident
     , lmNamingEnv       = nameEnv
+    , lmRenamedModule   = rm
     , lmData            = LoadedModuleData
                              { lmdInterface = T.genIface tm
                              , lmdModule    = tm
@@ -703,6 +727,8 @@ fileInfo fp incDeps impDeps fsrc =
                          fpath <- getForeignSrcPath src
                          pure $ Map.singleton fpath True
     }
+
+
 
 
 -- Dynamic Environments --------------------------------------------------------

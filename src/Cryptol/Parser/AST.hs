@@ -190,7 +190,7 @@ data ModuleDefinition name =
 
 {- | Maps names in the original functor with names in the instnace.
 Does *NOT* include the parameters, just names for the definitions.
-This *DOES* include entrirs for all the name in the instantiated functor,
+This *DOES* include entries for all the name in the instantiated functor,
 including names in modules nested inside the functor. -}
 type ModuleInstance name = Map name name
 
@@ -1506,13 +1506,13 @@ class NoPos t where
 -- WARNING: This does not call `noPos` on the `thing` inside
 instance NoPos (Located t) where
   noPos x = x { srcRange = rng }
-    where rng = Range { from = Position 0 0, to = Position 0 0, source = "" }
+    where rng = emptyRange
 
 instance NoPos t => NoPos (Named t) where
   noPos t = Named { name = noPos (name t), value = noPos (value t) }
 
 instance NoPos Range where
-  noPos _ = Range { from = Position 0 0, to = Position 0 0, source = "" }
+  noPos _ = emptyRange
 
 instance NoPos t => NoPos [t]       where noPos = fmap noPos
 instance NoPos t => NoPos (Maybe t) where noPos = fmap noPos
@@ -1562,7 +1562,7 @@ instance NoPos (TopDecl name) where
       DImport x -> DImport (noPos x)
       DModParam d -> DModParam (noPos d)
       DParamDecl _ ds -> DParamDecl rng (noPos ds)
-        where rng = Range { from = Position 0 0, to = Position 0 0, source = "" }
+        where rng = emptyRange
       DInterfaceConstraint d ds -> DInterfaceConstraint d (noPos (noPos <$> ds))
 
 instance NoPos (ParamDecl name) where

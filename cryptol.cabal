@@ -13,11 +13,11 @@ Copyright:           2013-2025 Galois Inc.
 Category:            Language
 Build-type:          Simple
 extra-source-files:  bench/data/*.cry
-                     lib/*.cry lib/*.z3 lib/*.h
+                     lib/*.cry lib/*.smt2 lib/*.h
 
 extra-doc-files:     CHANGES.md
 
-data-files:          **/*.cry **/*.z3 **/*.h
+data-files:          **/*.cry **/*.smt2 **/*.h
 data-dir:            lib
 
 source-repository head

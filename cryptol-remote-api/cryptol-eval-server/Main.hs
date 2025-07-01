@@ -74,7 +74,14 @@ main = customMain initMod initMod initMod initMod versionParser description buil
          initSt <- extendSearchPath paths <$> initialState
          let s    = view tcSolver initSt
          let menv = view moduleEnv initSt
-         let minp = ModuleInput False (pure evOpts) reader menv s
+         let minp = ModuleInput {
+                      minpCallStacks = False,
+                      minpSaveRenamed = False,
+                      minpEvalOpts = pure evOpts,
+                      minpByteReader = reader,
+                      minpModuleEnv = menv,
+                      minpTCSolver = s
+         }
          let die =
                \err ->
                  do hPutStrLn stderr $ "Failed to load " ++ either ("file " ++) (("module " ++) . show) file ++ ":\n" ++ show err

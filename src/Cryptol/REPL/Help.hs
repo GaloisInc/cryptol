@@ -268,7 +268,8 @@ showTypeHelp ctxparams env nameEnv name =
        let cs = T.ntConstraints nt
        unless (null cs) $
          do let example = T.TNominal nt (map (T.TVar . T.tpVar) vs)
-                ns = T.addTNames vs emptyNameMap
+                ppcfg = defaultPPCfg { ppcfgNameDisp = nameEnv }
+                ns = T.addTNames ppcfg vs emptyNameMap
                 rs = [ "•" <+> ppWithNames ns c | c <- cs ]
             rPutStrLn ""
             rPrint $ runDoc nameEnv $ indent 4 $

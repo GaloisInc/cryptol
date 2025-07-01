@@ -18,6 +18,7 @@ module Cryptol.TypeCheck.Solver.SMT
   , withSolver
   , startSolver
   , stopSolver
+  , killSolver
   , isNumeric
   , resetSolver
 
@@ -76,6 +77,7 @@ data Solver = Solver
 setupSolver :: Solver -> SolverConfig -> IO ()
 setupSolver s cfg = do
   _ <- SMT.setOptionMaybe (solver s) ":global-decls" "false"
+  SMT.setLogic (solver s) "ALL"
   loadTcPrelude s (solverPreludePath cfg)
 
 -- | Start a fresh solver instance
@@ -125,6 +127,10 @@ startSolver onExit sCfg =
                            , SMT.logUntab   = return ()
                            }
 
+-- | Kill the process running the solver
+killSolver :: Solver -> IO ()
+killSolver s = void $ SMT.forceStop (solver s)
+
 -- | Shut down a solver instance
 stopSolver :: Solver -> IO ()
 stopSolver s = void $ SMT.stop (solver s)
@@ -142,7 +148,7 @@ withSolver onExit cfg = bracket (startSolver onExit cfg) stopSolver
 loadTcPrelude :: Solver -> [FilePath] {- ^ Search in this paths -} -> IO ()
 loadTcPrelude s [] = loadString s cryptolTcContents
 loadTcPrelude s (p : ps) =
-  do let file = p </> "CryptolTC.z3"
+  do let file = p </> "CryptolTC.smt2"
      yes <- doesFileExist file
      if yes then loadFile s file
             else loadTcPrelude s ps
