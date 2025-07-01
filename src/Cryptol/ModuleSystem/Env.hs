@@ -299,36 +299,50 @@ modContextOf (ImpNested name) me =
 
 modContextOf (ImpTop mname) me =
   do lm <- lookupModule mname me
-     let localIface  = lmInterface lm
-         localNames  = lmNamingEnv lm
-
-         -- XXX: do we want only public ones here?
-         loadedDecls = map (ifDefines . lmInterface)
-                     $ getLoadedModules (meLoadedModules me)
-
-         params = ifParams localIface
-     pure ModContext
-       { mctxParams   = if Map.null params then NoParams
-                                           else FunctorParams params
-       , mctxExported = ifsPublic (ifNames localIface)
-       , mctxDecls    = mconcat (ifDefines localIface : loadedDecls)
-       , mctxNames    = localNames
-       , mctxNameDisp = R.toNameDisp localNames
-       }
+     pure (lmModContext me lm)
   `mplus`
   do lm <- lookupSignature mname me
-     let localNames  = lmNamingEnv lm
-         -- XXX: do we want only public ones here?
-         loadedDecls = map (ifDefines . lmInterface)
-                     $ getLoadedModules (meLoadedModules me)
-     pure ModContext
-       { mctxParams   = InterfaceParams (lmData lm)
-       , mctxExported = Set.empty
-       , mctxDecls    = mconcat loadedDecls
-       , mctxNames    = localNames
-       , mctxNameDisp = R.toNameDisp localNames
-       }
+     pure (lmSignatureContext me lm)
 
+-- | Find all normal modules named `Main`
+mainContexts :: ModuleEnv -> [ModContext]
+mainContexts me = lmModContext me <$> lookupMainModules me
+
+
+lmModContext :: ModuleEnv -> LoadedModule -> ModContext
+lmModContext me lm =
+  let localIface  = lmInterface lm
+      localNames  = lmNamingEnv lm
+
+      -- XXX: do we want only public ones here?
+      loadedDecls = map (ifDefines . lmInterface)
+                  $ getLoadedModules (meLoadedModules me)
+
+      params = ifParams localIface
+  in
+    ModContext
+      { mctxParams   = if Map.null params then NoParams
+                                          else FunctorParams params
+      , mctxExported = ifsPublic (ifNames localIface)
+      , mctxDecls    = mconcat (ifDefines localIface : loadedDecls)
+      , mctxNames    = localNames
+      , mctxNameDisp = R.toNameDisp localNames
+      }
+
+lmSignatureContext :: ModuleEnv -> LoadedSignature -> ModContext
+lmSignatureContext me lm =
+  let localNames  = lmNamingEnv lm
+      -- XXX: do we want only public ones here?
+      loadedDecls = map (ifDefines . lmInterface)
+                  $ getLoadedModules (meLoadedModules me)
+  in
+    ModContext
+      { mctxParams   = InterfaceParams (lmData lm)
+      , mctxExported = Set.empty
+      , mctxDecls    = mconcat loadedDecls
+      , mctxNames    = localNames
+      , mctxNameDisp = R.toNameDisp localNames
+      }
 
 
 dynModContext :: ModuleEnv -> ModContext
@@ -602,6 +616,12 @@ lookupTCEntity m env =
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
 lookupModule mn = lookupModuleWith ((mn ==) . lmName)
 
+-- | Find all loaded `Main` modules
+lookupMainModules :: ModuleEnv -> [LoadedModule]
+lookupMainModules me =
+  [ lm | lm <- lmLoadedModules (meLoadedModules me),
+         "Main" == I.modNameToText (lmName lm) ]
+  
 lookupModuleWith :: (LoadedModule -> Bool) -> ModuleEnv -> Maybe LoadedModule
 lookupModuleWith p me =
   search lmLoadedModules `mplus` search lmLoadedParamModules
@@ -614,6 +634,8 @@ lookupSignature mn = lookupSignatureWith ((mn ==) . lmName)
 lookupSignatureWith ::
   (LoadedSignature -> Bool) -> ModuleEnv -> Maybe LoadedSignature
 lookupSignatureWith p me = List.find p (lmLoadedSignatures (meLoadedModules me))
+
+
 
 addLoadedSignature ::
   ModulePath -> String ->
