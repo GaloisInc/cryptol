@@ -1,0 +1,248 @@
+/**
+ * @title       "Correct Lift Control ASM"
+ * @description "An example ASM from Börger and Stärk Section 2.3."
+ * @author      "Joe Kiniry"
+ * @copyright   "Galois, Free & Fair, Joseph Kiniry, 2025"
+ * @license     "Licensed under the Apache License, Version 2.0"
+ * @version     "0.1.0"
+ */
+
+module CorrectLiftControlASM where
+parameter
+  // The number of lifts in the model.
+  type n : #
+  // The number of floors in the model.
+  type m : #
+
+// @todo kiniry Add back in once BasicASMShallow is an interface module.
+
+// import BasicASMShallow where
+//   type MaxStateNameLength = 16
+//   type MaxLabelNameLength = 16
+//   type MaxStates          = 128
+//   type MaxTransitions     = 128
+//   type MaxActions         = 8
+
+/*
+ * In this example we illustrate the definition of a control state ASM
+ * the popular lift example via a ground model for which we prove the
+ * desired correctness properties.  This model is an executable model
+ * and can be compiled directly to code.  It is directly taken from
+ * Börger and Stärk Section 2.3, which is itself a slightly rephrased
+ * version of the original N. David 1984 problem formulation which was
+ * used as an example in "The B-Book" by J.-R. Abrial.
+ */
+
+/*
+ * @requirements Design the logic to move `n` lifts between `m` floors
+ * satisfying the following requirements:
+
+ * 1. Each lift has for each floor one button which, if pressed,
+ * illuminates and causes the lift to visit (read: move to and stop
+ * at) that floor.  The illumination is cancelled when the floor is
+ * visited by the lift.
+ * 2. Each floor (except the ground and top floors) has two buttons:
+ * one for requesting an upward lift, and one for a downward
+ * lift. These requests are cancelled when:
+ *   -	A lift visits the floor traveling in the desired direction.
+ *   - A lift visits the floor and is idle (not serving any direction).
+ * In the latter case, if both the up and down buttons are
+ * illuminated, only one of them should be cancelled.
+ * 3. A lift without pending requests should remain in its final
+ * destination and await further requests.
+ * 4. Each lift has an emergency button which, if pressed, sends a
+ * message to the site manager and marks the lift as "out of
+ * service". Each lift also has a mechanism to clear the "out of
+ * service" status.
+ *
+ * Correctness properties:
+ *   - Requests from within lifts must be serviced sequentially in the
+ *     order received.
+ *   - Requests from floors must be serviced fairly, giving equal
+ *     priority to all.
+ */
+
+/*
+ * This Cryptol model is a deep embedding translation of the ASM from
+ * the text.  Transitions are modeled as functions, guards on
+ * transitions are embedded in those functions as preconditions, and
+ * updates are a part of those functions as behavior.  This is the
+ * most natural way to "roll together" all of the core notions of a
+ * transition.
+ */
+
+enum Status = Halting | Moving
+
+enum Direction = Up | Down
+
+type Ground = 1
+
+type Top = m
+
+// @todo kiniry ensure that floor and destination are well-typed
+
+type State = {
+  status      : Status,
+  direction   : Direction,
+  floor       : Integer,
+  destination : Integer
+}
+
+type StatePredicate = State -> Bool
+
+haltingP : StatePredicate
+haltingP s =
+  case s.status of
+    Halting -> True
+    _ -> False
+
+type ASMState = {
+  name      : String 7,
+  predicate : StatePredicate,
+  error     : Bool
+}
+
+haltingState = {
+  name      = "halting",
+  predicate = haltingP,
+  error     = False
+}
+
+movingP : StatePredicate
+movingP s =
+  case s.status of
+    Moving -> True
+    _ -> False
+
+movingState = {
+  name      = "halting",
+  predicate = haltingP,
+  error     = False
+}
+
+type MaxLiftNameLength = 16
+
+type Lift = {
+  name  : String MaxLiftNameLength,
+  state : State
+}
+
+type Lifts = [n]Lift
+
+initialLiftState = {
+  status      = Halting,
+  direction   = Up,
+  floor       = 1,
+  destination = 1
+}
+
+initializeLifts : Lifts -> Lifts
+initializeLifts ls = [ { l | state = initialLiftState } | l <- ls ]
+
+type Transition = Lift -> Lift
+
+depart : Transition
+depart l =
+  if attracted (l.state.direction, l) then (moveLift l) else l
+
+stop : Transition
+stop l =
+  if ~ canContinue l then cancelRequest (l.state.direction, l) else l
+
+continue : Transition
+continue l =
+  if canContinue l then moveLift l else l
+
+change : Transition
+change l =
+  if ((~ attracted (d, l)) /\ (attracted (d', l))) then
+    cancelRequest (d', { l | state.direction = d' })
+  else l
+  where
+    d = l.state.direction
+    d' = opposite l.state.direction
+
+opposite : Direction -> Direction
+opposite d =
+  case d of
+    Up -> Down
+    Down -> Up
+
+moveLift : Lift -> Lift
+moveLift l =
+  case l.state.direction of
+    Up   -> { l | state.floor = oldFloor + 1 }
+    Down -> { l | state.floor = oldFloor - 1 }
+  where oldFloor = l.state.floor
+
+attracted : (Direction, Lift) -> Bool
+attracted (d, l) =
+  case l.state.direction of
+    Up -> case d of
+            Up -> True
+            Down -> False
+    Down -> case d of
+              Up -> False
+              Down -> True
+
+canContinue : Lift -> Bool
+canContinue l = l.state.floor != l.state.destination
+
+cancelRequest : (Direction, Lift) -> Lift
+cancelRequest (d, l) = l
+
+type LiftASM = {
+  name        : String 16,
+  states      : [2]ASMState,
+  transitions : [4]Transition,
+  lift        : Lift
+}
+
+asm = {
+  name        = "Lift Control ASM",
+  states      = [ haltingState, movingState ],
+  transitions = [ change, depart, stop, continue ],
+  lift        = { name = "Lift", state = initialLiftState }
+}
+
+asmStateEq : (State, State) -> Bool
+asmStateEq (a, a') =
+     a.floor == a'.floor 
+  /\ a.destination == a'.destination
+  /\ (case a.status of
+        Halting -> case a'.status of
+                     Halting -> True
+                     Moving  -> False
+        Moving  -> case a'.status of
+                     Halting -> False
+                     Moving  -> True)
+  /\ (case a.direction of
+        Up   -> case a'.direction of
+                  Up   -> True
+                  Down -> False
+        Down -> case a'.direction of
+                  Up   -> False
+                  Down -> True)
+
+transition : LiftASM -> LiftASM
+transition a =
+  { a | lift = ((t @ 0) ((t @ 1) ((t @ 2) ((t @ 3) l)))) }
+  where
+    t = a.transitions
+    l = a.lift
+    s = l.state
+
+simulate : LiftASM -> LiftASM
+simulate a =
+  if (asmStateEq (a.lift.state, (transition a).lift.state)) then a
+  else transition a
+
+// == Correctness Conditions ==
+
+// Lemma 2.3.1 For every lift the non-empty runs have the regular form
+//    (depart continue* stop)+ (change (depart continue* stop)*)*
+
+/* Local Variables: */
+/* comment-start: "// " */
+/* comment-end: "" */
+/* End: */
