@@ -155,6 +155,7 @@ modPathSplit p0 = (top,reverse xs)
       Nested b i  -> (a, i:bs)
         where (a,bs) = go b
 
+-- | Is this an normal module (i.e., not an anonymous one)
 modPathIsNormal :: ModPath -> Bool
 modPathIsNormal p = modNameIsNormal m && all identIsNormal is
   where (m,is) = modPathSplit p
@@ -207,9 +208,10 @@ modNameToText (ModName x fl) = maybeAnonText fl x
 modNameToText (ModMain _) = "Main"
 
 -- | This is useful when we want to hide anonymous modules.
+-- Note that implicti `Main` modules are *not* considered anonymous.
 modNameIsNormal :: ModName -> Bool
 modNameIsNormal (ModName _ fl) = isNormal fl
-modNameIsNormal (ModMain _) = False
+modNameIsNormal (ModMain _) = True
 
 -- | Make a normal module name out of text. This function should not
 -- be used to build a @Main@ module name. See 'mainModName'.
