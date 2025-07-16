@@ -44,15 +44,6 @@ import Cryptol.Utils.RecordMap(RecordMap)
 import Paths_cryptol
 }
 
-{- state 202 contains 1 shift/reduce conflicts.
-     `_` identifier conflicts with `_` in record update.
-    We have `_` as an identifier for the cases where we parse types as
-    expressions, for example `[ 12 .. _ ]`.
--}
-
-%expect 1
-
-
 %token
   NUM         { $$@(Located _ (Token (Num   {}) _))}
   FRAC        { $$@(Located _ (Token (Frac  {}) _))}
@@ -548,9 +539,7 @@ exprNoWhere                    :: { Expr PName }
   | typedExpr                     { $1 }
 
 whereClause                    :: { Located [Decl PName] }
-  : '{' '}'                       { Located (rComb $1 $2) [] }
-  | '{' decls '}'                 { Located (rComb $1 $3) (reverse $2) }
-  | 'v{' 'v}'                     { Located (rComb $1 $2) [] }
+  : 'v{' 'v}'                     { Located (rComb $1 $2) [] }
   | 'v{' vdecls 'v}'              { let l2 = fromMaybe $3 (getLoc $2)
                                     in Located (rComb $1 l2) (reverse $2) }
 
@@ -568,7 +557,6 @@ longExpr                       :: { Expr PName }
   : 'if' ifBranches 'else' exprNoWhere   { at ($1,$4) $ mkIf (reverse $2) $4 }
   | '\\' iapats '->' exprNoWhere         { at ($1,$4) $ EFun emptyFunDesc (reverse $2) $4 }
   | 'case' expr 'of' 'v{' vcaseBranches 'v}' {at ($1,$6) (ECase $2 (reverse $5))}
-  | 'case' expr 'of' '{' caseBranches '}' { at ($1,$6) (ECase $2 (reverse $5)) }
 
 
 ifBranches                     :: { [(Expr PName, Expr PName)] }
@@ -581,10 +569,7 @@ ifBranch                       :: { (Expr PName, Expr PName) }
 vcaseBranches                  :: { [CaseAlt PName] }
   : caseBranch                    { [$1] }
   | vcaseBranches 'v;' caseBranch { $3 : $1 }
-
-caseBranches                   :: { [CaseAlt PName] }
-  : caseBranch                    { [$1] }
-  | caseBranches ';' caseBranch   { $3 : $1 }
+  | vcaseBranches ';'  caseBranch { $3 : $1 }
 
 caseBranch                     :: { CaseAlt PName }
   : cpat '->' expr                { CaseAlt $1 $3 }
@@ -667,8 +652,7 @@ tuple_exprs                    :: { [Expr PName] }
 
 
 rec_expr :: { Either (Expr PName) [Named (Expr PName)] }
-  : aexpr '|' field_exprs         {  Left (EUpd (Just $1) (reverse $3)) }
-  | '_'   '|' field_exprs         {  Left (EUpd Nothing   (reverse $3)) }
+  : aexpr '|' field_exprs         { Left (EUpd (recExprWildcardCase $1) (reverse $3)) }
   | field_exprs                   {% Right `fmap` mapM ufToNamed $1 }
 
 field_exprs                    :: { [UpdField PName] }
@@ -1021,6 +1005,19 @@ parseSchemaWith cfg = parse cfg { cfgModuleScope = False } schema
 
 parseSchema :: Text -> Either ParseError (Schema PName)
 parseSchema = parseSchemaWith defaultConfig
+
+
+{- record expressions have a special treatment of the `_` expression.
+   These expressions generate record updating functions.
+   We have `_` as an identifier for the cases where we parse types as
+   expressions, for example `[ 12 .. _ ]`.
+-}
+recExprWildcardCase :: (Expr PName) -> Maybe (Expr PName)
+recExprWildcardCase e =
+  case e of
+    EVar (UnQual "_") -> Nothing
+    _                 -> Just e
+
 
 -- vim: ft=haskell
 }

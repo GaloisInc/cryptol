@@ -17,6 +17,10 @@
   section](https://galoisinc.github.io/cryptol/master/FFI.html#the-abstract-calling-convention)
   for more information.
 
+* Allow an explicit `;` separator between `case` branches. This change removes the
+  unreachable code in the grammar for `case` and `where` expressions with explicit
+  `{` and `}` that was never reachable due to the way the layout rule worked.
+
 ## Bug fixes
 
 * Allow changing the `tcSolver` setting to non-Z3 solvers (e.g., CVC5) without

@@ -2,6 +2,8 @@
 :help E1
 :help X
 :t c1
+:t c2
+:t c3
 :t e1
 :t e2
 e1
