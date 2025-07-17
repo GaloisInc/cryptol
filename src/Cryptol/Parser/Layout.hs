@@ -93,7 +93,7 @@ layout isMod ts0
        noVirtSep:
           Do not emit a virtual separator even if token matches block alignment.
           This is enabled at the beginning of a block, or after a doc string,
-          or if we just emitted a separtor, but have not yet consumed the
+          or if we just emitted a separator, but have not yet consumed the
           next token.
 
        tokens:
