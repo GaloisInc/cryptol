@@ -320,6 +320,9 @@ nbCommandList  =
   , CommandDescr [ ":check-docstrings" ] [] (ModNameArg checkDocStringsCmd)
       "Run the REPL code blocks in the module's docstring comments"
       ""
+  , CommandDescr [ ":print-docstrings" ] [] (ModNameArg printDocStringsCmd)
+      "Print the REPL code blocks in the module's docstring comments"
+      ""
   , CommandDescr [ ":saw" ] [] (FilenameArg sawCmd)
     "Load a given SAW file."
     (unlines
@@ -2009,6 +2012,28 @@ data SubcommandResult = SubcommandResult
   , srLog :: String
   }
 
+printBlock :: [T.Text] -> REPL ()
+printBlock = go . continuedLines
+  where
+    go [] = pure ()
+    go (line:block)
+      | T.all isSpace line = go block
+      | otherwise =
+          case parseCommand (findNbCommand True) (T.unpack line) of
+            Nothing -> do
+              rPutStrLn "Failed to parse command"
+              pure ()
+            Just Ambiguous{} -> do
+              rPutStrLn "Ambiguous command"
+              pure ()
+            Just Unknown{} -> do
+              rPutStrLn "Unknown command"
+              pure ()
+            Just (Command cmd) -> do
+              rPutStrLn (T.unpack line)
+              subresults <- checkBlock block
+              pure ()
+
 -- | Check a single code block from inside a docstring.
 --
 -- The result will contain the results of processing the commands up to
@@ -2131,6 +2156,25 @@ checkDocItem item =
       , drFences = xs
       }
 
+printDocItem :: T.DocItem -> REPL ()
+printDocItem item = do --rPutStrLn ( show (head (T.docText item )))
+ do rPrint ("  Docstrings on" <+> pp (T.docFor item))
+    _ <- case traverse T.extractCodeBlocks (T.docText item) of
+            [] -> pure [] -- optimization
+            bs -> traverse printBlock (concat bs)
+    pure ()
+
+printDocStrings :: M.LoadedModule -> REPL ()
+printDocStrings m = do
+  let dat = M.lmdModule (M.lmData m)
+  rPrint ("Checking module" <+> pp (T.mName dat))
+  let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
+  results <- traverse printDocItem ds
+--  cid <- updateDocstringCache m results expectCache
+  pure ()
+
+
+
 -- | Check all of the docstrings in the given module.
 --
 -- The outer list elements correspond to the code blocks from the
@@ -2166,6 +2210,31 @@ updateDocstringCache m result expectCache =
                     do let entry' = entry { Proj.cacheDocstringResult = Just (all checkDocstringResult result) }
                        let cache' = cache { Proj.cacheModules = Map.insert (Proj.CacheInFile fp) entry' (Proj.cacheModules cache) }
                        io (Proj.saveLoadCache cache')
+
+
+
+{- findLoadedModuleName :: String -> Maybe P.ModName
+findLoadedModuleName input
+  | null input = lName getLoadedMod
+  | otherwise = parseModName input -}
+-- just copy paste until we can refactor nicely
+printDocStringsCmd ::
+  String {- ^ module name -} ->
+  REPL CommandResult
+printDocStringsCmd input
+  | null input = do
+    mb <- getLoadedMod
+    case lName =<< mb of
+      Nothing -> do
+        rPutStrLn "No current module"
+        pure emptyCommandResult { crSuccess = False }
+      Just mn -> checkModNameForPrint 0 mn
+  | otherwise =
+    case parseModName input of
+      Nothing -> do
+        rPutStrLn "Invalid module name"
+        pure emptyCommandResult { crSuccess = False }
+      Just mn -> checkModNameForPrint 0 mn
 
 -- | Evaluate all the docstrings in the specified module.
 --
@@ -2226,6 +2295,33 @@ checkModName ind mn =
                           ", No fences: " ++ show nofences ++
                           ", Failures: " ++ show failures)
           pure emptyCommandResult { crSuccess = failures == 0 }
+  where
+  tab = replicate ind ' '
+
+checkModNameForPrint :: Int -> P.ModName -> REPL CommandResult
+checkModNameForPrint ind mn =
+ do env <- getModuleEnv
+    case M.lookupModule mn env of
+      Nothing ->
+        case M.lookupSignature mn env of
+          Nothing ->
+           do rPutStrLn (tab ++ "Module " ++ show mn ++ " is not loaded")
+              pure emptyCommandResult { crSuccess = False }
+          Just{} ->
+           do rPutStrLn (tab ++ "Skipping docstrings on interface module")
+              pure emptyCommandResult
+      Just fe
+        | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
+          rPutStrLn (tab ++ "Skipping docstrings on parameterized module")
+          pure emptyCommandResult
+        | otherwise -> do
+          printDocStrings fe
+{-           (results,_) <- checkDocStrings fe Nothing
+          let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
+          rPutStrLn (tab ++ "Successes: " ++ show successes ++
+                          ", No fences: " ++ show nofences ++
+                          ", Failures: " ++ show failures) -}
+          pure emptyCommandResult { crSuccess = True }
   where
   tab = replicate ind ' '
 
