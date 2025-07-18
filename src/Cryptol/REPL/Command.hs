@@ -2031,7 +2031,7 @@ printBlock = go . continuedLines
               pure ()
             Just (Command cmd) -> do
               rPutStrLn (T.unpack line)
-              subresults <- checkBlock block
+              subresults <- printBlock block
               pure ()
 
 -- | Check a single code block from inside a docstring.
