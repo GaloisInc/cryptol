@@ -155,9 +155,9 @@ toAbsolute knownToks ltok =
   do
     let rng   = srcRange ltok
     ty <-
-      case knownToks rng of
-        Just ty -> pure ty
-        Nothing -> tokType (tokenType (thing ltok))
+      case tokenType (thing ltok) of
+        Ident {} | Just t <- knownToks rng -> pure t
+        _ -> tokType (tokenType (thing ltok))
     let start = Cry.from rng
         end   = Cry.to rng
         startL = fromIntegral (Cry.line start - 1)
@@ -205,13 +205,7 @@ tokType tok =
     Num {}      -> pure LSP.SemanticTokenTypes_Number
     Frac {}     -> pure LSP.SemanticTokenTypes_Number
     ChrLit {}   -> pure LSP.SemanticTokenTypes_String
-
-    Ident [] "Integer" -> pure LSP.SemanticTokenTypes_Type
-    Ident [] "Bit"     -> pure LSP.SemanticTokenTypes_Type
-    Ident [] "Bool"    -> pure LSP.SemanticTokenTypes_Type
-    Ident [] "Z"    -> pure LSP.SemanticTokenTypes_Type
-
-    Ident {}   -> pure LSP.SemanticTokenTypes_Variable
+    Ident {}    -> pure LSP.SemanticTokenTypes_Variable
     StrLit {}   -> pure LSP.SemanticTokenTypes_String
     Selector {} -> pure LSP.SemanticTokenTypes_Property
     KW kw ->

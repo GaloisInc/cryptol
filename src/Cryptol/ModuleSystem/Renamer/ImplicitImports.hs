@@ -113,7 +113,7 @@ mkImp loc xs =
     Located
       { srcRange = loc
       , thing    = Import
-                     { iModule = ImpNested (isToName xs)
+                     { iModule = Located loc (ImpNested (isToName xs))
                      , iAs     = Just (isToQual xs)
                      , iSpec   = Nothing
                      , iInst   = Nothing

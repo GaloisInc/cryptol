@@ -215,10 +215,11 @@ mImports m =
     FunctorInstance {}  -> []
     InterfaceModule sig -> mapMaybe topImp (sigImports sig)
   where
-  topImp li = case iModule i of
-               ImpTop n -> Just li { thing = i { iModule = n } }
+  topImp li = case thing mo of
+               ImpTop n -> Just li { thing = i { iModule = Located (srcRange mo) n } }
                _        -> Nothing
     where i = thing li
+          mo = iModule i
 
 
 -- | Get the module parameters of a module (new module system)
@@ -437,7 +438,7 @@ data ModParam name = ModParam
 
 -- | An import declaration.
 data ImportG mname = Import
-  { iModule    :: !mname
+  { iModule    :: !(Located mname)
   , iAs        :: Maybe ModName
   , iSpec      :: Maybe ImportSpec
   , iInst      :: !(Maybe (ModuleInstanceArgs PName))

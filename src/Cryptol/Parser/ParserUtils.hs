@@ -1355,7 +1355,7 @@ mkImport loc impName optInst mbAs mbImportSpec optImportWhere doc =
 
      pure Located { srcRange = rComb loc end
                   , thing    = Import
-                                 { iModule    = thing impName
+                                 { iModule    = impName
                                  , iAs        = thing <$> mbAs
                                  , iSpec      = thing <$> mbImportSpec
                                  , iInst      = i
@@ -1523,7 +1523,7 @@ desugarTopDs ownerName = go emptySig
         case d of
 
           DImport i
-            | ImpTop _ <- iModule (thing i)
+            | ImpTop _ <- thing (iModule (thing i))
             , Nothing  <- iInst (thing i) ->
             cont [d] (addI i sig)
 
@@ -1552,20 +1552,26 @@ desugarInstImport ::
   ParseM [TopDecl PName]
 desugarInstImport i inst =
   do (m, ms) <- desugarMod
-           Module { mName    = i { thing = iname }
+           Module { mName    = iname
                   , mDef     = FunctorInstance
-                                 (iModule <$> i) inst emptyModuleInstance
+                                 origMod inst emptyModuleInstance
                   , mInScope = mempty
                   , mDocTop  = Nothing
                   }
      pure (DImport (newImp <$> i) : map modTop (ms ++ [m]))
 
   where
-  iname = mkUnqual
-        $ let pos = from (srcRange i)
-          in identAnonInstImport (line pos) (col pos)
+  origMod = iModule (thing i)
 
-  newImp d = d { iModule = ImpNested iname
+  iname = Located {
+    thing =mkUnqual
+        $ let pos = from (srcRange i)
+          in identAnonInstImport (line pos) (col pos),
+    srcRange = srcRange origMod
+  }
+      
+
+  newImp d = d { iModule = ImpNested <$> iname
                , iInst   = Nothing
                }
 
