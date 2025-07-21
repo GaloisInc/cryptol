@@ -9,7 +9,7 @@
 -- Module      :  Cryptol.Parser.PropGuards
 -- Copyright   :  (c) 2022 Galois, Inc.
 -- License     :  BSD3
--- Maintainer  :  cryptol@galois.com
+-- Mintiner  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 --
@@ -18,7 +18,9 @@
 -- function.
 module Cryptol.Parser.ExpandPropGuards where
 
+import Data.Maybe(fromMaybe)
 import Control.DeepSeq
+import Cryptol.Parser.Position(emptyRange)
 import Cryptol.Parser.AST
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
@@ -125,7 +127,9 @@ expandBind bind =
             Just (Forall tps _ _ _) -> pure tps
             Nothing -> Left $ NoSignature (bName bind)
           typeInsts <-
-            (\(TParam n _ _) -> Right . PosInst $ TUser n [])
+            (\tp ->
+               let loc = fromMaybe emptyRange (tpRange tp) in
+               Right (PosInst (TUser (Located loc (tpName tp)) [])))
               `traverse` tParams
           let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bindParams bind)
           pure

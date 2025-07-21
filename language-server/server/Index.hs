@@ -1,5 +1,5 @@
 module Index (
-  IndexDB,
+  IndexDB(..),  -- XXX: Temporary
   DefInfo(..),
   ModDefInfo(..),
   RangeInfo(..),
@@ -7,9 +7,11 @@ module Index (
   emptyIndexDB,
   updateIndexes,
   lookupPosition,
+  lookupExtraSemToks,
   doLoadedModule
 ) where
 
+import Data.Maybe(fromMaybe)
 import Data.List(foldl')
 import Data.Map(Map)
 import Data.Map qualified as Map
@@ -30,6 +32,7 @@ import Cryptol.Utils.Ident
 
 import Position
 import Definitions
+
 
 data IndexDB = IndexDB {
   allDefs :: Map Name DefInfo,
@@ -104,14 +107,36 @@ emptyIndexDB = IndexDB {
   posIndex = mempty
 }
 
-
+lookupExtraSemToks :: LSP.NormalizedUri -> IndexDB -> Range -> Maybe LSP.SemanticTokenTypes
+lookupExtraSemToks uri db =
+  fromMaybe (const Nothing)
+  do
+    file <- LSP.fromNormalizedFilePath <$> LSP.uriToNormalizedFilePath uri
+    (info,_,_) <- Map.lookup (InFile file) (posIndex db)
+    pure \rng ->
+      do thing <- Map.lookup rng { source = file } info
+         case thing of
+           NamedThing a ->
+            let nm = rangeDef a
+            in Just
+              case nameNamespace nm of
+                NSValue ->
+                  case nameInfo nm of
+                    GlobalName {} -> LSP.SemanticTokenTypes_Function
+                    LocalName {} -> LSP.SemanticTokenTypes_Variable
+                NSConstructor -> LSP.SemanticTokenTypes_EnumMember
+                NSType        -> LSP.SemanticTokenTypes_Type
+                NSModule      -> LSP.SemanticTokenTypes_Namespace
+           ModThing _ -> pure LSP.SemanticTokenTypes_Namespace
+        
+  
 
 lookupPosition ::
-  LSP.Uri -> LSP.Position -> IndexDB -> Either Int (LSP.Range, Thing DefInfo ModDefInfo)
+  LSP.NormalizedUri -> LSP.Position -> IndexDB -> Either Int (LSP.Range, Thing DefInfo ModDefInfo)
 lookupPosition uri pos db =
   do
-    file <- step 1 $ LSP.uriToFilePath uri
-    (info,_,_) <- step 2 $ Map.lookup (InFile file) (posIndex db)
+    file <- step 1 $ LSP.uriToNormalizedFilePath uri
+    (info,_,_) <- step 2 $ Map.lookup (InFile (LSP.fromNormalizedFilePath file)) (posIndex db)
     let l   = fromIntegral (pos ^. LSP.line) + 1
         c   = fromIntegral (pos ^. LSP.character)
         tgt = replPosition (l,c)

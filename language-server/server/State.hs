@@ -39,10 +39,21 @@ data Config = Config {
 }
 
 data State = State {
-  lexedFiles  :: Map LSP.NormalizedUri ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange]),
-  cryRoots    :: Map LSP.NormalizedUri (ThreadId, TVar Bool),
-  cryIndex    :: IndexDB,
-  cryState    :: ModuleInput IO
+  lexedFiles      :: Map LSP.NormalizedUri ([LSP.SemanticTokenAbsolute], [LSP.FoldingRange]),
+  -- ^ Cache of lexed files
+
+  cryRoots        :: Map LSP.NormalizedUri (ThreadId, TVar Bool),
+  -- ^ Open files.  For each files we have a thread monitoring the file,
+  -- which re-lexes it on change.  The `TVar` is to signal that a file
+  -- has changed, used so that we can wait until the user has stopped
+  -- typing for a bit.
+
+  cryIndex        :: IndexDB,
+  -- ^ Information we get from passes after lexer:
+  -- additional sematnic token information, doc strings, types, etc.
+
+  cryState        :: ModuleInput IO
+  -- ^ State of the Cryptol environment
 }
 
 

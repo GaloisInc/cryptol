@@ -488,7 +488,7 @@ instance RangedVars (Type Name) where
       TBit       -> const id
       TNum {}    -> const id
       TChar {}   -> const id
-      TUser n ts -> rangedVars (Use n, ts)
+      TUser n ts -> rangedVars (Use <$> n, ts)
       TTyApp xs -> rangedVars (map value xs)
       TRecord r -> rangedVars (map (uncurry Located) (recordElements r)) 
       TTuple ts -> rangedVars ts

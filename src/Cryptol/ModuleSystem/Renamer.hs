@@ -1026,7 +1026,8 @@ instance Rename Type where
       TBit           -> return TBit
       TNum c         -> return (TNum c)
       TChar c        -> return (TChar c)
-      TUser qn ps    -> TUser <$> renameType NameUse qn <*> traverse rename ps
+      TUser qn ps    -> TUser <$> withLoc (srcRange qn) (traverse (renameType NameUse) qn)
+                              <*> traverse rename ps
       TTyApp fs      -> TTyApp   <$> traverse (traverse rename) fs
       TRecord fs     -> TRecord  <$> traverse (traverse rename) fs
       TTuple fs      -> TTuple   <$> traverse rename fs
@@ -1389,8 +1390,9 @@ patternEnv  = go
   typeEnv TNum{}     = return mempty
   typeEnv TChar{}    = return mempty
 
-  typeEnv (TUser pn ps) =
-    do mb <- resolveNameMaybe NameUse NSType pn
+  typeEnv (TUser pn' ps) =
+    do let pn = thing pn'
+       mb <- withLoc (srcRange pn') (resolveNameMaybe NameUse NSType pn)
        case mb of
 
          -- The type is already bound, don't introduce anything.

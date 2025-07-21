@@ -15,12 +15,16 @@ import Language.LSP.VFS qualified as LSP (virtualFileText)
 import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Types qualified as LSP
 
+-- XXX: TEMP
+import Cryptol.ModuleSystem.Env
+import Cryptol.Utils.PP
 
 import Cryptol.Parser.Position qualified as Cry
 import Cryptol.Parser.Lexer
 import Monad
 import State
 import Position
+import Index
 
 newMonitor :: LSP.NormalizedUri -> M ()
 newMonitor uri =
@@ -87,13 +91,31 @@ lexFile  :: LSP.NormalizedUri -> M ([LSP.SemanticTokenAbsolute], [LSP.FoldingRan
 lexFile uri =
   do
     mb <- LSP.getVirtualFile uri
-    let ts =
+    -- XXX: TEMP
+    s  <- getState
+    let db = cryIndex s
+    case LSP.uriToNormalizedFilePath uri of
+      Nothing -> lspLog Info "Not a file"
+      Just file ->  
+        case Map.lookup (InFile (LSP.fromNormalizedFilePath file)) (posIndex db) of
+          Nothing -> lspLog Info "No info"
+          Just (info,_,_) -> lspLog Info $ vcat ("ALL GOOD": [ pp x <+> ppT y | (x,y) <- Map.toList info ])
+             where ppT x =
+                    case x of
+                      NamedThing x -> pp (rangeDef x)
+                      ModThing x -> pp x
+    extra  <- lookupExtraSemToks uri . cryIndex <$> getState
+    ts <-
           case mb of
-            Nothing -> ([],[])
-            Just f ->
+            Nothing -> pure ([],[])
+            Just f -> do
               let txt = LSP.virtualFileText f
                   (ls,_) = primLexer defaultConfig txt
-              in (concatMap toAbsolute ls, mapMaybe tokenRange ls)
+              mapM_ (\l ->
+                case extra (srcRange l) of
+                  Nothing -> lspLog Info ("Not found" <+> pp (srcRange l))
+                  Just _ -> lspLog Info "yes") ls
+              pure (concatMap (toAbsolute extra) ls, mapMaybe tokenRange ls)
     update \_ s -> pure (s { lexedFiles = Map.insert uri ts (lexedFiles s) }, ts)
       
 
@@ -125,12 +147,18 @@ tokenRange ltok =
     }
 
 -- | Convert a Cryptol token to an LSP one
-toAbsolute :: Located Token -> [LSP.SemanticTokenAbsolute]
-toAbsolute ltok =
+toAbsolute ::
+  (Cry.Range -> Maybe LSP.SemanticTokenTypes) ->
+  Located Token ->
+  [LSP.SemanticTokenAbsolute]
+toAbsolute knownToks ltok =
   do
-    ty <- tokType (tokenType (thing ltok))
     let rng   = srcRange ltok
-        start = Cry.from rng
+    ty <-
+      case knownToks rng of
+        Just ty -> pure ty
+        Nothing -> tokType (tokenType (thing ltok))
+    let start = Cry.from rng
         end   = Cry.to rng
         startL = fromIntegral (Cry.line start - 1)
         startC = fromIntegral (Cry.colOffset start)

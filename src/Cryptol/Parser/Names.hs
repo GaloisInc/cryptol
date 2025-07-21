@@ -326,7 +326,7 @@ tnamesT ty =
     TRecord fs    -> Set.unions (map (tnamesT . snd) (recordElements fs))
     TTyApp fs     -> Set.unions (map (tnamesT . value) fs)
     TLocated t _  -> tnamesT t
-    TUser x ts    -> Set.insert x (Set.unions (map tnamesT ts))
+    TUser x ts    -> Set.insert (thing x) (Set.unions (map tnamesT ts))
     TParens t _   -> tnamesT t
     TInfix a x _ c-> Set.insert (thing x)
                                 (Set.union (tnamesT a) (tnamesT c))

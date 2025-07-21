@@ -54,6 +54,7 @@ reload =
                 in s { cryIndex = updateIndexes ents (cryIndex s),
                        cryState = (cryState s) { minpModuleEnv = env1 }
                       }
+            requestSemTokUpdate
             pure ()
 
 dbg :: Doc -> LoadM ()

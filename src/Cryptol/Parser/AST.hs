@@ -757,7 +757,7 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TBit                    -- ^ @Bit@
             | TNum Integer            -- ^ @10@
             | TChar Char              -- ^ @'a'@
-            | TUser n [Type n]        -- ^ A type variable or synonym
+            | TUser (Located n) [Type n] -- ^ A type variable or synonym
             | TTyApp [Named (Type n)] -- ^ @`{ x = [8], y = Integer }@
             | TRecord (Rec (Type n))  -- ^ @{ x : [8], y : [32] }@
             | TTuple [Type n]         -- ^ @([8], [32])@
