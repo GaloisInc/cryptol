@@ -215,7 +215,7 @@ tnamesD decl =
 tnamesB :: Ord name => Bind name -> Set name
 tnamesB b = Set.unions [setS, setP, setE]
   where
-    setS = maybe Set.empty tnamesS (bSignature b)
+    setS = maybe Set.empty (tnamesS . thing) (bSignature b)
     setP = Set.unions (map tnamesP (bindParams b))
     setE = tnamesDef (thing (bDef b))
 

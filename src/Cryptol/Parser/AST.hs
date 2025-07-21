@@ -489,7 +489,9 @@ data Bind name = Bind
   { bName      :: Located name            -- ^ Defined thing
   , bParams    :: BindParams name         -- ^ Parameters
   , bDef       :: Located (BindDef name)  -- ^ Definition
-  , bSignature :: Maybe (Schema name)     -- ^ Optional type sig
+  , bSignature :: Maybe (Located (Schema name))
+    -- ^ Optional type sig
+    -- The location is of the name in the type signature
   , bInfix     :: Bool                    -- ^ Infix operator?
   , bFixity    :: Maybe Fixity            -- ^ Optional fixity info
   , bPragmas   :: [Pragma]                -- ^ Optional pragmas
@@ -1189,7 +1191,7 @@ instance (Show name, PPName name) => PP (Bind name) where
           f = bName b
           sig = case bSignature b of
                   Nothing -> []
-                  Just s  -> [pp (DSignature [f] s)]
+                  Just s  -> [pp (DSignature [f] (thing s))]
           eq  = if bMono b then text ":=" else text "="
           lhs = fsep (ppL f : (map (ppPrec 3) (bindParams b)))
 

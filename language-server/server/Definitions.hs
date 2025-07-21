@@ -518,11 +518,12 @@ instance RangedVars (Pattern Name) where
 
 instance RangedVars (Bind Name) where
   rangedVars b ctx =
-    rangedVars (Def <$> bName b) ctx1 .
+    rangedVars (Def <$> bName b, sigLoc) ctx1 .
     rangedVars (bParams b, (bDef b, bSignature b)) ctx2
       where
       ctx1 = ctx { curDoc = thing <$> bDoc b }
       ctx2 = ctx { curDoc = Nothing }
+      sigLoc = fmap (const (Use (thing (bName b)))) <$> bSignature b
 
 instance RangedVars (BindParams Name) where
   rangedVars bps =

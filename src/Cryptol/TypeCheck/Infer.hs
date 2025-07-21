@@ -1020,7 +1020,7 @@ guessType exprMap b@(P.Bind { .. }) =
                         P.DImpl i -> case i of
                                        P.DExpr {}       -> AllowWildCards
                                        P.DPropGuards {} -> NoWildCards
-         s1 <- checkSchema wildOk s
+         s1 <- checkSchema wildOk (thing s)
          return ((name, ExtVar (fst s1)), Left (checkSigB b s1))
 
     Nothing

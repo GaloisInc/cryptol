@@ -1063,8 +1063,8 @@ instance Rename Bind where
   rename b =
     do n'    <- rnLocated (renameVar NameBind) (bName b)
        depsOf (NamedThing (thing n'))
-         do mbSig <- traverse renameSchema (bSignature b)
-            shadowNames (fst `fmap` mbSig) $
+         do mbSig <- traverse (traverse renameSchema) (bSignature b)
+            shadowNames ((fst . thing) `fmap` mbSig) $
               do (patEnv,bParams') <- renameBindParams (bParams b)
                  -- NOTE: renamePats will generate warnings,
                  -- so we don't need to trigger them again here.
@@ -1072,7 +1072,7 @@ instance Rename Bind where
                  return b { bName      = n'
                           , bParams    = bParams'
                           , bDef       = e'
-                          , bSignature = snd `fmap` mbSig
+                          , bSignature = fmap snd `fmap` mbSig
                           , bPragmas   = bPragmas b
                           }
 

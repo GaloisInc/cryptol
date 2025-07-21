@@ -114,7 +114,7 @@ expandBind bind =
   expand def guards = do
     Forall params props t rng <-
       case bSignature bind of
-        Just schema -> pure schema
+        Just schema -> pure (thing schema)
         Nothing -> Left . NoSignature $ bName bind
     let goGuard ::
           PropGuardCase PName ->
@@ -123,7 +123,7 @@ expandBind bind =
           checkNestedGuardsInExpr e
           bName' <- newName (bName bind) (thing <$> props')
           -- call to generated function
-          tParams <- case bSignature bind of
+          tParams <- case thing <$> bSignature bind of
             Just (Forall tps _ _ _) -> pure tps
             Nothing -> Left $ NoSignature (bName bind)
           typeInsts <-
@@ -137,9 +137,11 @@ expandBind bind =
               bind
                 { bName = bName',
                   -- include guarded props in signature
-                  bSignature = Just (Forall params
+                  bSignature = Just Located 
+                                  { srcRange = maybe (srcRange (bName bind)) srcRange (bSignature bind),
+                                    thing = Forall params
                                         (props <> map thing props')
-                                        t rng),
+                                        t rng },
                   -- keeps same location at original bind
                   -- i.e. "on top of" original bind
                   bDef = (bDef bind) {thing = exprDef e}
