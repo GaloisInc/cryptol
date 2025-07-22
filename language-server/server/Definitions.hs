@@ -27,6 +27,9 @@ data DefInfo = DefInfo {
   defRange :: Range,
   -- ^ Location of the definition (specifically, the name)
 
+  defFullRange :: Maybe Range,
+  -- ^ Location of the whole definition (e.g., for collapsing)
+
   defDoc   :: Maybe Text,
   -- ^ Documentation, if any
 
@@ -307,14 +310,15 @@ instance RangedVars ModName where
       _ -> rest
 
 
-newtype Def = Def Name
+data Def = Def Name Range
+newtype DefNoCollapse = DefNoCollapse Name
 data Def' = Def' Bool Name Name
 newtype ModDef = ModDef (Located ModName)
 
 
 
-addDef :: Bool -> Maybe Name -> Name -> Ctxt -> Index -> Index
-addDef addUse also nm ctx rest =
+addDef :: Bool -> Maybe Name -> Name -> Maybe Range -> Ctxt -> Index -> Index
+addDef addUse also nm defRng ctx rest =
     case nameSrc nm of
       SystemName -> rest
       _ -> rest {
@@ -331,6 +335,7 @@ addDef addUse also nm ctx rest =
       defName  = nm,
       defSeeAlso = also,
       defRange = rng,
+      defFullRange = defRng,
       defDoc   = Nothing,
       defType  = Nothing  -- added later
     }
@@ -342,11 +347,15 @@ addDef addUse also nm ctx rest =
 
 
 instance RangedVars Def' where
-  rangedVars (Def' use rel a) = addDef use (Just rel) a
+  rangedVars (Def' use rel a) = addDef use (Just rel) a Nothing
 
 
 instance RangedVars Def where
-  rangedVars (Def x) = addDef True Nothing x
+  rangedVars (Def x r) = addDef True Nothing x (Just r)
+
+instance RangedVars DefNoCollapse where
+  rangedVars (DefNoCollapse x) = addDef True Nothing x Nothing
+
 
 instance RangedVars ModDef where
   rangedVars (ModDef m) ctx i
@@ -425,12 +434,12 @@ instance RangedVars (SigDecl Name) where
 
 instance RangedVars (ParameterType Name) where
   rangedVars pt ctx =
-    rangedVars (Def <$> ptName pt) ctx { curDoc = thing <$> ptDoc pt }
+    rangedVars (DefNoCollapse <$> ptName pt) ctx { curDoc = thing <$> ptDoc pt }
 
 instance RangedVars (ParameterFun Name) where
   rangedVars pf ctx =
     rangedVars (pfSchema pf) ctx .
-    rangedVars (Def <$> pfName pf) ctx { curDoc = thing <$> pfDoc pf }
+    rangedVars (DefNoCollapse <$> pfName pf) ctx { curDoc = thing <$> pfDoc pf }
 
 instance RangedVars (ModParam Name) where
   rangedVars mp = rangedVars (mpSignature mp, map mk (Map.toList (mpRenaming mp)))
@@ -447,25 +456,27 @@ instance RangedVars (ImportG (ImpName Name)) where
   rangedVars imp = rangedVars (iModule imp)
 
 instance RangedVars (NestedModule Name) where
-  rangedVars (NestedModule nm) ctx = rangedVars (Def <$> mName nm, mDef nm) ctx1
+  rangedVars (NestedModule nm) ctx = rangedVars (DefNoCollapse <$> mName nm, mDef nm) ctx1
     where ctx1 = ctx { curNamingEnv = toNameDisp (mInScope nm) }
 
 instance RangedVars (Newtype Name) where
   rangedVars nt =
-    rangedVars (Def <$> nm, (con, map (uncurry Located) (recordElements (nBody nt))))
+    rangedVars (DefNoCollapse <$> nm, (con, map (uncurry Located) (recordElements (nBody nt))))
+    -- XXX: This should be collapsable
     where
     nm = nName nt
-    con = Def (nConName nt) <$ nm
+    con = DefNoCollapse (nConName nt) <$ nm
 
 instance RangedVars (EnumDecl Name) where
-  rangedVars ed = rangedVars (Def <$> eName ed, eCons ed)
+  rangedVars ed = rangedVars (DefNoCollapse <$> eName ed, eCons ed)
+    -- XXX: This should be collapsable
 
 instance RangedVars (EnumCon Name) where
-  rangedVars c = rangedVars (Def <$> ecName c, ecFields c)
+  rangedVars c = rangedVars (DefNoCollapse <$> ecName c, ecFields c)
 
 
 instance RangedVars (PrimType Name) where
-  rangedVars pt = rangedVars (Def <$> primTName pt, snd (primTCts pt))
+  rangedVars pt = rangedVars (DefNoCollapse <$> primTName pt, snd (primTCts pt))
        
 
 instance RangedVars a => RangedVars (TopLevel a) where
@@ -506,7 +517,7 @@ instance RangedVars (TypeInst Name) where
 instance RangedVars (Pattern Name) where
   rangedVars pat =
     case pat of
-      PVar n -> rangedVars (Def <$> n)
+      PVar n -> rangedVars (DefNoCollapse <$> n)
       PWild -> const id
       PTuple ps -> rangedVars ps
       PRecord r -> rangedVars (map (uncurry Located) (recordElements r))
@@ -518,12 +529,22 @@ instance RangedVars (Pattern Name) where
 
 instance RangedVars (Bind Name) where
   rangedVars b ctx =
-    rangedVars (Def <$> bName b, sigLoc) ctx1 .
+    rangedVars (def, sigLoc) ctx1 .
     rangedVars (bParams b, (bDef b, bSignature b)) ctx2
       where
       ctx1 = ctx { curDoc = thing <$> bDoc b }
       ctx2 = ctx { curDoc = Nothing }
       sigLoc = fmap (const (Use (thing (bName b)))) <$> bSignature b
+      def = Located { srcRange = srcRange (bName b)
+                    , thing = Def (thing (bName b))
+                        let body = rComb (srcRange (bName b)) (srcRange (bDef b))
+                        in case bSignature b of
+                             Just s
+                               | let r = srcRange s
+                               , line (from body) == line (to r) + 1 ->
+                                 rComb r body
+                             _ -> body
+                    }
 
 instance RangedVars (BindParams Name) where
   rangedVars bps =
@@ -603,7 +624,7 @@ instance RangedVars (Decl Name) where
       DLocated d r -> rangedVars (Located r d)
 
 instance RangedVars (TySyn Name) where
-  rangedVars (TySyn n _ _ t) = rangedVars (Def <$> n, t)
+  rangedVars (TySyn n _ _ t) = rangedVars (DefNoCollapse <$> n, t)
 
 instance RangedVars (PropSyn Name) where
-  rangedVars (PropSyn n _ _ t) = rangedVars (Def <$> n, t)
+  rangedVars (PropSyn n _ _ t) = rangedVars (DefNoCollapse <$> n, t)

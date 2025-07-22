@@ -1,9 +1,10 @@
 module Index (
-  IndexDB(..),  -- XXX: Temporary
+  IndexDB,  -- XXX: Temporary
   DefInfo(..),
   ModDefInfo(..),
   RangeInfo(..),
   Thing(..),
+  ExtraSemTokInfo(..),
   emptyIndexDB,
   updateIndexes,
   lookupPosition,
@@ -41,9 +42,21 @@ data IndexDB = IndexDB {
   allModDefs :: Map ModName ModDefInfo,
   -- ^ Information about top-level modules
 
-  posIndex :: Map ModulePath (Map Range (Thing Name ModName), Map Name (), Map ModName ())
+  posIndex :: Map ModulePath (ModIndex, Map Name (), Map ModName ())
   -- ^ Locations of identifiers in a module and definitions coming from this module
 }
+
+-- | Information about stuff in a single file
+data ModIndex = ModIndex {
+  modIndexHover :: Map Range (Thing Name ModName),
+  modIndexFolds :: [Range]
+}
+
+instance Semigroup ModIndex where
+  x <> y = ModIndex {
+    modIndexHover = Map.union (modIndexHover x) (modIndexHover y),
+    modIndexFolds = modIndexFolds x ++ modIndexFolds y
+  }
 
 -- | Something that we have info about
 data Thing a b =
@@ -95,7 +108,7 @@ instance PP IndexDB where
       case f of
         InFile _ -> [pp f $$ indent 2 (ppRs rs)]
         InMem {} -> []
-    ppRs rs = vcat [ hcat [ppR r, ": ", pp n] | (r,n) <- Map.toList rs ]
+    ppRs rs = vcat [ hcat [ppR r, ": ", pp n] | (r,n) <- Map.toList (modIndexHover rs) ]
     ppR r = hcat [ pp (from r), "--", pp (to r)]
     
 
@@ -107,27 +120,43 @@ emptyIndexDB = IndexDB {
   posIndex = mempty
 }
 
-lookupExtraSemToks :: LSP.NormalizedUri -> IndexDB -> Range -> Maybe LSP.SemanticTokenTypes
+data ExtraSemTokInfo = ExtraSemTokInfo {
+  extraSemToks :: Range -> Maybe LSP.SemanticTokenTypes,
+  extraFold    :: [Range]
+}
+
+noExtraSemTokInfo :: ExtraSemTokInfo
+noExtraSemTokInfo = ExtraSemTokInfo {
+  extraSemToks  = const Nothing,
+  extraFold     = []
+}
+
+lookupExtraSemToks ::
+  LSP.NormalizedUri -> IndexDB -> ExtraSemTokInfo
 lookupExtraSemToks uri db =
-  fromMaybe (const Nothing)
+  fromMaybe noExtraSemTokInfo
   do
     file <- LSP.fromNormalizedFilePath <$> LSP.uriToNormalizedFilePath uri
     (info,_,_) <- Map.lookup (InFile file) (posIndex db)
-    pure \rng ->
-      do thing <- Map.lookup rng { source = file } info
-         case thing of
-           NamedThing a ->
-            let nm = rangeDef a
-            in Just
-              case nameNamespace nm of
-                NSValue ->
-                  case nameInfo nm of
-                    GlobalName {} -> LSP.SemanticTokenTypes_Function
-                    LocalName {} -> LSP.SemanticTokenTypes_Variable
-                NSConstructor -> LSP.SemanticTokenTypes_EnumMember
-                NSType        -> LSP.SemanticTokenTypes_Type
-                NSModule      -> LSP.SemanticTokenTypes_Namespace
-           ModThing _ -> pure LSP.SemanticTokenTypes_Namespace
+    pure
+      ExtraSemTokInfo {
+        extraSemToks = \rng ->
+          do thing <- Map.lookup rng { source = file } (modIndexHover info)
+             case thing of
+               NamedThing a ->
+                let nm = rangeDef a
+                in Just
+                  case nameNamespace nm of
+                    NSValue ->
+                      case nameInfo nm of
+                        GlobalName {} -> LSP.SemanticTokenTypes_Function
+                        LocalName {} -> LSP.SemanticTokenTypes_Variable
+                    NSConstructor -> LSP.SemanticTokenTypes_EnumMember
+                    NSType        -> LSP.SemanticTokenTypes_Type
+                    NSModule      -> LSP.SemanticTokenTypes_Namespace
+               ModThing _ -> pure LSP.SemanticTokenTypes_Namespace,
+        extraFold = modIndexFolds info
+      }
         
   
 
@@ -141,7 +170,7 @@ lookupPosition uri pos db =
         c   = fromIntegral (pos ^. LSP.character)
         tgt = replPosition (l,c)
         tooEarly rng = to rng < tgt
-    (r,i0) <- step 3 $ Map.lookupMin (Map.dropWhileAntitone tooEarly info)
+    (r,i0) <- step 3 $ Map.lookupMin (Map.dropWhileAntitone tooEarly (modIndexHover info))
     step 4 $ guard (from r <= tgt && tgt <= to r)
     let rrange = snd (rangeToLSP r)
     case i0 of
@@ -219,14 +248,17 @@ doLoadedModule lm cur =
               p <- asPrim x
               guard (p == prelPrim "number")
               pure (NamedThing (mkRangeDef (disp, x) (Just (nm,t))))
-          locs = Map.unions
-                  [ Map.fromList [ (r, NamedThing (mkRangeDef x (getTArgs r (snd x))))
-                                 | (r,x) <- ixUse i ] 
-                  , Map.fromList [ (r, ModThing x) | (r,x) <- ixMod i ]
-                  , Map.mapMaybe isNumLit targs
-                  ]
+          locs = ModIndex {
+                   modIndexHover = Map.unions
+                      [ Map.fromList [ (r, NamedThing (mkRangeDef x (getTArgs r (snd x))))
+                                     | (r,x) <- ixUse i ] 
+                      , Map.fromList [ (r, ModThing x) | (r,x) <- ixMod i ]
+                      , Map.mapMaybe isNumLit targs
+                      ],
+                    modIndexFolds = [ r | d <- Map.elems (ixDefs i), Just r <- [defFullRange d] ]
+                  }
           modDefs = ixModDefs i
-          jn (a,b,c) (x,y,z) = (Map.union a x, Map.union b y, Map.union c z)
+          jn (a,b,c) (x,y,z) = (a <> x, Map.union b y, Map.union c z)
       in IndexDB {
           posIndex = Map.insertWith jn uri (locs, void defs, void modDefs) (posIndex cur),
           allModDefs = Map.union modDefs (allModDefs cur),

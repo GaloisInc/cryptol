@@ -3,6 +3,7 @@ module SyntaxHighlight (newMonitor, semanticTokens) where
 import Data.Maybe(mapMaybe,listToMaybe)
 import Data.Char(isSpace)
 import Data.Map qualified as Map
+import Data.Text(Text)
 import Data.Text qualified as Text
 import Control.Lens((^.))
 import Control.Monad(unless)
@@ -15,6 +16,7 @@ import Language.LSP.VFS qualified as LSP (virtualFileText)
 import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Types qualified as LSP
 
+import Cryptol.Utils.PP
 import Cryptol.Parser.Position qualified as Cry
 import Cryptol.Parser.Lexer
 import Monad
@@ -88,15 +90,35 @@ lexFile uri =
   do
     mb <- LSP.getVirtualFile uri
     extra  <- lookupExtraSemToks uri . cryIndex <$> getState
-    let ts =
+    let non r = r { Cry.source = "" }
+    lspLog Info ("Folds: " <+> hsep (map (pp . non) (extraFold extra)))
+    let 
+        fs = map (mkFoldingRange LSP.FoldingRangeKind_Region Nothing) (extraFold extra)
+        ts =
           case mb of
             Nothing -> ([],[])
             Just f ->
               let txt = LSP.virtualFileText f
                   (ls,_) = primLexer defaultConfig txt
-              in (concatMap (toAbsolute extra) ls, mapMaybe tokenRange ls)
+              in (concatMap (toAbsolute (extraSemToks extra)) ls,
+                  fs ++ mapMaybe tokenRange ls)
     update \_ s -> pure (s { lexedFiles = Map.insert uri ts (lexedFiles s) }, ts)
       
+
+mkFoldingRange :: LSP.FoldingRangeKind -> Maybe Text -> Cry.Range -> LSP.FoldingRange
+mkFoldingRange k txt rng =
+  LSP.FoldingRange {
+    _startLine = p1 ^. LSP.line,
+    _startCharacter = Just (p1 ^. LSP.character),
+    _endLine = p2 ^. LSP.line,
+    _endCharacter = Just (p2 ^. LSP.character),
+    _kind = Just k,
+    _collapsedText = txt
+  }
+  where
+  (_, r) = rangeToLSP rng
+  p1 = r ^. LSP.start
+  p2 = r ^. LSP.end
 
 
 tokenRange :: Located Token -> Maybe LSP.FoldingRange
@@ -106,24 +128,13 @@ tokenRange ltok =
     White BlockComment -> Just folding
     _ -> Nothing
   where
-  (_, r) = rangeToLSP (srcRange ltok)
-  p1 = r ^. LSP.start
-  p2 = r ^. LSP.end
+  folding = mkFoldingRange LSP.FoldingRangeKind_Comment txt (srcRange ltok)
   boring = Text.all (\c -> isSpace c || c == '/' || c == '*')
   txt = listToMaybe 
       $ dropWhile boring
       $ Text.lines
       $ tokenText
-      $ thing ltok
-  folding =
-    LSP.FoldingRange {
-      _startLine = p1 ^. LSP.line,
-      _startCharacter = Just (p1 ^. LSP.character),
-      _endLine = p2 ^. LSP.line,
-      _endCharacter = Just (p2 ^. LSP.character),
-      _kind = Just LSP.FoldingRangeKind_Comment,
-      _collapsedText = txt
-    }
+      $ thing ltok    
 
 -- | Convert a Cryptol token to an LSP one
 toAbsolute ::
