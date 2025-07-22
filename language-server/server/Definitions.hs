@@ -456,20 +456,31 @@ instance RangedVars (ImportG (ImpName Name)) where
   rangedVars imp = rangedVars (iModule imp)
 
 instance RangedVars (NestedModule Name) where
-  rangedVars (NestedModule nm) ctx = rangedVars (DefNoCollapse <$> mName nm, mDef nm) ctx1
-    where ctx1 = ctx { curNamingEnv = toNameDisp (mInScope nm) }
+  rangedVars d@(NestedModule nm) ctx =
+    case getLoc d of
+      Nothing -> def DefNoCollapse
+      Just r  -> def (`Def` r)
+    where
+    ctx1 = ctx { curNamingEnv = toNameDisp (mInScope nm) }
+    def mk = rangedVars (mk <$> mName nm, mDef nm) ctx1
 
 instance RangedVars (Newtype Name) where
   rangedVars nt =
-    rangedVars (DefNoCollapse <$> nm, (con, map (uncurry Located) (recordElements (nBody nt))))
-    -- XXX: This should be collapsable
+    case getLoc nt of
+      Nothing -> def DefNoCollapse
+      Just r  -> def (`Def` r)
     where
     nm = nName nt
     con = DefNoCollapse (nConName nt) <$ nm
+    def mk = rangedVars (mk <$> nm, (con, map (uncurry Located) (recordElements (nBody nt))))
 
 instance RangedVars (EnumDecl Name) where
-  rangedVars ed = rangedVars (DefNoCollapse <$> eName ed, eCons ed)
-    -- XXX: This should be collapsable
+  rangedVars ed =
+    case getLoc ed of
+      Nothing -> def DefNoCollapse
+      Just r  -> def (`Def` r)
+    where
+    def mk = rangedVars (mk <$> eName ed, eCons ed)
 
 instance RangedVars (EnumCon Name) where
   rangedVars c = rangedVars (DefNoCollapse <$> ecName c, ecFields c)
@@ -624,7 +635,17 @@ instance RangedVars (Decl Name) where
       DLocated d r -> rangedVars (Located r d)
 
 instance RangedVars (TySyn Name) where
-  rangedVars (TySyn n _ _ t) = rangedVars (DefNoCollapse <$> n, t)
+  rangedVars d@(TySyn n _ _ t) =
+    case getLoc d of
+      Nothing -> def DefNoCollapse
+      Just r  -> def (`Def` r)
+    where
+    def mk = rangedVars (mk <$> n, t)
 
 instance RangedVars (PropSyn Name) where
-  rangedVars (PropSyn n _ _ t) = rangedVars (DefNoCollapse <$> n, t)
+  rangedVars d@(PropSyn n _ _ t) =
+    case getLoc d of
+      Nothing -> def DefNoCollapse
+      Just r  -> def (`Def` r)
+    where
+    def mk = rangedVars (mk <$> n, t)

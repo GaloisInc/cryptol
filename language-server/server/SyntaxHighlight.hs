@@ -16,7 +16,7 @@ import Language.LSP.VFS qualified as LSP (virtualFileText)
 import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Types qualified as LSP
 
-import Cryptol.Utils.PP
+-- import Cryptol.Utils.PP
 import Cryptol.Parser.Position qualified as Cry
 import Cryptol.Parser.Lexer
 import Monad
@@ -90,8 +90,8 @@ lexFile uri =
   do
     mb <- LSP.getVirtualFile uri
     extra  <- lookupExtraSemToks uri . cryIndex <$> getState
-    let non r = r { Cry.source = "" }
-    lspLog Info ("Folds: " <+> hsep (map (pp . non) (extraFold extra)))
+    -- let non r = r { Cry.source = "" }
+    -- lspLog Info ("Folds: " <+> hsep (map (pp . non) (extraFold extra)))
     let 
         fs = map (mkFoldingRange LSP.FoldingRangeKind_Region Nothing) (extraFold extra)
         ts =
