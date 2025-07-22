@@ -15,10 +15,6 @@ import Language.LSP.VFS qualified as LSP (virtualFileText)
 import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Types qualified as LSP
 
--- XXX: TEMP
-import Cryptol.ModuleSystem.Env
-import Cryptol.Utils.PP
-
 import Cryptol.Parser.Position qualified as Cry
 import Cryptol.Parser.Lexer
 import Monad
@@ -91,31 +87,14 @@ lexFile  :: LSP.NormalizedUri -> M ([LSP.SemanticTokenAbsolute], [LSP.FoldingRan
 lexFile uri =
   do
     mb <- LSP.getVirtualFile uri
-    -- XXX: TEMP
-    s  <- getState
-    let db = cryIndex s
-    case LSP.uriToNormalizedFilePath uri of
-      Nothing -> lspLog Info "Not a file"
-      Just file ->  
-        case Map.lookup (InFile (LSP.fromNormalizedFilePath file)) (posIndex db) of
-          Nothing -> lspLog Info "No info"
-          Just (info,_,_) -> lspLog Info $ vcat ("ALL GOOD": [ pp x <+> ppT y | (x,y) <- Map.toList info ])
-             where ppT x =
-                    case x of
-                      NamedThing x -> pp (rangeDef x)
-                      ModThing x -> pp x
     extra  <- lookupExtraSemToks uri . cryIndex <$> getState
-    ts <-
+    let ts =
           case mb of
-            Nothing -> pure ([],[])
-            Just f -> do
+            Nothing -> ([],[])
+            Just f ->
               let txt = LSP.virtualFileText f
                   (ls,_) = primLexer defaultConfig txt
-              mapM_ (\l ->
-                case extra (srcRange l) of
-                  Nothing -> lspLog Info ("Not found" <+> pp (srcRange l))
-                  Just _ -> lspLog Info "yes") ls
-              pure (concatMap (toAbsolute extra) ls, mapMaybe tokenRange ls)
+              in (concatMap (toAbsolute extra) ls, mapMaybe tokenRange ls)
     update \_ s -> pure (s { lexedFiles = Map.insert uri ts (lexedFiles s) }, ts)
       
 

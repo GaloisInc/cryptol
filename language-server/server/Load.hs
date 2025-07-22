@@ -5,6 +5,7 @@ import Data.Map(Map)
 import Data.Map qualified as Map
 import Data.Maybe(fromMaybe,mapMaybe)
 import MonadLib
+import Control.Concurrent.STM
 
 import Cryptol.Parser.Position(thing,srcRange,Range)
 import Cryptol.ModuleSystem
@@ -53,9 +54,12 @@ reload =
                     ents = filter reindex (Map.elems (getLoadedEntities lm1))
                 in s { cryIndex = updateIndexes ents (cryIndex s),
                        cryState = (cryState s) { minpModuleEnv = env1 }
-                      }
-            requestSemTokUpdate
-            pure ()
+                    }
+            let changed = [ tv
+                          | (InFile mo,Loaded) <- Map.toList (loadStatus loadS)
+                          , let u = LSP.normalizedFilePathToUri (LSP.toNormalizedFilePath mo)
+                          , Just (_,tv) <- [Map.lookup u uris] ]
+            liftIO (mapM_ (\tv -> atomically (writeTVar tv True)) changed)
 
 dbg :: Doc -> LoadM ()
 dbg x = when False (doLift (withLogger logPutStr (show x)))
