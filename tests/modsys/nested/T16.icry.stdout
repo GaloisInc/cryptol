@@ -3,5 +3,5 @@ Loading module Cryptol
 Loading module T16_M
 Loading module Main
 
-[error] at T16.cry:2:1--2:19
+[error] at T16.cry:2:18--2:19
     Module not in scope: A
