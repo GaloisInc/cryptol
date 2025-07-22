@@ -496,8 +496,14 @@ instance RangedVars a => RangedVars (TopLevel a) where
 instance RangedVars (UpdField Name) where
   rangedVars (UpdField _ _ e) = rangedVars e
 instance RangedVars (Schema Name) where
-  rangedVars (Forall _ ps ts mbR) ctx = rangedVars (ps,ts) ctx'
+  rangedVars (Forall as ps ts mbR) ctx = rangedVars (as,(ps,ts)) ctx'
     where ctx' = maybe ctx (\r -> ctx { curRange = Just r }) mbR
+
+instance RangedVars (TParam Name) where
+  rangedVars tp =
+    case tpRange tp of
+      Just r -> rangedVars (Located r (Use (tpName tp)))
+      Nothing -> rangedVars (Use (tpName tp))
 
 instance RangedVars (Prop Name) where
   rangedVars (CType t) = rangedVars t
