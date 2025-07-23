@@ -1,5 +1,5 @@
 module Index (
-  IndexDB,  -- XXX: Temporary
+  IndexDB,
   DefInfo(..),
   ModDefInfo(..),
   RangeInfo(..),
