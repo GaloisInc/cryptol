@@ -57,8 +57,9 @@ RUN mkdir -p /home/cryptol/.ghcup && \
     ghcup install ghc ${GHCVER} && \
     ghcup set ghc ${GHCVER}
 RUN cabal v2-update && \
-    cabal v2-build -j cryptol:exe:cryptol && \
+    cabal v2-build -j cryptol:exe:cryptol cryptol-language-server:exe:cryptol-language-server && \
     cp $(cabal v2-exec which cryptol) rootfs/usr/local/bin && \
+    cp $(cabal v2-exec which cryptol-language-server) rootfs/usr/local/bin && \
     cabal v2-install --install-method=copy --overwrite-policy=always --installdir=bin test-lib
 RUN ./bin/test-runner --ext=.icry --env-ext=.env --exe=./rootfs/usr/local/bin/cryptol -F -b tests
 ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
