@@ -92,6 +92,7 @@ lexFile uri =
     extra  <- lookupExtraSemToks uri . cryIndex <$> getState
     -- let non r = r { Cry.source = "" }
     -- lspLog Info ("Folds: " <+> hsep (map (pp . non) (extraFold extra)))
+    -- lspLog Info (vcat (extraDbgMsgs extra))
     let 
         fs = map (mkFoldingRange LSP.FoldingRangeKind_Region Nothing) (extraFold extra)
         ts =
@@ -147,6 +148,8 @@ toAbsolute knownToks ltok =
     ty <-
       case tokenType (thing ltok) of
         Ident {} | Just t <- knownToks rng -> pure t
+        Num {} | Just t <- knownToks rng
+               , t == LSP.SemanticTokenTypes_Type -> pure t
         _ -> tokType (tokenType (thing ltok))
     let start = Cry.from rng
         end   = Cry.to rng

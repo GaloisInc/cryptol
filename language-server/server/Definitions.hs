@@ -251,6 +251,10 @@ data Index = Index {
   ixUse  :: [(Range,(NameDisp,Name))],
   -- ^ Ranges in the file containing name uses.
 
+  ixTypeTokens :: [Range],
+  -- ^ Ranges in the file containing type tokens that are not names.
+  -- This is so we can highlight them appropriately
+
   ixModDefs :: Map ModName ModDefInfo,
   -- ^ Top-level modules defines in this file.
 
@@ -259,7 +263,10 @@ data Index = Index {
 }
 
 emptyIndex :: Index
-emptyIndex = Index { ixDefs = mempty, ixUse = [], ixModDefs = mempty, ixMod = [] }
+emptyIndex = Index {
+  ixDefs = mempty, ixUse = [], ixModDefs = mempty, ixMod = [],
+  ixTypeTokens = []
+}
 
 noCtxt :: Ctxt
 noCtxt = Ctxt { curNamingEnv = mempty, curRange = Nothing, curDoc = Nothing }
@@ -514,16 +521,21 @@ instance RangedVars (Type Name) where
       TFun t1 t2 -> rangedVars (t1,t2)
       TSeq a b   -> rangedVars (a,b)
       TBit       -> const id
-      TNum {}    -> const id
-      TChar {}   -> const id
+      TNum {}    -> tyTok
+      TChar {}   -> tyTok
       TUser n ts -> rangedVars (Use <$> n, ts)
       TTyApp xs -> rangedVars (map value xs)
       TRecord r -> rangedVars (map (uncurry Located) (recordElements r)) 
       TTuple ts -> rangedVars ts
-      TWild     -> const id
+      TWild     -> tyTok
       TLocated t r -> rangedVars (Located r t)
       TParens t _  -> rangedVars t
       TInfix x op _ y -> rangedVars (x,(Use <$> op, y))
+    where
+    tyTok ctx i =
+      case curRange ctx of
+        Nothing -> i
+        Just r -> i { ixTypeTokens = r : ixTypeTokens i }
 
 instance RangedVars (TypeInst Name) where
   rangedVars ti =

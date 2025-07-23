@@ -14,6 +14,8 @@ module Index (
 
 import Data.Maybe(fromMaybe)
 import Data.List(foldl')
+import Data.Set(Set)
+import Data.Set qualified as Set
 import Data.Map(Map)
 import Data.Map qualified as Map
 import Control.Lens((^.))
@@ -49,12 +51,14 @@ data IndexDB = IndexDB {
 -- | Information about stuff in a single file
 data ModIndex = ModIndex {
   modIndexHover :: Map Range (Thing Name ModName),
+  modIndexTypeToks :: !(Set Range),
   modIndexFolds :: [Range]
 }
 
 instance Semigroup ModIndex where
   x <> y = ModIndex {
     modIndexHover = Map.union (modIndexHover x) (modIndexHover y),
+    modIndexTypeToks = Set.union (modIndexTypeToks x) (modIndexTypeToks y),
     modIndexFolds = modIndexFolds x ++ modIndexFolds y
   }
 
@@ -122,13 +126,15 @@ emptyIndexDB = IndexDB {
 
 data ExtraSemTokInfo = ExtraSemTokInfo {
   extraSemToks :: Range -> Maybe LSP.SemanticTokenTypes,
-  extraFold    :: [Range]
+  extraFold    :: [Range],
+  extraDbgMsgs :: [Doc]
 }
 
 noExtraSemTokInfo :: ExtraSemTokInfo
 noExtraSemTokInfo = ExtraSemTokInfo {
   extraSemToks  = const Nothing,
-  extraFold     = []
+  extraFold     = [],
+  extraDbgMsgs  = []
 }
 
 lookupExtraSemToks ::
@@ -140,21 +146,26 @@ lookupExtraSemToks uri db =
     (info,_,_) <- Map.lookup (InFile file) (posIndex db)
     pure
       ExtraSemTokInfo {
-        extraSemToks = \rng ->
-          do thing <- Map.lookup rng { source = file } (modIndexHover info)
-             case thing of
-               NamedThing a ->
-                let nm = rangeDef a
-                in Just
-                  case nameNamespace nm of
-                    NSValue ->
-                      case nameInfo nm of
-                        GlobalName {} -> LSP.SemanticTokenTypes_Function
-                        LocalName {} -> LSP.SemanticTokenTypes_Variable
-                    NSConstructor -> LSP.SemanticTokenTypes_EnumMember
-                    NSType        -> LSP.SemanticTokenTypes_Type
-                    NSModule      -> LSP.SemanticTokenTypes_Namespace
-               ModThing _ -> pure LSP.SemanticTokenTypes_Namespace,
+        extraDbgMsgs = [], -- [ pp r | r <- Set.toList (modIndexTypeToks info) ],
+        extraSemToks = \rng' ->
+          let rng = rng' { source = file } in
+          if rng `Set.member` modIndexTypeToks info
+            then pure LSP.SemanticTokenTypes_Type
+            else
+              do thing <- Map.lookup rng (modIndexHover info)
+                 case thing of
+                   NamedThing a ->
+                    let nm = rangeDef a
+                    in Just
+                      case nameNamespace nm of
+                        NSValue ->
+                          case nameInfo nm of
+                            GlobalName {} -> LSP.SemanticTokenTypes_Function
+                            LocalName {} -> LSP.SemanticTokenTypes_Variable
+                        NSConstructor -> LSP.SemanticTokenTypes_EnumMember
+                        NSType        -> LSP.SemanticTokenTypes_Type
+                        NSModule      -> LSP.SemanticTokenTypes_Namespace
+                   ModThing _ -> pure LSP.SemanticTokenTypes_Namespace,
         extraFold = modIndexFolds info
       }
         
@@ -255,6 +266,7 @@ doLoadedModule lm cur =
                       , Map.fromList [ (r, ModThing x) | (r,x) <- ixMod i ]
                       , Map.mapMaybe isNumLit targs
                       ],
+                    modIndexTypeToks = Set.fromList (ixTypeTokens i),
                     modIndexFolds = [ r | d <- Map.elems (ixDefs i), Just r <- [defFullRange d] ]
                   }
           modDefs = ixModDefs i
