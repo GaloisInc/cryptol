@@ -17,6 +17,7 @@ module Cryptol.Parser.Utils
   , widthIdent
   ) where
 
+import Cryptol.Parser.Position
 import Cryptol.Parser.AST
 
 widthIdent :: Ident
@@ -25,23 +26,23 @@ widthIdent  = mkIdent "width"
 underIdent :: Ident
 underIdent = mkIdent "_"
 
-translateExprToNumT :: Expr PName -> Maybe (Type PName)
-translateExprToNumT expr =
+translateExprToNumT :: Range -> Expr PName -> Maybe (Type PName)
+translateExprToNumT r0 expr =
   case expr of
-    ELocated e r -> (`TLocated` r) `fmap` translateExprToNumT e
-    EVar n | getIdent n == widthIdent -> pure (TUser n [])
+    ELocated e r -> (`TLocated` r) `fmap` translateExprToNumT r e
+    EVar n | getIdent n == widthIdent -> pure (TUser (Located r0 n) [])
            | getIdent n == underIdent -> pure TWild
-    EVar x       -> return (TUser x [])
+    EVar x       -> return (TUser (Located r0 x) [])
     ELit x       -> cvtLit x
-    EApp e1 e2   -> do t1 <- translateExprToNumT e1
-                       t2 <- translateExprToNumT e2
+    EApp e1 e2   -> do t1 <- translateExprToNumT r0 e1
+                       t2 <- translateExprToNumT r0 e2
                        tApp t1 t2
 
-    EInfix a o f b -> do e1 <- translateExprToNumT a
-                         e2 <- translateExprToNumT b
+    EInfix a o f b -> do e1 <- translateExprToNumT r0 a
+                         e2 <- translateExprToNumT r0 b
                          return (TInfix e1 o f e2)
 
-    EParens e    -> do t <- translateExprToNumT e
+    EParens e    -> do t <- translateExprToNumT r0 e
                        return (TParens t Nothing)
 
     _            -> Nothing

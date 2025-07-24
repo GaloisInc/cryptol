@@ -4,7 +4,7 @@ Loading module T1440
 
 [error] at T1440.cry:3:28--3:29
     Module not in scope: X
-[error] at T1440.cry:5:1--5:19
+[error] at T1440.cry:5:18--5:19
     Module not in scope: Y
 [error] at T1440.cry:16:40--16:42
     Module not in scope: U1

@@ -86,7 +86,7 @@ importedModule :: ImportSource -> P.ModName
 importedModule is =
   case is of
     FromModule n          -> n
-    FromImport li         -> P.iModule (P.thing li)
+    FromImport li         -> P.thing (P.iModule (P.thing li))
     FromModuleInstance l  -> P.thing l
     FromSigImport l       -> P.thing l
 

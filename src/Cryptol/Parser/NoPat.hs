@@ -550,11 +550,11 @@ annotPrimType pt =
      pure pt { primTFixity = f }
 
 -- | Check for multiple signatures.
-checkSigs :: PName -> [Located (Schema PName)] -> NoPatM (Maybe (Schema PName))
+checkSigs :: PName -> [Located (Schema PName)] -> NoPatM (Maybe (Located (Schema PName)))
 checkSigs _ []             = return Nothing
-checkSigs _ [s]            = return (Just (thing s))
+checkSigs _ [s]            = return (Just s)
 checkSigs f xs@(s : _ : _) = do recordError $ MultipleSignatures f xs
-                                return (Just (thing s))
+                                return (Just s)
 
 checkFixs :: PName -> [Located Fixity] -> NoPatM (Maybe Fixity)
 checkFixs _ []       = return Nothing

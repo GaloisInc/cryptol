@@ -388,7 +388,7 @@ doLoadModule eval quiet isrc path fp incDeps pm impDeps =
 --
 -- > import foo as foo [ [hiding] (a,b,c) ]
 fullyQualified :: P.Import -> P.Import
-fullyQualified i = i { iAs = Just (iModule i) }
+fullyQualified i = i { iAs = Just (thing (iModule i)) }
 
 moduleFile :: ModName -> String -> FilePath
 moduleFile n = addExtension (joinPath (modNameChunks n))
@@ -457,11 +457,11 @@ addPrelude m
       InterfaceModule s -> InterfaceModule s { sigImports = prel
                                              : sigImports s }
 
-  importedMods  = map (P.iModule . P.thing) (P.mImports m)
+  importedMods  = map (P.thing . P.iModule . P.thing) (P.mImports m)
   prel = P.Located
     { P.srcRange = emptyRange
     , P.thing    = P.Import
-      { iModule  = P.ImpTop preludeName
+      { iModule  = Located emptyRange (P.ImpTop preludeName)
       , iAs      = Nothing
       , iSpec    = Nothing
       , iInst    = Nothing
@@ -549,8 +549,8 @@ findDeps' m =
       ImpTop f -> loadI (src l { thing = f })
       _        -> mempty
 
-  loadImpD li = loadImpName (FromImport . new) (iModule <$> li)
-    where new i = i { thing = (thing li) { iModule = thing i } }
+  loadImpD li = loadImpName (FromImport . new) (thing . iModule <$> li)
+    where new i = i { thing = (thing li) { iModule = i } }
 
   loadNamedInstArg (ModuleInstanceNamedArg _ f) = loadInstArg f
   loadInstArg f =

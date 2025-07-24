@@ -3,6 +3,7 @@ module SyntaxHighlight (newMonitor, semanticTokens) where
 import Data.Maybe(mapMaybe,listToMaybe)
 import Data.Char(isSpace)
 import Data.Map qualified as Map
+import Data.Text(Text)
 import Data.Text qualified as Text
 import Control.Lens((^.))
 import Control.Monad(unless)
@@ -15,12 +16,13 @@ import Language.LSP.VFS qualified as LSP (virtualFileText)
 import Language.LSP.Protocol.Lens qualified as LSP
 import Language.LSP.Protocol.Types qualified as LSP
 
-
+-- import Cryptol.Utils.PP
 import Cryptol.Parser.Position qualified as Cry
 import Cryptol.Parser.Lexer
 import Monad
 import State
 import Position
+import Index
 
 newMonitor :: LSP.NormalizedUri -> M ()
 newMonitor uri =
@@ -87,15 +89,37 @@ lexFile  :: LSP.NormalizedUri -> M ([LSP.SemanticTokenAbsolute], [LSP.FoldingRan
 lexFile uri =
   do
     mb <- LSP.getVirtualFile uri
-    let ts =
+    extra  <- lookupExtraSemToks uri . cryIndex <$> getState
+    -- let non r = r { Cry.source = "" }
+    -- lspLog Info ("Folds: " <+> hsep (map (pp . non) (extraFold extra)))
+    -- lspLog Info (vcat (extraDbgMsgs extra))
+    let 
+        fs = map (mkFoldingRange LSP.FoldingRangeKind_Region Nothing) (extraFold extra)
+        ts =
           case mb of
             Nothing -> ([],[])
             Just f ->
               let txt = LSP.virtualFileText f
                   (ls,_) = primLexer defaultConfig txt
-              in (concatMap toAbsolute ls, mapMaybe tokenRange ls)
+              in (concatMap (toAbsolute (extraSemToks extra)) ls,
+                  fs ++ mapMaybe tokenRange ls)
     update \_ s -> pure (s { lexedFiles = Map.insert uri ts (lexedFiles s) }, ts)
       
+
+mkFoldingRange :: LSP.FoldingRangeKind -> Maybe Text -> Cry.Range -> LSP.FoldingRange
+mkFoldingRange k txt rng =
+  LSP.FoldingRange {
+    _startLine = p1 ^. LSP.line,
+    _startCharacter = Just (p1 ^. LSP.character),
+    _endLine = p2 ^. LSP.line,
+    _endCharacter = Just (p2 ^. LSP.character),
+    _kind = Just k,
+    _collapsedText = txt
+  }
+  where
+  (_, r) = rangeToLSP rng
+  p1 = r ^. LSP.start
+  p2 = r ^. LSP.end
 
 
 tokenRange :: Located Token -> Maybe LSP.FoldingRange
@@ -105,32 +129,29 @@ tokenRange ltok =
     White BlockComment -> Just folding
     _ -> Nothing
   where
-  (_, r) = rangeToLSP (srcRange ltok)
-  p1 = r ^. LSP.start
-  p2 = r ^. LSP.end
+  folding = mkFoldingRange LSP.FoldingRangeKind_Comment txt (srcRange ltok)
   boring = Text.all (\c -> isSpace c || c == '/' || c == '*')
   txt = listToMaybe 
       $ dropWhile boring
       $ Text.lines
       $ tokenText
-      $ thing ltok
-  folding =
-    LSP.FoldingRange {
-      _startLine = p1 ^. LSP.line,
-      _startCharacter = Just (p1 ^. LSP.character),
-      _endLine = p2 ^. LSP.line,
-      _endCharacter = Just (p2 ^. LSP.character),
-      _kind = Just LSP.FoldingRangeKind_Comment,
-      _collapsedText = txt
-    }
+      $ thing ltok    
 
 -- | Convert a Cryptol token to an LSP one
-toAbsolute :: Located Token -> [LSP.SemanticTokenAbsolute]
-toAbsolute ltok =
+toAbsolute ::
+  (Cry.Range -> Maybe LSP.SemanticTokenTypes) ->
+  Located Token ->
+  [LSP.SemanticTokenAbsolute]
+toAbsolute knownToks ltok =
   do
-    ty <- tokType (tokenType (thing ltok))
     let rng   = srcRange ltok
-        start = Cry.from rng
+    ty <-
+      case tokenType (thing ltok) of
+        Ident {} | Just t <- knownToks rng -> pure t
+        Num {} | Just t <- knownToks rng
+               , t == LSP.SemanticTokenTypes_Type -> pure t
+        _ -> tokType (tokenType (thing ltok))
+    let start = Cry.from rng
         end   = Cry.to rng
         startL = fromIntegral (Cry.line start - 1)
         startC = fromIntegral (Cry.colOffset start)
@@ -177,13 +198,7 @@ tokType tok =
     Num {}      -> pure LSP.SemanticTokenTypes_Number
     Frac {}     -> pure LSP.SemanticTokenTypes_Number
     ChrLit {}   -> pure LSP.SemanticTokenTypes_String
-
-    Ident [] "Integer" -> pure LSP.SemanticTokenTypes_Type
-    Ident [] "Bit"     -> pure LSP.SemanticTokenTypes_Type
-    Ident [] "Bool"    -> pure LSP.SemanticTokenTypes_Type
-    Ident [] "Z"    -> pure LSP.SemanticTokenTypes_Type
-
-    Ident {}   -> pure LSP.SemanticTokenTypes_Variable
+    Ident {}    -> pure LSP.SemanticTokenTypes_Variable
     StrLit {}   -> pure LSP.SemanticTokenTypes_String
     Selector {} -> pure LSP.SemanticTokenTypes_Property
     KW kw ->

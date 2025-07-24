@@ -3,7 +3,7 @@ Loading module Cryptol
 Loading module Array
 Loading module Bug
 
-[error] at issue1744.cry:12:7--13:28:
+[error] at issue1744.cry:12:1--13:28:
   Type signature mismatch.
     Expected number of parameters: 3
     Actual number of parameters: 4

@@ -215,10 +215,11 @@ mImports m =
     FunctorInstance {}  -> []
     InterfaceModule sig -> mapMaybe topImp (sigImports sig)
   where
-  topImp li = case iModule i of
-               ImpTop n -> Just li { thing = i { iModule = n } }
+  topImp li = case thing mo of
+               ImpTop n -> Just li { thing = i { iModule = Located (srcRange mo) n } }
                _        -> Nothing
     where i = thing li
+          mo = iModule i
 
 
 -- | Get the module parameters of a module (new module system)
@@ -437,7 +438,7 @@ data ModParam name = ModParam
 
 -- | An import declaration.
 data ImportG mname = Import
-  { iModule    :: !mname
+  { iModule    :: !(Located mname)
   , iAs        :: Maybe ModName
   , iSpec      :: Maybe ImportSpec
   , iInst      :: !(Maybe (ModuleInstanceArgs PName))
@@ -488,7 +489,9 @@ data Bind name = Bind
   { bName      :: Located name            -- ^ Defined thing
   , bParams    :: BindParams name         -- ^ Parameters
   , bDef       :: Located (BindDef name)  -- ^ Definition
-  , bSignature :: Maybe (Schema name)     -- ^ Optional type sig
+  , bSignature :: Maybe (Located (Schema name))
+    -- ^ Optional type sig
+    -- The location is of the name in the type signature
   , bInfix     :: Bool                    -- ^ Infix operator?
   , bFixity    :: Maybe Fixity            -- ^ Optional fixity info
   , bPragmas   :: [Pragma]                -- ^ Optional pragmas
@@ -757,7 +760,7 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TBit                    -- ^ @Bit@
             | TNum Integer            -- ^ @10@
             | TChar Char              -- ^ @'a'@
-            | TUser n [Type n]        -- ^ A type variable or synonym
+            | TUser (Located n) [Type n] -- ^ A type variable or synonym
             | TTyApp [Named (Type n)] -- ^ @`{ x = [8], y = Integer }@
             | TRecord (Rec (Type n))  -- ^ @{ x : [8], y : [32] }@
             | TTuple [Type n]         -- ^ @([8], [32])@
@@ -1188,7 +1191,7 @@ instance (Show name, PPName name) => PP (Bind name) where
           f = bName b
           sig = case bSignature b of
                   Nothing -> []
-                  Just s  -> [pp (DSignature [f] s)]
+                  Just s  -> [pp (DSignature [f] (thing s))]
           eq  = if bMono b then text ":=" else text "="
           lhs = fsep (ppL f : (map (ppPrec 3) (bindParams b)))
 

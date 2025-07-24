@@ -476,12 +476,12 @@ getCryptolExpr (Integer i) =
   return $
     CP.ETyped
       (CP.ELit (CP.ECNum i (CP.DecLit (pack (show i)))))
-      (CP.TUser (CP.UnQual (mkIdent "Integer")) [])
+      (CP.TUser (Located emptyRange (CP.UnQual (mkIdent "Integer"))) [])
 getCryptolExpr (IntegerModulo i n) =
   return $
     CP.ETyped
       (CP.ELit (CP.ECNum i (CP.DecLit (pack (show i)))))
-      (CP.TUser (CP.UnQual (mkIdent "Z")) [CP.TNum n])
+      (CP.TUser (Located emptyRange (CP.UnQual (mkIdent "Z"))) [CP.TNum n])
 getCryptolExpr (Num enc txt w) =
   do d <- decode enc txt
      return $ CP.ETyped

@@ -729,9 +729,10 @@ renI :: Located (ImportG (ImpName PName)) ->
         RenameM (Located (ImportG (ImpName Name)))
 renI li =
   withLoc (srcRange li)
-  do m <- rename (iModule i)
+  do let mo = iModule i
+     m <- withLoc (srcRange mo) (rename (thing mo))
      unless (isFakeName m) (recordImport (srcRange li) m)
-     pure li { thing = i { iModule = m } }
+     pure li { thing = i { iModule = mo { thing = m } } }
   where
   i = thing li
 
@@ -1026,7 +1027,8 @@ instance Rename Type where
       TBit           -> return TBit
       TNum c         -> return (TNum c)
       TChar c        -> return (TChar c)
-      TUser qn ps    -> TUser <$> renameType NameUse qn <*> traverse rename ps
+      TUser qn ps    -> TUser <$> withLoc (srcRange qn) (traverse (renameType NameUse) qn)
+                              <*> traverse rename ps
       TTyApp fs      -> TTyApp   <$> traverse (traverse rename) fs
       TRecord fs     -> TRecord  <$> traverse (traverse rename) fs
       TTuple fs      -> TTuple   <$> traverse rename fs
@@ -1061,8 +1063,8 @@ instance Rename Bind where
   rename b =
     do n'    <- rnLocated (renameVar NameBind) (bName b)
        depsOf (NamedThing (thing n'))
-         do mbSig <- traverse renameSchema (bSignature b)
-            shadowNames (fst `fmap` mbSig) $
+         do mbSig <- traverse (traverse renameSchema) (bSignature b)
+            shadowNames ((fst . thing) `fmap` mbSig) $
               do (patEnv,bParams') <- renameBindParams (bParams b)
                  -- NOTE: renamePats will generate warnings,
                  -- so we don't need to trigger them again here.
@@ -1070,7 +1072,7 @@ instance Rename Bind where
                  return b { bName      = n'
                           , bParams    = bParams'
                           , bDef       = e'
-                          , bSignature = snd `fmap` mbSig
+                          , bSignature = fmap snd `fmap` mbSig
                           , bPragmas   = bPragmas b
                           }
 
@@ -1389,8 +1391,9 @@ patternEnv  = go
   typeEnv TNum{}     = return mempty
   typeEnv TChar{}    = return mempty
 
-  typeEnv (TUser pn ps) =
-    do mb <- resolveNameMaybe NameUse NSType pn
+  typeEnv (TUser pn' ps) =
+    do let pn = thing pn'
+       mb <- withLoc (srcRange pn') (resolveNameMaybe NameUse NSType pn)
        case mb of
 
          -- The type is already bound, don't introduce anything.

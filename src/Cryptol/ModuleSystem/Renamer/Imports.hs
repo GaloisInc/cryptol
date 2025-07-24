@@ -61,10 +61,12 @@ import Data.List(foldl')
 import Control.Monad(when)
 import qualified MonadLib as M
 
+
 import Cryptol.Utils.PP(pp)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident(ModName,ModPath(..),Namespace(..),OrigName(..))
 
+import Cryptol.Parser.Position(Located(..))
 import Cryptol.Parser.AST
   ( ImportG(..),PName, ModuleInstanceArgs(..), ImpName(..) )
 import Cryptol.ModuleSystem.Binds
@@ -377,7 +379,7 @@ tryImport :: CurState -> ImportG (ImpName PName) -> CurState
 tryImport s imp =
   fromMaybe (updCur s (pushImport imp))   -- not ready, put it back on the q
   do let srcName = iModule imp
-     mname <- knownImpName s srcName
+     mname <- knownImpName s (thing srcName)
      ext   <- knownModule s mname
 
      let isPub x = x `Set.member` rmodPublic ext

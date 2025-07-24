@@ -466,7 +466,7 @@ doCheckType ty k =
                           checkKind t1 k KType
     P.TLocated t r1 -> kInRange r1 $ doCheckType t k
 
-    P.TUser x ts    -> checkTUser x ts k
+    P.TUser x ts    -> checkTUser (thing x) ts k
 
     P.TParens t mb  ->
       do newK <- case (k, cvtK <$> mb) of
@@ -478,7 +478,7 @@ doCheckType ty k =
 
          doCheckType t newK
 
-    P.TInfix t x _ u-> doCheckType (P.TUser (thing x) [t, u]) k
+    P.TInfix t x _ u-> doCheckType (P.TUser x [t, u]) k
 
     P.TTyApp _fs    -> do kRecordError BareTypeApp
                           kNewType TypeWildCard KNum

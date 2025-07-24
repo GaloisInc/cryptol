@@ -486,7 +486,7 @@ eFromToLessThanType r e1 e2 t =
 
 exprToNumT :: Range -> Expr PName -> ParseM (Type PName)
 exprToNumT r expr =
-  case translateExprToNumT expr of
+  case translateExprToNumT r expr of
     Just t -> return t
     Nothing -> bad
   where
@@ -661,10 +661,10 @@ mkConDecl mbDoc expT ty =
     case t of
       TLocated t1 r -> go (Just r) t1
       TUser n ts ->
-        case n of
+        case thing n of
           UnQual i
             | isUpperIdent i ->
-              pure EnumCon { ecName = Located (getL mbLoc) (UnQual i)
+              pure EnumCon { ecName = Located (srcRange n) (UnQual i)
                            , ecFields = ts
                            }
             | otherwise ->
@@ -706,8 +706,8 @@ typeToDecl ty0 =
       TLocated ty1 loc1 -> goP loc1 ty1
 
       TUser f [] ->
-        do goN loc f
-           pure TParam { tpName = f, tpKind = Nothing, tpRange = Just loc }
+        do goN (srcRange f) (thing f)
+           pure TParam { tpName = thing f, tpKind = Nothing, tpRange = Just loc }
 
       TParens t mb ->
         case mb of
@@ -730,16 +730,16 @@ typeToDecl ty0 =
       TTyApp {}     -> badP loc
       TTuple {}     -> badP loc
 
-
+  
   goD loc ty =
     case ty of
 
       TLocated ty1 loc1 -> goD loc1 ty1
 
       TUser f ts ->
-        do goN loc f
+        do goN (srcRange f) (thing f)
            ps <- mapM (goP loc) ts
-           pure (Located { thing = f, srcRange = loc },ps)
+           pure (f,ps)
 
       TInfix l f _ r ->
         do goN (srcRange f) (thing f)
@@ -955,7 +955,7 @@ mkPrimTypeDecl ::
   Located Kind ->
   ParseM [TopDecl PName]
 mkPrimTypeDecl mbDoc (Forall as qs st ~(Just schema_rng)) finK =
-  case splitT schema_rng st of
+  case splitT st of
     Just (n,xs) ->
       do vs <- mapM tpK as
          unless (distinct (map fst vs)) $
@@ -987,19 +987,19 @@ mkPrimTypeDecl mbDoc (Forall as qs st ~(Just schema_rng)) finK =
     Nothing -> errorMessage schema_rng ["Invalid primitive signature"]
 
   where
-  splitT r ty = case ty of
-                  TLocated t r1 -> splitT r1 t
-                  TUser n ts -> mkT r Located { srcRange = r, thing = n } ts
-                  TInfix t1 n _ t2  -> mkT r n [t1,t2]
+  splitT ty   = case ty of
+                  TLocated t _ -> splitT t
+                  TUser n ts -> mkT n ts
+                  TInfix t1 n _ t2  -> mkT n [t1,t2]
                   _ -> Nothing
 
-  mkT r n ts = do ts1 <- mapM (isVar r) ts
+  mkT n ts   = do ts1 <- mapM isVar ts
                   guard (distinct (map thing ts1))
                   pure (n,ts1)
 
-  isVar r ty = case ty of
-                 TLocated t r1  -> isVar r1 t
-                 TUser n []     -> Just Located { srcRange = r, thing = n }
+  isVar ty   = case ty of
+                 TLocated t _   -> isVar t
+                 TUser n []     -> Just n
                  _              -> Nothing
 
   -- inefficient, but the lists should be small
@@ -1355,7 +1355,7 @@ mkImport loc impName optInst mbAs mbImportSpec optImportWhere doc =
 
      pure Located { srcRange = rComb loc end
                   , thing    = Import
-                                 { iModule    = thing impName
+                                 { iModule    = impName
                                  , iAs        = thing <$> mbAs
                                  , iSpec      = thing <$> mbImportSpec
                                  , iInst      = i
@@ -1523,7 +1523,7 @@ desugarTopDs ownerName = go emptySig
         case d of
 
           DImport i
-            | ImpTop _ <- iModule (thing i)
+            | ImpTop _ <- thing (iModule (thing i))
             , Nothing  <- iInst (thing i) ->
             cont [d] (addI i sig)
 
@@ -1552,20 +1552,26 @@ desugarInstImport ::
   ParseM [TopDecl PName]
 desugarInstImport i inst =
   do (m, ms) <- desugarMod
-           Module { mName    = i { thing = iname }
+           Module { mName    = iname
                   , mDef     = FunctorInstance
-                                 (iModule <$> i) inst emptyModuleInstance
+                                 origMod inst emptyModuleInstance
                   , mInScope = mempty
                   , mDocTop  = Nothing
                   }
      pure (DImport (newImp <$> i) : map modTop (ms ++ [m]))
 
   where
-  iname = mkUnqual
-        $ let pos = from (srcRange i)
-          in identAnonInstImport (line pos) (col pos)
+  origMod = iModule (thing i)
 
-  newImp d = d { iModule = ImpNested iname
+  iname = Located {
+    thing =mkUnqual
+        $ let pos = from (srcRange i)
+          in identAnonInstImport (line pos) (col pos),
+    srcRange = srcRange origMod
+  }
+      
+
+  newImp d = d { iModule = ImpNested <$> iname
                , iInst   = Nothing
                }
 

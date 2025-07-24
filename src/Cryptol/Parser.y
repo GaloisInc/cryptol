@@ -831,12 +831,12 @@ infix_type                     :: { Type PName }
 app_type                       :: { Type PName }
   : dimensions atype              { at ($1,$2) $ foldr TSeq $2 (reverse (thing $1)) }
   | qname atypes                  { at ($1,head $2)
-                                     $ TUser (thing $1) (reverse $2) }
+                                     $ TUser $1 (reverse $2) }
   | atype                         { $1                    }
 
 atype                          :: { Type PName }
-  : qname                         { at $1 $ TUser (thing $1) []        }
-  | '(' qop ')'                   { at $1 $ TUser (thing $2) []        }
+  : qname                         { at $1 $ TUser $1 []                }
+  | '(' qop ')'                   { at $1 $ TUser $2 []                }
   | NUM                           { at $1 $ TNum  (getNum $1)          }
   | CHARLIT                       { at $1 $ TChar (getChr $1)          }
   | '[' type ']'                  { at ($1,$3) $ TSeq $2 TBit          }
@@ -906,7 +906,7 @@ help_name                      :: { Located PName    }
 {- The types that can come after a back-tick: either a type demotion,
 or an explicit type application. -}
 tick_ty                        :: { Type PName }
-  : qname                         { at $1 $ TUser (thing $1) []      }
+  : qname                         { at $1 $ TUser $1 []                }
   | NUM                           { at $1 $ TNum  (getNum $1)          }
   | '(' type ')'                  {% validDemotedType (rComb $1 $3) $2 }
   | '{' '}'                       { at ($1,$2) (TTyApp [])             }

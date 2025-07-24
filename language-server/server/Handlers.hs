@@ -109,7 +109,7 @@ onHover ps =
             }
           }
   where
-  doc = ps ^. LSP.textDocument . LSP.uri
+  doc = LSP.toNormalizedUri (ps ^. LSP.textDocument . LSP.uri)
   pos = ps ^. LSP.position
 
 
@@ -131,7 +131,7 @@ onGotoDefinition ps =
             _range = rng
           }
   where
-  doc = ps ^. LSP.textDocument . LSP.uri
+  doc = LSP.toNormalizedUri (ps ^. LSP.textDocument . LSP.uri)
   pos = ps ^. LSP.position
 
 
