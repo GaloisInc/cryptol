@@ -4,7 +4,7 @@
   "description": "Language support for Cryptol",
   "icon": "images/icon.png",
   "publisher": "GaloisInc",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "engines": {
     "vscode": "^1.100.2"
   },
