@@ -740,6 +740,7 @@ impl <T: Exportable> Exportable for Vec<T> {
             elem.write(T::recv_with(t_params.clone(), args));
         }
 
+        unsafe { vec.set_len(len); }
         vec
     }
 }
