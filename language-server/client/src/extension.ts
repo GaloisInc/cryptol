@@ -17,10 +17,6 @@ export function activate(context: vscode.ExtensionContext) {
 	};
 
 	client = new vsc.LanguageClient("cryptol", srvOpt, cltOpt)
-	client.onReady().then(() => {
-
-	});
-
 	client.start();
 
 }
