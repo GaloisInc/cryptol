@@ -24,5 +24,3 @@ branch = $(gitBranch)
 
 dirty :: Bool
 dirty = $(gitDirty)
--- Last build Fri Jul 18 16:26:36 PDT 2025
--- Last build Fri Jul 18 16:32:25 PDT 2025

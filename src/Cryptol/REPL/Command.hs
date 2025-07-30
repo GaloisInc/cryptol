@@ -164,6 +164,7 @@ import qualified Data.SBV.Internals as SBV (showTDiff)
 import Data.Foldable (foldl')
 import qualified Cryptol.Project.Cache as Proj
 import Cryptol.Project.Monad (LoadProjectMode)
+import Cryptol.TypeCheck.Solver.InfNat (Nat')
 
 
 
@@ -2169,8 +2170,7 @@ printDocStrings m = do
   let dat = M.lmdModule (M.lmData m)
   rPrint ("Checking module" <+> pp (T.mName dat))
   let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
-  results <- traverse printDocItem ds
---  cid <- updateDocstringCache m results expectCache
+  _ <- traverse printDocItem ds
   pure ()
 
 
@@ -2211,7 +2211,21 @@ updateDocstringCache m result expectCache =
                        let cache' = cache { Proj.cacheModules = Map.insert (Proj.CacheInFile fp) entry' (Proj.cacheModules cache) }
                        io (Proj.saveLoadCache cache')
 
-
+withModule :: String -> (Int -> P.ModName -> REPL CommandResult) -> REPL CommandResult
+withModule input f
+  | null input = do
+    mb <- getLoadedMod -- REPL ( Maybe LoadedModule )
+    case lName =<< mb of
+      Nothing -> do
+        rPutStrLn "No current module"
+        pure emptyCommandResult { crSuccess = False }
+      Just mn -> f 0 mn
+  | otherwise =
+    case parseModName input of
+      Nothing -> do
+        rPutStrLn "Invalid module name"
+        pure emptyCommandResult { crSuccess = False }
+      Just mn -> f 0 mn
 
 {- findLoadedModuleName :: String -> Maybe P.ModName
 findLoadedModuleName input
@@ -2221,20 +2235,7 @@ findLoadedModuleName input
 printDocStringsCmd ::
   String {- ^ module name -} ->
   REPL CommandResult
-printDocStringsCmd input
-  | null input = do
-    mb <- getLoadedMod
-    case lName =<< mb of
-      Nothing -> do
-        rPutStrLn "No current module"
-        pure emptyCommandResult { crSuccess = False }
-      Just mn -> checkModNameForPrint 0 mn
-  | otherwise =
-    case parseModName input of
-      Nothing -> do
-        rPutStrLn "Invalid module name"
-        pure emptyCommandResult { crSuccess = False }
-      Just mn -> checkModNameForPrint 0 mn
+printDocStringsCmd input = withModule input checkModNameForPrint
 
 -- | Evaluate all the docstrings in the specified module.
 --
@@ -2245,20 +2246,11 @@ printDocStringsCmd input
 checkDocStringsCmd ::
   String {- ^ module name -} ->
   REPL CommandResult
-checkDocStringsCmd input
-  | null input = do
-    mb <- getLoadedMod
-    case lName =<< mb of
-      Nothing -> do
-        rPutStrLn "No current module"
-        pure emptyCommandResult { crSuccess = False }
-      Just mn -> checkModName 0 mn
-  | otherwise =
-    case parseModName input of
-      Nothing -> do
-        rPutStrLn "Invalid module name"
-        pure emptyCommandResult { crSuccess = False }
-      Just mn -> checkModName 0 mn
+checkDocStringsCmd input = withModule input checkModName
+
+--validateModuleByName :: String -> Maybe M.LoadedModule
+
+
 
 countOutcomes :: [[SubcommandResult]] -> (Int, Int, Int)
 countOutcomes = foldl' countOutcomes1 (0, 0, 0)
@@ -2271,59 +2263,42 @@ countOutcomes = foldl' countOutcomes1 (0, 0, 0)
       | crSuccess (srResult result) = (successes + 1, nofences, failures)
       | otherwise = (successes, nofences, failures + 1)
 
+withValidModule :: P.ModName -> String -> (M.LoadedModule -> REPL CommandResult) -> REPL CommandResult
+withValidModule mn tab f =
+ do env <- getModuleEnv
+    case M.lookupModule mn env of
+      Nothing ->
+        case M.lookupSignature mn env of
+          Nothing ->
+           do rPutStrLn (tab ++ "Module " ++ show mn ++ " is not loaded")
+              pure emptyCommandResult { crSuccess = False }
+          Just{} ->
+           do rPutStrLn (tab ++ "Skipping docstrings on interface module")
+              pure emptyCommandResult
+      Just fe
+        | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
+          rPutStrLn (tab ++ "Skipping docstrings on parameterized module")
+          pure emptyCommandResult
+        | otherwise -> f fe
+
 
 checkModName :: Int -> P.ModName -> REPL CommandResult
 checkModName ind mn =
- do env <- getModuleEnv
-    case M.lookupModule mn env of
-      Nothing ->
-        case M.lookupSignature mn env of
-          Nothing ->
-           do rPutStrLn (tab ++ "Module " ++ show mn ++ " is not loaded")
-              pure emptyCommandResult { crSuccess = False }
-          Just{} ->
-           do rPutStrLn (tab ++ "Skipping docstrings on interface module")
-              pure emptyCommandResult
-      Just fe
-        | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
-          rPutStrLn (tab ++ "Skipping docstrings on parameterized module")
-          pure emptyCommandResult
-        | otherwise -> do
-          (results,_) <- checkDocStrings fe Nothing
-          let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
-          rPutStrLn (tab ++ "Successes: " ++ show successes ++
+  withValidModule mn tab (\m -> do
+              (results,_) <- checkDocStrings m Nothing
+              let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
+              rPutStrLn ("Successes: " ++ show successes ++
                           ", No fences: " ++ show nofences ++
                           ", Failures: " ++ show failures)
-          pure emptyCommandResult { crSuccess = failures == 0 }
-  where
-  tab = replicate ind ' '
+              pure emptyCommandResult { crSuccess = failures == 0 })
+  where tab = replicate ind ' '
 
 checkModNameForPrint :: Int -> P.ModName -> REPL CommandResult
 checkModNameForPrint ind mn =
- do env <- getModuleEnv
-    case M.lookupModule mn env of
-      Nothing ->
-        case M.lookupSignature mn env of
-          Nothing ->
-           do rPutStrLn (tab ++ "Module " ++ show mn ++ " is not loaded")
-              pure emptyCommandResult { crSuccess = False }
-          Just{} ->
-           do rPutStrLn (tab ++ "Skipping docstrings on interface module")
-              pure emptyCommandResult
-      Just fe
-        | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
-          rPutStrLn (tab ++ "Skipping docstrings on parameterized module")
-          pure emptyCommandResult
-        | otherwise -> do
-          printDocStrings fe
-{-           (results,_) <- checkDocStrings fe Nothing
-          let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
-          rPutStrLn (tab ++ "Successes: " ++ show successes ++
-                          ", No fences: " ++ show nofences ++
-                          ", Failures: " ++ show failures) -}
-          pure emptyCommandResult { crSuccess = True }
-  where
-  tab = replicate ind ' '
+  withValidModule mn tab (\m -> do
+                            printDocStrings m
+                            pure emptyCommandResult { crSuccess = True })
+  where tab = replicate ind ' '
 
 -- | Load a project.
 -- Note that this does not update the Cryptol environment, it only updates
