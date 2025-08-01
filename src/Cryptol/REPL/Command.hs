@@ -138,6 +138,7 @@ import Data.Char (isSpace,isPunctuation,isSymbol,isAlphaNum,isAscii)
 import Data.Function (on)
 import Data.List (intercalate, nub, isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
+import Data.Foldable (traverse_)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process (shell,createProcess,waitForProcess,spawnProcess)
@@ -164,7 +165,6 @@ import qualified Data.SBV.Internals as SBV (showTDiff)
 import Data.Foldable (foldl')
 import qualified Cryptol.Project.Cache as Proj
 import Cryptol.Project.Monad (LoadProjectMode)
-import Cryptol.TypeCheck.Solver.InfNat (Nat')
 
 
 
@@ -2014,26 +2014,18 @@ data SubcommandResult = SubcommandResult
   }
 
 printBlock :: [T.Text] -> REPL ()
-printBlock = go . continuedLines
-  where
-    go [] = pure ()
-    go (line:block)
-      | T.all isSpace line = go block
-      | otherwise =
-          case parseCommand (findNbCommand True) (T.unpack line) of
-            Nothing -> do
-              rPutStrLn "Failed to parse command"
-              pure ()
-            Just Ambiguous{} -> do
-              rPutStrLn "Ambiguous command"
-              pure ()
-            Just Unknown{} -> do
-              rPutStrLn "Unknown command"
-              pure ()
-            Just (Command cmd) -> do
-              rPutStrLn (T.unpack line)
-              subresults <- printBlock block
-              pure ()
+printBlock block = 
+  mapM_ printLine (continuedLines block)
+
+printLine :: T.Text -> REPL ()
+printLine line 
+  | T.all isSpace line = pure ()
+  | otherwise =
+      case parseCommand (findNbCommand True) (T.unpack line) of
+        Nothing -> rPutStrLn "Failed to parse command"
+        Just Ambiguous{} -> rPutStrLn "Ambiguous command"
+        Just Unknown{} -> rPutStrLn "Unknown command"
+        Just (Command _) -> rPutStrLn (T.unpack line)
 
 -- | Check a single code block from inside a docstring.
 --
@@ -2158,20 +2150,15 @@ checkDocItem item =
       }
 
 printDocItem :: T.DocItem -> REPL ()
-printDocItem item = do --rPutStrLn ( show (head (T.docText item )))
- do rPrint ("  Docstrings on" <+> pp (T.docFor item))
-    _ <- case traverse T.extractCodeBlocks (T.docText item) of
-            [] -> pure [] -- optimization
-            bs -> traverse printBlock (concat bs)
-    pure ()
+printDocItem item = do
+    let bs = traverse T.extractCodeBlocks (T.docText item)
+    traverse_ printBlock (concat bs)
 
 printDocStrings :: M.LoadedModule -> REPL ()
 printDocStrings m = do
   let dat = M.lmdModule (M.lmData m)
-  rPrint ("Checking module" <+> pp (T.mName dat))
   let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
-  _ <- traverse printDocItem ds
-  pure ()
+  traverse_ printDocItem ds
 
 
 
@@ -2211,27 +2198,22 @@ updateDocstringCache m result expectCache =
                        let cache' = cache { Proj.cacheModules = Map.insert (Proj.CacheInFile fp) entry' (Proj.cacheModules cache) }
                        io (Proj.saveLoadCache cache')
 
-withModule :: String -> (Int -> P.ModName -> REPL CommandResult) -> REPL CommandResult
+withModule :: String -> (P.ModName -> REPL CommandResult) -> REPL CommandResult
 withModule input f
   | null input = do
-    mb <- getLoadedMod -- REPL ( Maybe LoadedModule )
+    mb <- getLoadedMod
     case lName =<< mb of
       Nothing -> do
         rPutStrLn "No current module"
         pure emptyCommandResult { crSuccess = False }
-      Just mn -> f 0 mn
+      Just mn -> f mn
   | otherwise =
     case parseModName input of
       Nothing -> do
         rPutStrLn "Invalid module name"
         pure emptyCommandResult { crSuccess = False }
-      Just mn -> f 0 mn
+      Just mn -> f mn
 
-{- findLoadedModuleName :: String -> Maybe P.ModName
-findLoadedModuleName input
-  | null input = lName getLoadedMod
-  | otherwise = parseModName input -}
--- just copy paste until we can refactor nicely
 printDocStringsCmd ::
   String {- ^ module name -} ->
   REPL CommandResult
@@ -2246,10 +2228,7 @@ printDocStringsCmd input = withModule input checkModNameForPrint
 checkDocStringsCmd ::
   String {- ^ module name -} ->
   REPL CommandResult
-checkDocStringsCmd input = withModule input checkModName
-
---validateModuleByName :: String -> Maybe M.LoadedModule
-
+checkDocStringsCmd input = withModule input (checkModName 0)
 
 
 countOutcomes :: [[SubcommandResult]] -> (Int, Int, Int)
@@ -2293,12 +2272,11 @@ checkModName ind mn =
               pure emptyCommandResult { crSuccess = failures == 0 })
   where tab = replicate ind ' '
 
-checkModNameForPrint :: Int -> P.ModName -> REPL CommandResult
-checkModNameForPrint ind mn =
-  withValidModule mn tab (\m -> do
+checkModNameForPrint :: P.ModName -> REPL CommandResult
+checkModNameForPrint mn =
+  withValidModule mn "" (\m -> do
                             printDocStrings m
                             pure emptyCommandResult { crSuccess = True })
-  where tab = replicate ind ' '
 
 -- | Load a project.
 -- Note that this does not update the Cryptol environment, it only updates
