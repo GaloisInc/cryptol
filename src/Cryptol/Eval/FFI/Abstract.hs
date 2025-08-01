@@ -1,5 +1,8 @@
+{-# LANGUAGE CPP #-}
 -- | How to call foreign function, following the "abstract" calling convention
 module Cryptol.Eval.FFI.Abstract where
+
+#ifdef FFI_ENABLED
 
 import Cryptol.Utils.Panic(panic)
 import Cryptol.ModuleSystem.Name(Name)
@@ -37,5 +40,4 @@ callForeignAbstract nm ty impl tenv args =
    where
    evalFinType = finNat' . evalNumType tenv . TVar . TVBound
 
-
- 
+#endif
