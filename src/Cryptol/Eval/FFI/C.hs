@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE LambdaCase          #-}
@@ -8,6 +9,9 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 -- | How to call foreign functions following the C-style calling convention.
+
+#ifdef FFI_ENABLED
+
 module Cryptol.Eval.FFI.C (callForeignC) where
 import           Cryptol.Eval.FFI.ForeignSrc
 
@@ -375,3 +379,7 @@ getMarshalBasicRefArg (FFIInteger _) f = f \val g ->
 getMarshalBasicRefArg FFIRational f = f \val g -> do
   let SRational {..} = fromVRational val
   withInRational' (sNum % sDenom) g
+
+#else
+module Cryptol.Eval.FFI.C where
+#endif

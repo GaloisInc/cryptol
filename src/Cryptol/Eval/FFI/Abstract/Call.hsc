@@ -81,6 +81,11 @@ runFFI args ty k =
 
 #else
 
+import Cryptol.Eval.FFI.Abstract.Export (ExportVal)
+import Cryptol.Eval.FFI.Abstract.Import (Value, ImportErrorMessage(..))
+import Cryptol.Eval.Type (TValue)
+import Foreign.Ptr (Ptr)
+
 runFFI ::
   [ExportVal] ->
   TValue ->

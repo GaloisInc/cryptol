@@ -10,11 +10,17 @@ module Cryptol.Eval.FFI
   ) where
 
 import Cryptol.Eval.FFI.ForeignSrc
-    ( ForeignSrc, ForeignImpl, loadForeignImpl )
+    ( ForeignSrc)
+#ifdef FFI_ENABLED
+import Cryptol.Eval.FFI.ForeignSrc
+    (ForeignImpl, loadForeignImpl )
+#else
+import Cryptol.Parser.AST (ForeignMode)
+#endif
 import Cryptol.Eval.FFI.Error ( FFILoadError )
-import Cryptol.Eval ( EvalEnv )
+import Cryptol.Eval (Eval, EvalEnv )
 import Cryptol.TypeCheck.AST
-    ( FFI(..), TVar(TVBound), findForeignDecls )
+    ( Name, FFI(..), TVar(TVBound), findForeignDecls )
 import Cryptol.TypeCheck.FFI.FFIType ( FFIFunType(..) )
 
 #ifdef FFI_ENABLED
@@ -80,7 +86,7 @@ foreignPrim ft k = buildNumPoly (ffiTParams ft) mempty
 
 -- | Dummy implementation for when FFI is disabled. Does not add anything to
 -- the environment or report any errors.
-evalForeignDecls :: ForeignSrc -> [(Name, ForeignMode, FFIFunType)] -> EvalEnv ->
+evalForeignDecls :: ForeignSrc -> [(Name, FFI)] -> EvalEnv ->
   Eval ([FFILoadError], EvalEnv)
 evalForeignDecls _ _ env = pure ([], env)
 
