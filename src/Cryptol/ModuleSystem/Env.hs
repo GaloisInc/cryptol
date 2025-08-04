@@ -14,6 +14,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+
 module Cryptol.ModuleSystem.Env where
 
 #ifndef RELOCATABLE
@@ -52,6 +53,9 @@ import Data.Foldable
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
+
+-- pkg: pretty-show
+import Text.Show.Pretty(ppShow) -- FIXME: debugging
 
 import Prelude ()
 import Prelude.Compat
@@ -182,8 +186,8 @@ initialModuleEnv = do
     , meNameSeeds         = T.nameSeeds
     , meEvalEnv           = mempty
     , meFocusedModule     = Nothing
-      -- we search these in order, taking the first match
     , meSearchPath        = searchPath
+      -- ^ we search these in order, taking the first match
     , meDynEnv            = mempty
     , meMonoBinds         = True
     , meCoreLint          = NoCoreLint
@@ -192,6 +196,7 @@ initialModuleEnv = do
     }
 
 -- | Try to focus a loaded module in the module environment.
+-- FIXME:MT: dead code! (BTW, there is another function of same name.)
 focusModule :: ImpName Name -> ModuleEnv -> Maybe ModuleEnv
 focusModule n me = do
   guard (isLoaded n (meLoadedModules me))
@@ -272,19 +277,14 @@ instance Monoid ModContext where
                       , mctxNameDisp = R.toNameDisp mempty
                       }
 
-findEnv :: Name -> Iface -> T.ModuleG a -> Maybe (R.NamingEnv, Set Name)
-findEnv n iface m
-  | Just sm <- Map.lookup n (T.mSubmodules m) = Just (T.smInScope sm, ifsPublic (T.smIface sm))
-  | Just fn <- Map.lookup n (T.mFunctors m) =
-      case Map.lookup n (ifFunctors (ifDefines iface)) of
-        Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
-        Just d -> Just (T.mInScope fn, ifsPublic (ifNames d))
-  | otherwise = asum (fmap (findEnv n iface) (Map.elems (T.mFunctors m)))
-
 modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
 modContextOf (ImpNested name) me =
-  do mname <- nameTopModuleMaybe name
+  do
+     --
+     mname <- nameTopModuleMaybe name
      lm <- lookupModule mname me
+
+     -- get
      (localNames, exported) <- findEnv name (lmInterface lm) (lmModule lm)
      let -- XXX: do we want only public ones here?
          loadedDecls = map (ifDefines . lmInterface)
@@ -297,6 +297,18 @@ modContextOf (ImpNested name) me =
        , mctxNameDisp = R.toNameDisp localNames
        }
   -- TODO: support focusing inside a submodule signature to support browsing?
+
+  where
+  findEnv :: Name -> Iface -> T.ModuleG a -> Maybe (R.NamingEnv, Set Name)
+  findEnv n iface m
+    | Just sm <- Map.lookup n (T.mSubmodules m) =
+        Just (T.smInScope sm, ifsPublic (T.smIface sm))
+    | Just fn <- Map.lookup n (T.mFunctors m) =
+        case Map.lookup n (ifFunctors (ifDefines iface)) of
+          Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
+          Just d -> Just (T.mInScope fn, ifsPublic (ifNames d))
+    | otherwise = asum (fmap (findEnv n iface) (Map.elems (T.mFunctors m)))
+
 
 modContextOf (ImpTop mname) me =
   do lm <- lookupModule mname me
@@ -341,19 +353,38 @@ dynModContext me = mempty { mctxNames    = dynNames
 
 
 
-
 -- | Given the state of the environment, compute information about what's
 -- in scope on the REPL.  This includes what's in the focused module, plus any
 -- additional definitions from the REPL (e.g., let bound names, and @it@).
 focusedEnv :: ModuleEnv -> ModContext
-focusedEnv me =
-  case meFocusedModule me of
+focusedEnv me = focusedEnv' (meFocusedModule me) me
+
+-- | A variant of focusedEnv that does not rely on the
+--   `meFocusedModule` field in the `ModuleEnv` record.  (N.B. This is
+--   known via inspection of the below code, not enforced by the
+--   code design.)
+
+focusedEnv' :: Maybe (ImpName Name) -> ModuleEnv -> ModContext
+focusedEnv' mFocusedModule me =
+  case mFocusedModule of
     Nothing -> dynModContext me
     Just fm -> case modContextOf fm me of
                  Just c -> dynModContext me <> c
-                 Nothing -> panic "focusedEnv"
-                              [ "Focused modules not loaded: " ++ show (pp fm) ]
+                 Nothing -> panic "focusedEnv'"
+                            [ "Focused modules not loaded: " ++ show (pp fm) ]
 
+-- | A variant of focusedEnv' that handles a list of modules:
+focusedEnvL :: [ImpName Name] -> ModuleEnv -> ModContext
+focusedEnvL focusedModules me =
+  dynModContext me <> mconcat (map modContextOf' focusedModules)
+    -- note the ordering.
+
+  where
+  modContextOf' fm =
+    case modContextOf fm me of
+      Just c  -> c
+      Nothing -> panic "focusedEnvL"
+                   [ "Focused module not loaded: " ++ show (pp fm) ]
 
 -- Loaded Modules --------------------------------------------------------------
 
@@ -733,3 +764,9 @@ deIfaceDecls DEnv { deDecls = dgs, deTySyns = tySyns } =
       | decl <- concatMap T.groupDecls dgs
       , let ifd = T.mkIfaceDecl decl
       ]
+
+
+logModuleEnv :: FilePath -> ModuleEnv -> IO ()
+logModuleEnv path me =
+   writeFile (path ++ ".me")
+             (ppShow $ loadedModules me)

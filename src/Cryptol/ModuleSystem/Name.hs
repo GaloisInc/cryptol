@@ -266,7 +266,7 @@ nameModPath n =
     Just p  -> p
     Nothing -> panic "nameModPath" [ "Not a top-level name: ", show n ]
 
-
+-- FIXME:MT: s//topModuleDefiningName
 -- | Get the name of the top-level module that introduced this name.
 nameTopModuleMaybe :: Name -> Maybe ModName
 nameTopModuleMaybe = fmap topModuleFor . nameModPathMaybe
