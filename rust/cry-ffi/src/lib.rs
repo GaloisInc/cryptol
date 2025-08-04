@@ -734,10 +734,9 @@ impl <T: Exportable> Exportable for Vec<T> {
     fn recv_with(params: Self::Parameters, args: &CryValExporter) -> Self {
         let (Len(len), t_params) = params;
         let mut vec: Vec<T> = Vec::with_capacity(len);
-        let remaining = vec.spare_capacity_mut();
 
-        for elem in remaining.iter_mut() {
-            elem.write(T::recv_with(t_params.clone(), args));
+        for _ in 0..len {
+            vec.push(T::recv_with(t_params.clone(), args));
         }
 
         vec
