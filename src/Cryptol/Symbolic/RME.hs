@@ -177,7 +177,7 @@ appToRME = \case
            pure $! foldl1 conj xs
   W4.BVTestBit i ve ->
    do v <- toRME ve
-      pure $! v V.! fromIntegral i
+      pure $! v V.! (length v - fromIntegral i - 1)
   W4.BVSlt x y ->
    do x' <- toRME x
       y' <- toRME y
@@ -204,7 +204,9 @@ appToRME = \case
   W4.BVOrBits{} -> fail "or not implemented"
   W4.BVUnaryTerm{} -> fail "unary term not implemented"
   W4.BVSelect{} -> fail "bvselect not implemented"
-  W4.BVFill{} -> fail "bvfill not implemented"
+  W4.BVFill w b ->
+   do b' <- toRME b
+      pure (V.replicate (fromIntegral (intValue w)) b')
   W4.BVLshr{} -> fail "LShr not implemented"
   W4.BVAshr{} -> fail "AShr not implemented"
   W4.BVRol{} -> fail "rol not implemented"
