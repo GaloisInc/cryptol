@@ -1,13 +1,13 @@
-{-# Language LambdaCase, GADTs, PatternSynonyms, KindSignatures, ViewPatterns, ImportQualifiedPost, BlockArguments, GeneralisedNewtypeDeriving, TypeFamilies #-}
+{-# Language LambdaCase, GADTs, PatternSynonyms, KindSignatures, ViewPatterns, ImportQualifiedPost, BlockArguments, GeneralisedNewtypeDeriving, TypeFamilies, RankNTypes #-}
 module Cryptol.Symbolic.RME (rmeAdapter) where
 
+import Control.Monad (replicateM, ap)
 import Data.BitVector.Sized qualified as BV
 import Data.Parameterized.Map qualified as MapF
 import Data.Parameterized.NatRepr
 import Data.Parameterized.Nonce qualified as Nonce
 import Data.RME
 import Data.Vector qualified as V
-import MonadLib
 import What4.Expr.App qualified as W4
 import What4.Expr.BoolMap qualified as W4
 import What4.Expr.Builder qualified as W4
@@ -17,6 +17,8 @@ import What4.Interface qualified as W4
 import What4.SatResult qualified as W4
 import What4.SemiRing qualified as W4
 import What4.Solver
+import Data.IntSet (IntSet)
+import Data.IntSet qualified as IntSet
 
 rmeAdapter :: SolverAdapter st
 rmeAdapter =
@@ -35,27 +37,55 @@ rmeAdapterCheckSat ::
   IO a
 rmeAdapterCheckSat _ _ asserts k =
  do putStrLn ("Checking " ++ show (length asserts) ++ " asserts")
-    let M m = foldl conj true <$> traverse toRME asserts
-    let a = case runLift (runExceptionT (runStateT emptyS m)) of
-              Left e -> Left e
-              Right (x, _) -> Right (sat x)
+    let m = foldl conj true <$> traverse toRME asserts
+    let a = runM m emptyS Left (\x s -> Right (sat x, nonceCache s))
     case a of
       Left e ->
         do putStrLn e
            k W4.Unknown
-      Right Nothing -> k (W4.Unsat ())
-      Right (Just model) -> k (W4.Sat (error "not implemented", Nothing))
+      Right (Nothing, _) -> k (W4.Unsat ())
+      Right (Just model, s) ->
+        let trueVars = IntSet.fromList [i | (i, True) <- model]
+        in k (W4.Sat (W4.GroundEvalFn (groundEval trueVars s), Nothing))
 
-newtype M t a = M (StateT (S t) (ExceptionT String Lift) a)
-  deriving (Functor, Applicative, Monad)
+groundEval :: IntSet -> MapF.MapF (Nonce.Nonce t) SomeR -> W4.Expr t tp -> IO (W4.GroundValue tp)
+groundEval trueVars nonces e =
+  let t = W4.exprType e
+      ev x = eval x (`IntSet.member` trueVars)
+  in
+  case flip MapF.lookup nonces =<< W4.exprMaybeId e of
+    Just (SomeR n)
+      | W4.BaseBoolRepr <- t -> pure $! ev n
+      | W4.BaseBVRepr w <- t -> pure $! bitsToBV w (fmap ev n)
+    _ -> W4.evalGroundExpr (groundEval trueVars nonces) e
+
+bitsToBV :: Foldable f => NatRepr w -> f Bool -> BV.BV w
+bitsToBV w bs = BV.mkBV w (foldl (\acc x -> if x then 1 + acc*2 else acc*2) 0 bs)
+
+newtype M t a = M { runM :: forall k. S t -> (String -> k) -> (a -> S t -> k) -> k }
+
+instance Functor (M t) where
+  fmap f (M m) = M (\s e k -> m s e (k . f))
+
+instance Applicative (M t) where
+  pure x = M (\s _ k -> k x s)
+  (<*>) = ap
+
+instance Monad (M t) where
+  M m1 >>= f = M (\s0 e t -> m1 s0 e (\a s1 -> runM (f a) s1 e t))
 
 instance MonadFail (M t) where
-  fail str = M (raise str)
+  fail str = M (\_ e _ -> e str)
+
+get :: M t (S t)
+get = M (\s _ t -> t s s)
+
+set :: S t -> M t ()
+set s = M (\_ _ t -> t () s)
 
 data S t = S
   { nextVar :: !Int
   , nonceCache :: !(MapF.MapF (Nonce.Nonce t) SomeR)
-  , varMap :: IntMap
   }
 
 emptyS :: S t
@@ -65,7 +95,7 @@ emptyS = S
   }
 
 fresh :: M t RME
-fresh = M
+fresh =
  do s <- get
     set $! s{ nextVar = nextVar s + 1 }
     pure (lit (nextVar s))
@@ -104,12 +134,13 @@ toRME = \case
 
 cached :: Nonce.Nonce t tp -> M t (R tp) -> M t (R tp)
 cached nonce gen =
- do mb <- M (fmap (MapF.lookup nonce . nonceCache) get)
+ do mb <- fmap (MapF.lookup nonce . nonceCache) get
     case mb of
       Just (SomeR r) -> pure r
       Nothing ->
        do r <- gen
-          M (sets_ \s -> s { nonceCache = MapF.insert nonce (SomeR r) (nonceCache s) })
+          s <- get
+          set s{ nonceCache = MapF.insert nonce (SomeR r) (nonceCache s) }
           pure r
 
 varToRME :: RMERepr tp -> M t (R tp)
@@ -139,6 +170,8 @@ appToRME = \case
       pure $! compl x1
   W4.ConjPred x ->
     case W4.viewConjMap x of
+      W4.ConjTrue -> pure true
+      W4.ConjFalse -> pure false
       W4.Conjuncts y ->
         do xs <- traverse polRME y
            pure $! foldl1 conj xs
