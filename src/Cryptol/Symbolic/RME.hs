@@ -1,4 +1,19 @@
-{-# Language LambdaCase, GADTs, PatternSynonyms, KindSignatures, ImportQualifiedPost, BlockArguments, TypeFamilies, RankNTypes #-}
+{-# Language LambdaCase, GADTs, ImportQualifiedPost, BlockArguments, TypeFamilies, RankNTypes #-}
+{-|
+Module      : Cryptol.Symbolic.RME
+Description : What4 solver adapter for the RME backend.
+Copyright   : (c) 2025 Galois
+License     : BSD3
+Maintainer  : cryptol@galois.com
+
+This module implements a What4 solver adapter that translates What4 expressions
+into RME (Reed–Muller expansion) terms and uses the RME backend for
+symbolic reasoning.
+
+Reference:
+  * https://en.wikipedia.org/wiki/Reed–Muller_expansion
+
+-}
 module Cryptol.Symbolic.RME (rmeAdapter) where
 
 import Control.Monad (replicateM, ap, (<$!>))
@@ -69,7 +84,7 @@ bitsToBV w bs = BV.mkBV w (foldl (\acc x -> if x then 1 + acc*2 else acc*2) 0 bs
 newtype M t a = M { unM :: forall k. S t -> (String -> k) -> (a -> S t -> k) -> k }
 
 runM :: M t a -> Either String (a, S t)
-runM m = unM m emptyS Left (\x s -> Right (x, s))
+runM m = unM m emptyS Left (curry Right)
 
 instance Functor (M t) where
   fmap f (M m) = M (\s e k -> m s e (k . f))
@@ -144,6 +159,10 @@ cached nonce gen =
           set s{ nonceCache = MapF.insert nonce (SomeR r) (nonceCache s) }
           pure r
 
+-- | A version of what4's SemiRingRepr that matches the semi-rings that this backend supports
+data SemiRingRepr sr where
+  SemiRingRepr :: !(W4.BVFlavorRepr fv) -> !Int -> SemiRingRepr (W4.SemiRingBV fv w)
+
 -- | Converts a BV width into the Int type used by Vector.
 -- In the extreme case that the NatRepr is out of range of
 -- Int, this operation will fail.
@@ -154,12 +173,25 @@ evalWidth w =
     then fail "Bit-vector width too wide!"
     else pure (fromIntegral n)
 
+-- | Convert a generic what4 base type to an RME base-type.
+-- Reports an error for unsupported base types.
 evalTypeRepr :: W4.BaseTypeRepr tp -> M t (RMERepr tp)
-evalTypeRepr W4.BaseBoolRepr = pure BitRepr
-evalTypeRepr (W4.BaseBVRepr w) =
- do w' <- evalWidth w
-    pure $! BVRepr w'
-evalTypeRepr r = fail ("RME does not support " ++ show r)
+evalTypeRepr = \case
+  W4.BaseBoolRepr -> pure BitRepr
+  W4.BaseBVRepr w ->
+   do w' <- evalWidth w
+      pure $! BVRepr w'
+  r -> fail ("RME does not support " ++ show r)
+
+-- | Convert a generic what4 semiring type to an RME semiring type.
+-- Reports an error for unsupported semiring types.
+evalSemiRingRepr :: W4.SemiRingRepr sr -> M t (SemiRingRepr sr)
+evalSemiRingRepr = \case
+      W4.SemiRingIntegerRepr -> fail "RME does not support integers"
+      W4.SemiRingRealRepr -> fail "RME does not support real numbers"
+      W4.SemiRingBVRepr flv w ->
+       do w' <- evalWidth w
+          pure $! SemiRingRepr flv w'
 
 -- | Evaluate an expression, if possible, into an RME term.
 evalExpr :: W4.Expr t tp -> M t (R tp)
@@ -168,23 +200,21 @@ evalExpr = \case
   W4.AppExpr x -> cached (W4.appExprId x) (evalApp (W4.appExprApp x))
   W4.BoundVarExpr x -> cached (W4.bvarId x) (allocateVar =<< evalTypeRepr (W4.bvarType x))
   W4.SemiRingLiteral rpr c _ ->
-    case rpr of
-      W4.SemiRingIntegerRepr -> fail "RME does not support integers"
-      W4.SemiRingRealRepr -> fail "RME does not support real numbers"
-      W4.SemiRingBVRepr _ w ->
-        case c of
-          BV.BV ci ->
-           do w' <- evalWidth w
-              pure $! integer w' ci
+   do SemiRingRepr _ w <- evalSemiRingRepr rpr
+      case c of
+        BV.BV ci -> pure $! integer w ci
   W4.FloatExpr{} -> fail "RME does not support floating point numbers"
   W4.StringExpr{} -> fail "RME does not support string literals"
   W4.NonceAppExpr{} -> fail "RME does not support quantifiers"
 
+-- | Allocates an unconstrainted RME term at the given type.
 allocateVar :: RMERepr tp -> M t (R tp)
 allocateVar = \case
   BitRepr -> freshRME
   BVRepr w -> V.fromList <$!> replicateM w freshRME
 
+-- | Convert a what4 App into an RME term for the operations that the
+-- RME backend supports.
 evalApp :: W4.App (W4.Expr t) tp -> M t (R tp)
 evalApp = \case
 
@@ -192,18 +222,18 @@ evalApp = \case
    do x1 <- evalExpr x
       y1 <- evalExpr y
       r <- evalTypeRepr rpr
-      case r of
-        BitRepr -> pure $! iff x1 y1
-        BVRepr{} -> pure $! eq x1 y1
+      pure $! case r of
+        BitRepr -> iff x1 y1
+        BVRepr{} -> eq x1 y1
 
   W4.BaseIte rpr _ b t e ->
    do b1 <- evalExpr b
       t1 <- evalExpr t
       e1 <- evalExpr e
       r <- evalTypeRepr rpr
-      case r of
-        BitRepr -> pure $! mux b1 t1 e1
-        BVRepr{} -> pure $! V.zipWith (mux b1) t1 e1
+      pure $! case r of
+        BitRepr -> mux b1 t1 e1
+        BVRepr{} -> V.zipWith (mux b1) t1 e1
 
   W4.NotPred x ->
    do x1 <- evalExpr x
@@ -220,7 +250,7 @@ evalApp = \case
 
   W4.BVTestBit i ve ->
    do v <- evalExpr ve
-      pure $! v V.! (length v - fromIntegral i - 1)
+      pure $! v V.! (length v - fromIntegral i - 1) -- little-endian index
 
   W4.BVSlt x y ->
    do x' <- evalExpr x
@@ -261,9 +291,9 @@ evalApp = \case
       pure $! V.take n' (V.drop start v')
 
   W4.BVFill w b ->
-   do b' <- evalExpr b
-      w' <- evalWidth w
-      pure (V.replicate w' b')
+   do w' <- evalWidth w
+      b' <- evalExpr b
+      pure $! V.replicate w' b'
 
   W4.BVLshr _ x i ->
    do x' <- evalExpr x
@@ -298,61 +328,55 @@ evalApp = \case
       pure (V.replicate l (V.head v') <> v')
 
   W4.SemiRingSum s ->
-    case Sum.sumRepr s of
+   do SemiRingRepr flv w <- evalSemiRingRepr (Sum.sumRepr s)
 
-      -- modular addition
-      W4.SemiRingBVRepr W4.BVArithRepr w ->
-       do w' <- evalWidth w
+      case flv of
+        -- modular addition
+        W4.BVArithRepr ->
           Sum.evalM
             (\x y -> pure $! add x y)
             (\(BV.BV c) r ->
              do v <- evalExpr r
-                pure $! mul (integer w' c) v)
-            (\(BV.BV c) -> pure $! integer w' c)
+                pure $! mul (integer w c) v)
+            (\(BV.BV c) -> pure $! integer w c)
             s
 
-      -- bitwise xor
-      W4.SemiRingBVRepr W4.BVBitsRepr w ->
-       do w' <- evalWidth w
+        -- bitwise xor
+        W4.BVBitsRepr ->
           Sum.evalM
             (\x y -> pure $! V.zipWith xor x y)
             (\(BV.BV c) r ->
              do v <- evalExpr r
-                pure $! V.zipWith conj (integer w' c) v)
-            (\(BV.BV c) -> pure $! integer w' c)
+                pure $! V.zipWith conj (integer w c) v)
+            (\(BV.BV c) -> pure $! integer w c)
             s
 
-      _ -> fail "RME does not support this semiring representation"
-
   W4.SemiRingProd p ->
-    case Sum.prodRepr p of
+   do SemiRingRepr flv w <- evalSemiRingRepr (Sum.prodRepr p)
 
+      case flv of
       -- arithmetic multiplication
-      W4.SemiRingBVRepr W4.BVArithRepr w ->
-       do w' <- evalWidth w
-          mb <- Sum.prodEvalM
-                 (\x y -> pure $! mul x y)
-                 evalExpr
-                 p
-          pure $! case mb of
-            Nothing ->
-              if w' > 0
-                then V.replicate (w' - 1) false <> V.singleton true
-                else V.empty
-            Just r -> r
+        W4.BVArithRepr ->
+         do mb <- Sum.prodEvalM
+              (\x y -> pure $! mul x y)
+              evalExpr
+              p
+            pure $! case mb of
+              Nothing ->
+                if w > 0
+                  then V.replicate (w - 1) false <> V.singleton true -- 1
+                  else V.empty
+              Just r -> r
 
-      -- bitwise conjunction
-      W4.SemiRingBVRepr W4.BVBitsRepr w ->
-       do w' <- evalWidth w
-          mb <- Sum.prodEvalM
-                 (\x y -> pure $! V.zipWith conj x y)
-                 evalExpr
-                 p
-          pure $! case mb of
-            Nothing -> V.replicate w' true
-            Just r -> r
-
-      _ -> fail "RME does not support this semiring representation"
+        -- bitwise conjunction
+        W4.BVBitsRepr ->
+         do mb <- Sum.prodEvalM
+                  (\x y -> pure $! V.zipWith conj x y)
+                  evalExpr
+                  p
+            pure $! case mb of
+              Nothing -> V.replicate w true -- ~0
+              Just r -> r
 
   W4.BVUdiv _ x y ->
    do x' <- evalExpr x
@@ -384,4 +408,4 @@ evalApp = \case
       u' <- UnaryBV.evaluate constEval u
       pure $! integer w' u'
 
-  e -> fail ("RME does not support: " ++ show e)
+  e -> fail ("RME does not support " ++ show e)
