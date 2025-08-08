@@ -286,6 +286,10 @@ pdivmod_helper ds mask = go (length ds - length mask) ds
     mux_add _ []       (_ : _ ) = error "pdiv: impossible"
     mux_add _ xs       []       = xs
 
+-- | Helper for building shift and rotate operations.
+-- The callback function is called with: the first argument,
+-- the index being filled in the result, and the arithmetic
+-- value of the second argument.
 bitOp :: (RMEV -> Int -> Int -> RME) -> RMEV -> RMEV -> RMEV
 bitOp f x y = V.generate w \i -> pick i 0 y'
   where
@@ -294,24 +298,37 @@ bitOp f x y = V.generate w \i -> pick i 0 y'
     pick i j [] = f x i j
     pick i j (b:bs) = RME.mux b (pick i (1+2*j) bs) (pick i (2*j) bs)
 
+-- | Bitwise logical left shift. Shifts the bits in the first bit-vector
+-- by the unsigned, arithmetic value in the second bit-vector filling
+-- in with false bits.
 shl :: RMEV -> RMEV -> RMEV
 shl = bitOp \x i j ->
   let w = length x in 
   if i + j >= w then RME.false else x V.! (i+j)
 
+-- | Arithmetic logical right shift. Shifts the bits in the first bit-vector
+-- by the unsigned, arithmetic value in the second bit-vector filling
+-- in with bits matching the first bit (which is treated as a sign bit).
 ashr :: RMEV -> RMEV -> RMEV
 ashr = bitOp \x i j ->
   if i < j then V.head x else x V.! (i-j)
 
+-- | Bitwise logical right shift. Shifts the bits in the first bit-vector
+-- by the unsigned, arithmetic value in the second bit-vector filling
+-- in with false bits.
 lshr :: RMEV -> RMEV -> RMEV
 lshr = bitOp \x i j ->
   if i < j then RME.false else x V.! (i-j)
 
+-- | Bitwise left rotation. Rotates the bits in the first bit-vector
+-- by the unsigned, arithmetic value in the second bit-vector.
 rol :: RMEV -> RMEV -> RMEV
 rol = bitOp \x i j ->
   let w = length x in
   x V.! ((i + j)`mod`w)
 
+-- | Bitwise right rotation. Rotates the bits in the first bit-vector
+-- by the unsigned, arithmetic value in the second bit-vector.
 ror :: RMEV -> RMEV -> RMEV
 ror = bitOp \x i j ->
   let w = length x in
