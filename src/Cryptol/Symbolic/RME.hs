@@ -337,7 +337,7 @@ evalApp = \case
             (\x y -> pure $! add x y)
             (\(BV.BV c) r ->
              do v <- evalExpr r
-                pure $! mul (integer w c) v)
+                pure $! mul v (integer w c))
             (\(BV.BV c) -> pure $! integer w c)
             s
 
@@ -362,10 +362,7 @@ evalApp = \case
               evalExpr
               p
             pure $! case mb of
-              Nothing ->
-                if w > 0
-                  then V.replicate (w - 1) false <> V.singleton true -- 1
-                  else V.empty
+              Nothing -> integer w 1
               Just r -> r
 
         -- bitwise conjunction
