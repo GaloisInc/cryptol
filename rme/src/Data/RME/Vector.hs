@@ -16,7 +16,7 @@ module Data.RME.Vector
   , neg, add, sub, mul
   , udiv, urem, sdiv, srem
   , pmul, pmod, pdiv
-  , shl
+  , shl, ashr, lshr, ror, rol
   , integer
   , popcount
   , countLeadingZeros
@@ -286,10 +286,33 @@ pdivmod_helper ds mask = go (length ds - length mask) ds
     mux_add _ []       (_ : _ ) = error "pdiv: impossible"
     mux_add _ xs       []       = xs
 
-shl :: RMEV -> RMEV -> RMEV
-shl x y = V.generate w \i ->
-  foldl RME.disj RME.false
-    (zipWith RME.conj (V.toList (V.drop i x)) nums)
+bitOp :: (RMEV -> Int -> Int -> RME) -> RMEV -> RMEV -> RMEV
+bitOp f x y = V.generate w \i -> pick i 0 y'
   where
+    y' = V.toList y
     w = length x
-    nums = [ eq y (integer w (fromIntegral i)) | i <- [0 .. w - 1] ]
+    pick i j [] = f x i j
+    pick i j (b:bs) = RME.mux b (pick i (1+2*j) bs) (pick i (2*j) bs)
+
+shl :: RMEV -> RMEV -> RMEV
+shl = bitOp \x i j ->
+  let w = length x in 
+  if i + j >= w then RME.false else x V.! (i+j)
+
+ashr :: RMEV -> RMEV -> RMEV
+ashr = bitOp \x i j ->
+  if i < j then V.head x else x V.! (i-j)
+
+lshr :: RMEV -> RMEV -> RMEV
+lshr = bitOp \x i j ->
+  if i < j then RME.false else x V.! (i-j)
+
+rol :: RMEV -> RMEV -> RMEV
+rol = bitOp \x i j ->
+  let w = length x in
+  x V.! ((i + j)`mod`w)
+
+ror :: RMEV -> RMEV -> RMEV
+ror = bitOp \x i j ->
+  let w = length x in
+  x V.! ((i - j)`mod`w)
