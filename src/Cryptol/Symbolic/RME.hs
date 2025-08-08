@@ -15,6 +15,7 @@ import What4.Expr.BoolMap qualified as W4
 import What4.Expr.Builder qualified as W4
 import What4.Expr.GroundEval qualified as W4
 import What4.Expr.WeightedSum qualified as Sum
+import What4.Expr.UnaryBV qualified as UnaryBV
 import What4.Interface qualified as W4
 import What4.SatResult qualified as W4
 import What4.SemiRing qualified as W4
@@ -37,16 +38,17 @@ rmeAdapterCheckSat ::
   IO a
 rmeAdapterCheckSat _ logger asserts k =
  do logCallback logger "Starting RME"
-    let m = foldl conj true <$> traverse evalExpr asserts
-    let a = runM m emptyS Left (\x s -> Right (sat x, nonceCache s))
-    case a of
+    let m = foldl conj true <$!> traverse evalExpr asserts
+    case runM m of
       Left e ->
         do logCallback logger e
            k W4.Unknown
-      Right (Nothing, _) -> k (W4.Unsat ())
-      Right (Just model, s) ->
-        let trueVars = IntSet.fromList [i | (i, True) <- model]
-        in k (W4.Sat (W4.GroundEvalFn (groundEval trueVars s), Nothing))
+      Right (rme, s) ->
+        case sat rme of
+          Nothing -> k (W4.Unsat ())
+          Just model ->
+            let trueVars = IntSet.fromList [i | (i, True) <- model]
+            in k (W4.Sat (W4.GroundEvalFn (groundEval trueVars (nonceCache s)), Nothing))
 
 -- | Ground evaluation function. Given a satisfying assignment (set of true variables)
 -- this function will used the cached results to evaluate an expression.
@@ -64,7 +66,10 @@ groundEval trueVars nonces e =
 bitsToBV :: Foldable f => NatRepr w -> f Bool -> BV.BV w
 bitsToBV w bs = BV.mkBV w (foldl (\acc x -> if x then 1 + acc*2 else acc*2) 0 bs)
 
-newtype M t a = M { runM :: forall k. S t -> (String -> k) -> (a -> S t -> k) -> k }
+newtype M t a = M { unM :: forall k. S t -> (String -> k) -> (a -> S t -> k) -> k }
+
+runM :: M t a -> Either String (a, S t)
+runM m = unM m emptyS Left (\x s -> Right (x, s))
 
 instance Functor (M t) where
   fmap f (M m) = M (\s e k -> m s e (k . f))
@@ -74,7 +79,7 @@ instance Applicative (M t) where
   (<*>) = ap
 
 instance Monad (M t) where
-  M m1 >>= f = M (\s0 e t -> m1 s0 e (\a s1 -> runM (f a) s1 e t))
+  M m1 >>= f = M (\s0 e t -> m1 s0 e (\a s1 -> unM (f a) s1 e t))
 
 instance MonadFail (M t) where
   fail str = M (\_ e _ -> e str)
@@ -104,8 +109,11 @@ emptyS = S
 freshRME :: M t RME
 freshRME =
  do s <- get
-    set $! s{ nextVar = nextVar s + 1 }
-    pure (lit (nextVar s))
+    if nextVar s == maxBound then
+      fail "Fresh variables exhausted"
+    else do
+      set $! s{ nextVar = nextVar s + 1 }
+      pure (lit (nextVar s))
 
 -- | Map what4 base types to RME representations
 type family R (t :: W4.BaseType) where
@@ -143,7 +151,7 @@ evalWidth :: NatRepr w -> M t Int
 evalWidth w =
   let n = natValue w in
   if n > fromIntegral (maxBound :: Int)
-    then fail "RME: width to wide!"
+    then fail "Bit-vector width too wide!"
     else pure (fromIntegral n)
 
 evalTypeRepr :: W4.BaseTypeRepr tp -> M t (RMERepr tp)
@@ -156,7 +164,7 @@ evalTypeRepr r = fail ("RME does not support " ++ show r)
 -- | Evaluate an expression, if possible, into an RME term.
 evalExpr :: W4.Expr t tp -> M t (R tp)
 evalExpr = \case
-  W4.BoolExpr x _ -> pure (constant x)
+  W4.BoolExpr x _ -> pure $! constant x
   W4.AppExpr x -> cached (W4.appExprId x) (evalApp (W4.appExprApp x))
   W4.BoundVarExpr x -> cached (W4.bvarId x) (allocateVar =<< evalTypeRepr (W4.bvarType x))
   W4.SemiRingLiteral rpr c _ ->
@@ -175,7 +183,7 @@ evalExpr = \case
 allocateVar :: RMERepr tp -> M t (R tp)
 allocateVar = \case
   BitRepr -> freshRME
-  BVRepr w -> V.fromList <$> replicateM w freshRME
+  BVRepr w -> V.fromList <$!> replicateM w freshRME
 
 evalApp :: W4.App (W4.Expr t) tp -> M t (R tp)
 evalApp = \case
@@ -345,5 +353,35 @@ evalApp = \case
             Just r -> r
 
       _ -> fail "RME does not support this semiring representation"
+
+  W4.BVUdiv _ x y ->
+   do x' <- evalExpr x
+      y' <- evalExpr y
+      pure $! udiv x' y'
+
+  W4.BVUrem _ x y ->
+   do x' <- evalExpr x
+      y' <- evalExpr y
+      pure $! urem x' y'
+
+  W4.BVSdiv _ x y ->
+   do x' <- evalExpr x
+      y' <- evalExpr y
+      pure $! sdiv x' y'
+
+  W4.BVSrem _ x y ->
+   do x' <- evalExpr x
+      y' <- evalExpr y
+      pure $! srem x' y'
+
+  W4.BVUnaryTerm u ->
+   do let constEval x =
+           do x' <- evalExpr x
+              case isBool x' of
+                Nothing -> fail "Unary term not constant"
+                Just r -> pure r
+      w' <- evalWidth (UnaryBV.width u)
+      u' <- UnaryBV.evaluate constEval u
+      pure $! integer w' u'
 
   e -> fail ("RME does not support: " ++ show e)
