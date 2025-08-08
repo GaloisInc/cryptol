@@ -77,6 +77,7 @@ library
                        pretty-show,
                        primitive,
                        process           >= 1.2,
+                       rme               ^>= 0.1,
                        sbv               >= 9.1 && < 10.11,
                        simple-smt        >= 0.9.8,
                        stm               >= 2.4,
@@ -243,6 +244,7 @@ library
                        Cryptol.Testing.Random,
 
                        Cryptol.Symbolic,
+                       Cryptol.Symbolic.RME,
                        Cryptol.Symbolic.SBV,
                        Cryptol.Symbolic.What4,
 
