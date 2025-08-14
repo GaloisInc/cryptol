@@ -114,6 +114,7 @@ library
                        Cryptol.Parser.Token,
                        Cryptol.Parser.Layout,
                        Cryptol.Parser.AST,
+                       Cryptol.Parser.AST.Builder,
                        Cryptol.Parser.Position,
                        Cryptol.Parser.Names,
                        Cryptol.Parser.Name,
