@@ -119,14 +119,11 @@ toExpr prims t0 v0 = findOne (go t0 v0)
            ETuple <$> (zipWithM go ts =<< lift (sequence tvs))
       (TVBit, VBit b) ->
         pure (prim (if b then "True" else "False"))
-      (TVInteger, VInteger i) ->
-        pure $ ETApp (ETApp (prim "number") (tNum i)) tInteger
-      (TVIntMod n, VInteger i) ->
-        pure $ ETApp (ETApp (prim "number") (tNum i)) (tIntMod (tNum n))
-
+      (TVInteger, VInteger i) -> pure (numlit i tInteger)
+      (TVIntMod n, VInteger i) -> pure (numlit i (tIntMod (tNum n)))
       (TVRational, VRational (SRational n d)) ->
-        do let n' = ETApp (ETApp (prim "number") (tNum n)) tInteger
-           let d' = ETApp (ETApp (prim "number") (tNum d)) tInteger
+        do let n' = numlit n tInteger
+           let d' = numlit d tInteger
            pure $ EApp (EApp (prim "ratio") n') d'
 
       (TVFloat e p, VFloat i) ->
@@ -144,6 +141,9 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       (_,VNumPoly{}) -> mzero
       _ -> mismatch
     where
+      numlit i t =
+        EProofApp (ETApp (ETApp (prim "number") (tNum (i::Integer))) t)
+
       mismatch :: forall a. ChoiceT Eval a
       mismatch =
         do doc <- lift (ppValue Concrete defaultPPOpts val)
