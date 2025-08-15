@@ -133,7 +133,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
            pure $ EList ses (tValTy b)
       (TVSeq n TVBit, VWord wval) ->
         do BV _ v <- lift (asWordVal Concrete wval)
-           pure $ ETApp (ETApp (prim "number") (tNum v)) (tWord (tNum n))
+           pure (numlit v (tWord (tNum n)))
 
       (_,VStream{})  -> mzero
       (_,VFun{})     -> mzero
@@ -141,11 +141,13 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       (_,VNumPoly{}) -> mzero
       _ -> mismatch
     where
+      -- Make a literal of type Integer
       intlit n
         | n < 0 = EApp (EProofApp (ETApp (prim "negate") tInteger))
                        (numlit (-n) tInteger)
         | otherwise = numlit n tInteger
 
+      -- Make a non-negative literal of the given type
       numlit i t =
         EProofApp (ETApp (ETApp (prim "number") (tNum (i::Integer))) t)
 
