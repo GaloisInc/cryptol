@@ -7,24 +7,27 @@
 -- This module is intended to be imported qualified.
 module Cryptol.Parser.AST.Builder where
 
-import qualified Data.Text as Text
+import qualified Data.Text          as Text
+import           Numeric.Natural
 
-import Cryptol.Parser.AST
+import           Cryptol.Parser.AST
 
 -- * Built-in syntax
 
--- | Polymorphic integer literal.
+-- | Polymorphic integer literal. For negative inputs, a prefix negation
+-- operator will be added.
 --
 -- @intLit n@ is equivalent to the literal @n@ in Cryptol.
 intLit :: Integral a => a -> Expr n
-intLit n = ELit $ ECNum n' $ DecLit $ Text.pack $ show n'
-  where
-    n' = toInteger n
+intLit n =
+  let n' = toInteger n
+  in  (if n' < 0 then EPrefix PrefixNeg else id) $
+        ELit $ ECNum (abs n') $ DecLit $ Text.pack $ show (abs n')
 
 -- | Integer literal as a bitvector of a specific width.
 --
 -- @bvLit n m@ is equivalent to the type-annotated literal @n : [m]@ in Cryptol.
-bvLit :: (Integral val, Integral bits) => val -> bits -> Expr PName
+bvLit :: Natural -> Natural -> Expr PName
 bvLit val bits =
   number (TNum (toInteger val)) (TSeq (TNum (toInteger bits)) TBit)
 
