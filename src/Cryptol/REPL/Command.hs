@@ -138,6 +138,7 @@ import Data.Char (isSpace,isPunctuation,isSymbol,isAlphaNum,isAscii)
 import Data.Function (on)
 import Data.List (intercalate, nub, isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
+import Data.Foldable (traverse_)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process (shell,createProcess,waitForProcess,spawnProcess)
@@ -319,6 +320,9 @@ nbCommandList  =
       ""
   , CommandDescr [ ":check-docstrings" ] [] (ModNameArg checkDocStringsCmd)
       "Run the REPL code blocks in the module's docstring comments"
+      ""
+  , CommandDescr [ ":print-docstrings" ] [] (ModNameArg printDocStringsCmd)
+      "Print the REPL code blocks in the module's docstring comments"
       ""
   , CommandDescr [ ":saw" ] [] (FilenameArg sawCmd)
     "Load a given SAW file."
@@ -2013,6 +2017,20 @@ data SubcommandResult = SubcommandResult
   , srLog :: String
   }
 
+printBlock :: [T.Text] -> REPL ()
+printBlock block = 
+  mapM_ printLine (continuedLines block)
+
+printLine :: T.Text -> REPL ()
+printLine line 
+  | T.all isSpace line = pure ()
+  | otherwise =
+      case parseCommand (findNbCommand True) (T.unpack line) of
+        Nothing -> rPutStrLn "Failed to parse command"
+        Just Ambiguous{} -> rPutStrLn "Ambiguous command"
+        Just Unknown{} -> rPutStrLn "Unknown command"
+        Just (Command _) -> rPutStrLn (T.unpack line)
+
 -- | Check a single code block from inside a docstring.
 --
 -- The result will contain the results of processing the commands up to
@@ -2135,6 +2153,19 @@ checkDocItem item =
       , drFences = xs
       }
 
+printDocItem :: T.DocItem -> REPL ()
+printDocItem item = do
+    let bs = traverse T.extractCodeBlocks (T.docText item)
+    traverse_ printBlock (concat bs)
+
+printDocStrings :: M.LoadedModule -> REPL ()
+printDocStrings m = do
+  let dat = M.lmdModule (M.lmData m)
+  let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
+  traverse_ printDocItem ds
+
+
+
 -- | Check all of the docstrings in the given module.
 --
 -- The outer list elements correspond to the code blocks from the
@@ -2171,6 +2202,27 @@ updateDocstringCache m result expectCache =
                        let cache' = cache { Proj.cacheModules = Map.insert (Proj.CacheInFile fp) entry' (Proj.cacheModules cache) }
                        io (Proj.saveLoadCache cache')
 
+withModule :: String -> (P.ModName -> REPL CommandResult) -> REPL CommandResult
+withModule input f
+  | null input = do
+    mb <- getLoadedMod
+    case lName =<< mb of
+      Nothing -> do
+        rPutStrLn "No current module"
+        pure emptyCommandResult { crSuccess = False }
+      Just mn -> f mn
+  | otherwise =
+    case parseModName input of
+      Nothing -> do
+        rPutStrLn "Invalid module name"
+        pure emptyCommandResult { crSuccess = False }
+      Just mn -> f mn
+
+printDocStringsCmd ::
+  String {- ^ module name -} ->
+  REPL CommandResult
+printDocStringsCmd input = withModule input checkModNameForPrint
+
 -- | Evaluate all the docstrings in the specified module.
 --
 -- This command succeeds when:
@@ -2180,20 +2232,8 @@ updateDocstringCache m result expectCache =
 checkDocStringsCmd ::
   String {- ^ module name -} ->
   REPL CommandResult
-checkDocStringsCmd input
-  | null input = do
-    mb <- getLoadedMod
-    case lName =<< mb of
-      Nothing -> do
-        rPutStrLn "No current module"
-        pure emptyCommandResult { crSuccess = False }
-      Just mn -> checkModName 0 mn
-  | otherwise =
-    case parseModName input of
-      Nothing -> do
-        rPutStrLn "Invalid module name"
-        pure emptyCommandResult { crSuccess = False }
-      Just mn -> checkModName 0 mn
+checkDocStringsCmd input = withModule input (checkModName 0)
+
 
 countOutcomes :: [[SubcommandResult]] -> (Int, Int, Int)
 countOutcomes = foldl' countOutcomes1 (0, 0, 0)
@@ -2206,9 +2246,8 @@ countOutcomes = foldl' countOutcomes1 (0, 0, 0)
       | crSuccess (srResult result) = (successes + 1, nofences, failures)
       | otherwise = (successes, nofences, failures + 1)
 
-
-checkModName :: Int -> P.ModName -> REPL CommandResult
-checkModName ind mn =
+withValidModule :: P.ModName -> String -> (M.LoadedModule -> REPL CommandResult) -> REPL CommandResult
+withValidModule mn tab f =
  do env <- getModuleEnv
     case M.lookupModule mn env of
       Nothing ->
@@ -2223,15 +2262,25 @@ checkModName ind mn =
         | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
           rPutStrLn (tab ++ "Skipping docstrings on parameterized module")
           pure emptyCommandResult
-        | otherwise -> do
-          (results,_) <- checkDocStrings fe Nothing
-          let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
-          rPutStrLn (tab ++ "Successes: " ++ show successes ++
+        | otherwise -> f fe
+
+
+checkModName :: Int -> P.ModName -> REPL CommandResult
+checkModName ind mn =
+  withValidModule mn tab (\m -> do
+              (results,_) <- checkDocStrings m Nothing
+              let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
+              rPutStrLn ("Successes: " ++ show successes ++
                           ", No fences: " ++ show nofences ++
                           ", Failures: " ++ show failures)
-          pure emptyCommandResult { crSuccess = failures == 0 }
-  where
-  tab = replicate ind ' '
+              pure emptyCommandResult { crSuccess = failures == 0 })
+  where tab = replicate ind ' '
+
+checkModNameForPrint :: P.ModName -> REPL CommandResult
+checkModNameForPrint mn =
+  withValidModule mn "" (\m -> do
+                            printDocStrings m
+                            pure emptyCommandResult { crSuccess = True })
 
 -- | Load a project.
 -- Note that this does not update the Cryptol environment, it only updates
