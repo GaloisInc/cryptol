@@ -21,8 +21,8 @@ import           Cryptol.Parser.AST
 intLit :: Integral a => a -> Expr n
 intLit n =
   let n' = toInteger n
-  in  (if n' < 0 then EPrefix PrefixNeg else id) $
-        ELit $ ECNum (abs n') $ DecLit $ Text.pack $ show (abs n')
+      absLit = ELit $ ECNum (abs n') $ DecLit $ Text.pack $ show (abs n')
+  in  if n' < 0 then EPrefix PrefixNeg absLit else absLit
 
 -- | Integer literal as a bitvector of a specific width.
 --
