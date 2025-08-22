@@ -14,6 +14,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+
 module Cryptol.ModuleSystem.Env where
 
 #ifndef RELOCATABLE
@@ -181,8 +182,8 @@ initialModuleEnv = do
     , meNameSeeds         = T.nameSeeds
     , meEvalEnv           = mempty
     , meFocusedModule     = Nothing
-      -- we search these in order, taking the first match
     , meSearchPath        = searchPath
+      -- ^ we search these in order, taking the first match
     , meDynEnv            = mempty
     , meMonoBinds         = True
     , meCoreLint          = NoCoreLint
@@ -191,6 +192,8 @@ initialModuleEnv = do
     }
 
 -- | Try to focus a loaded module in the module environment.
+--   FIXME: This function is dead code.
+--          (And confusingly, there is another function of same name.)
 focusModule :: ImpName Name -> ModuleEnv -> Maybe ModuleEnv
 focusModule n me = do
   guard (isLoaded n (meLoadedModules me))
