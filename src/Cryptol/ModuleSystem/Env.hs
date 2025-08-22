@@ -380,6 +380,18 @@ focusedEnv' mFocusedModule me =
                  Nothing -> panic "focusedEnv'"
                               ["Focused module not loaded: " ++ show (pp fm)]
 
+-- | A variant of focusedEnv' that handles a list of modules:
+focusedEnvL :: [ImpName Name] -> ModuleEnv -> ModContext
+focusedEnvL focusedModules me =
+  dynModContext me <> mconcat (map modContextOf' focusedModules)
+    -- note the ordering.
+
+  where
+  modContextOf' fm =
+    case modContextOf fm me of
+      Just c  -> c
+      Nothing -> panic "focusedEnvL"
+                   ["Focused module not loaded: " ++ show (pp fm)]
 
 -- Loaded Modules --------------------------------------------------------------
 
@@ -794,3 +806,4 @@ deIfaceDecls DEnv { deDecls = dgs, deTySyns = tySyns } =
       | decl <- concatMap T.groupDecls dgs
       , let ifd = T.mkIfaceDecl decl
       ]
+
