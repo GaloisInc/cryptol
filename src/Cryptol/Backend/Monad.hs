@@ -220,7 +220,7 @@ maybeReady (Eval _) = pure Nothing
 delayFill ::
   Eval a {- ^ Computation to delay -} ->
   Maybe (Eval a) {- ^ Optional backup computation to run if a tight loop is detected -} ->
-  String {- ^ message for the <<loop>> exception if a tight loop is detected -} ->
+  String {- ^ message for the LoopError exception if a tight loop is detected -} ->
   Eval (Eval a)
 delayFill e@(Ready _) _ _ = return e
 delayFill e@(Thunk _) _ _ = return e
