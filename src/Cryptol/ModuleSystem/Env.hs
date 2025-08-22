@@ -280,7 +280,7 @@ modContextOf (ImpNested name) me =
      mname <- nameTopModuleMaybe name
      lm <- lookupModule mname me
 
-     (localNames, exported) <- findEnv name (lmInterface lm) (lmModule lm)
+     (localNames, exported) <- findEnv (lmInterface lm) (lmModule lm)
      let -- XXX: do we want only public ones here?
          loadedDecls = map (ifDefines . lmInterface)
                      $ getLoadedModules (meLoadedModules me)
@@ -294,15 +294,15 @@ modContextOf (ImpNested name) me =
   -- TODO: support focusing inside a submodule signature to support browsing?
 
   where
-  findEnv :: Name -> Iface -> T.ModuleG a -> Maybe (R.NamingEnv, Set Name)
-  findEnv n iface m
-    | Just sm <- Map.lookup n (T.mSubmodules m) =
+  findEnv :: Iface -> T.ModuleG a -> Maybe (R.NamingEnv, Set Name)
+  findEnv iface m
+    | Just sm <- Map.lookup name (T.mSubmodules m) =
         Just (T.smInScope sm, ifsPublic (T.smIface sm))
-    | Just fn <- Map.lookup n (T.mFunctors m) =
-        case Map.lookup n (ifFunctors (ifDefines iface)) of
+    | Just fn <- Map.lookup name (T.mFunctors m) =
+        case Map.lookup name (ifFunctors (ifDefines iface)) of
           Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
           Just d -> Just (T.mInScope fn, ifsPublic (ifNames d))
-    | otherwise = asum (fmap (findEnv n iface) (Map.elems (T.mFunctors m)))
+    | otherwise = asum (fmap (findEnv iface) (Map.elems (T.mFunctors m)))
 
 
 modContextOf (ImpTop mname) me =
