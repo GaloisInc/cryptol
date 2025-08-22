@@ -274,19 +274,12 @@ instance Monoid ModContext where
                       , mctxNameDisp = R.toNameDisp mempty
                       }
 
-findEnv :: Name -> Iface -> T.ModuleG a -> Maybe (R.NamingEnv, Set Name)
-findEnv n iface m
-  | Just sm <- Map.lookup n (T.mSubmodules m) = Just (T.smInScope sm, ifsPublic (T.smIface sm))
-  | Just fn <- Map.lookup n (T.mFunctors m) =
-      case Map.lookup n (ifFunctors (ifDefines iface)) of
-        Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
-        Just d -> Just (T.mInScope fn, ifsPublic (ifNames d))
-  | otherwise = asum (fmap (findEnv n iface) (Map.elems (T.mFunctors m)))
-
 modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
 modContextOf (ImpNested name) me =
-  do mname <- nameTopModuleMaybe name
+  do -- find the top module:
+     mname <- nameTopModuleMaybe name
      lm <- lookupModule mname me
+
      (localNames, exported) <- findEnv name (lmInterface lm) (lmModule lm)
      let -- XXX: do we want only public ones here?
          loadedDecls = map (ifDefines . lmInterface)
@@ -299,6 +292,18 @@ modContextOf (ImpNested name) me =
        , mctxNameDisp = R.toNameDisp localNames
        }
   -- TODO: support focusing inside a submodule signature to support browsing?
+
+  where
+  findEnv :: Name -> Iface -> T.ModuleG a -> Maybe (R.NamingEnv, Set Name)
+  findEnv n iface m
+    | Just sm <- Map.lookup n (T.mSubmodules m) =
+        Just (T.smInScope sm, ifsPublic (T.smIface sm))
+    | Just fn <- Map.lookup n (T.mFunctors m) =
+        case Map.lookup n (ifFunctors (ifDefines iface)) of
+          Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
+          Just d -> Just (T.mInScope fn, ifsPublic (ifNames d))
+    | otherwise = asum (fmap (findEnv n iface) (Map.elems (T.mFunctors m)))
+
 
 modContextOf (ImpTop mname) me =
   do lm <- lookupModule mname me
@@ -354,8 +359,6 @@ dynModContext me = mempty { mctxNames    = dynNames
                           , mctxDecls    = deIfaceDecls (meDynEnv me)
                           }
   where dynNames = deNames (meDynEnv me)
-
-
 
 
 -- | Given the state of the environment, compute information about what's
