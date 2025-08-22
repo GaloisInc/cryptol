@@ -365,13 +365,20 @@ dynModContext me = mempty { mctxNames    = dynNames
 -- in scope on the REPL.  This includes what's in the focused module, plus any
 -- additional definitions from the REPL (e.g., let bound names, and @it@).
 focusedEnv :: ModuleEnv -> ModContext
-focusedEnv me =
-  case meFocusedModule me of
+focusedEnv me = focusedEnv' (meFocusedModule me) me
+
+-- | A variant of focusedEnv that does not rely on the
+--   `meFocusedModule` field in the `ModuleEnv` record.  (N.B. This is
+--   known via inspection of the below code, not enforced by the
+--   code design.)
+focusedEnv' :: Maybe (ImpName Name) -> ModuleEnv -> ModContext
+focusedEnv' mFocusedModule me =
+  case mFocusedModule of
     Nothing -> dynModContext me
     Just fm -> case modContextOf fm me of
                  Just c -> dynModContext me <> c
-                 Nothing -> panic "focusedEnv"
-                              [ "Focused modules not loaded: " ++ show (pp fm) ]
+                 Nothing -> panic "focusedEnv'"
+                              ["Focused module not loaded: " ++ show (pp fm)]
 
 
 -- Loaded Modules --------------------------------------------------------------
