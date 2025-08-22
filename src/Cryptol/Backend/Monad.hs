@@ -457,13 +457,13 @@ instance PP EvalError where
     NegativeExponent -> text "negative exponent"
     LogNegative -> text "logarithm of negative"
     UserError x -> text "Run-time error:" <+> text x
-    LoopError x -> vcat [ text "<<loopError>>" <+> text x
+    LoopError x -> vcat [ text "<<run-time loop>>" <+> text x
                         , text "This usually occurs due to an improper recursive definition,"
                         , text "but may also result from retrying a previously interrupted"
                         , text "computation (e.g., after CTRL^C). In that case, you may need to"
                         , text "`:reload` the current module to reset to a good state."
                         ]
-                        -- NOTE: using '<<loopError>>' to distinguish this
+                        -- NOTE: using '<<run-time loop>>' to distinguish this
                         -- error from a blackhole detected by GHC, which
                         -- would display '<<loop>>'
     BadRoundingMode r -> "invalid rounding mode" <+> integer r
