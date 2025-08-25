@@ -67,6 +67,8 @@ import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.Type (TValue)
 import           Cryptol.Eval.What4
 
+import           Data.RME.What4 (rmeAdapter)
+
 import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
@@ -207,6 +209,7 @@ proverConfigs =
   , ("w4-boolector" , W4ProverConfig boolectorOnlineAdapter)
 
   , ("w4-abc"       , W4ProverConfig (AnAdapter W4.externalABCAdapter))
+  , ("w4-rme"       , W4ProverConfig (AnAdapter rmeAdapter))
 
   , ("w4-offline"   , W4OfflineConfig )
   , ("w4-any"       , allSolvers)

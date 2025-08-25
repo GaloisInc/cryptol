@@ -4,3 +4,5 @@ packages:
     language-server
     tests
     deps/argo/argo
+    deps/rme/rme
+    deps/rme/rme-what4
