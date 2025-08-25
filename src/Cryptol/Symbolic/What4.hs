@@ -67,7 +67,7 @@ import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.Type (TValue)
 import           Cryptol.Eval.What4
 
-import           Cryptol.Symbolic.RME
+import           Data.RME.What4 (rmeAdapter)
 
 import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.Symbolic
