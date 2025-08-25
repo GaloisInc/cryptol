@@ -21,6 +21,10 @@
   unreachable code in the grammar for `case` and `where` expressions with explicit
   `{` and `}` that was never reachable due to the way the layout rule worked.
 
+* Add `w4-rme` prover. This prover works on goals using booleans and bit vectors.
+  It's particularly suited to problems using Galois field arithmetic. It does not
+  call out to an external solver. Use `:set prover = w4-rme` to enable it.
+
 ## Bug fixes
 
 * Allow changing the `tcSolver` setting to non-Z3 solvers (e.g., CVC5) without
