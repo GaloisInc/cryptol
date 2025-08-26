@@ -4,6 +4,3 @@
 [submodule "deps/argo"]
 	path = deps/argo
 	url = https://github.com/galoisinc/argo
-[submodule "deps/rme"]
-	path = deps/rme
-	url = https://github.com/GaloisInc/rme
