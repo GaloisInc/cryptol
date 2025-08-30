@@ -271,10 +271,11 @@ unqualifiedEnv IfaceDecls { .. } =
 
 
 -- | Adapt the things exported by something to the specific import/open.
-interpImportEnv :: ImportG name  {- ^ The import declarations -} ->
-                NamingEnv     {- ^ All public things coming in -} ->
-                NamingEnv
+interpImportEnv :: ImportG name  {- ^ The import declaration -} ->
+                   NamingEnv     {- ^ All public things coming in -} ->
+                   NamingEnv
 interpImportEnv imp public = qualified
+
   where
 
   -- optionally qualify names based on the import
