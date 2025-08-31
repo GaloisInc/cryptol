@@ -733,7 +733,7 @@ from different modules.  For example:
     import X as B
 
 Such declarations will introduces all definitions from `A` and `X`
-but to use them, you would have to qualify using the prefix `B:::`.
+but to use them, you would have to qualify using the prefix `B::`.
 
 
 Private Blocks

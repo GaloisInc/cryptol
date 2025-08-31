@@ -53,11 +53,11 @@ import Data.Maybe (maybeToList)
 
 type Iface = IfaceG ModName
 
--- | The interface repersenting a typecheck top-level module.
+-- | The interface representing a typechecked top-level module.
 data IfaceG name = Iface
   { ifNames     :: IfaceNames name    -- ^ Info about names in this module
   , ifParams    :: FunctorParams      -- ^ Module parameters, if any
-  , ifDefines   :: IfaceDecls         -- ^ All things defines in the module
+  , ifDefines   :: IfaceDecls         -- ^ All things defined in the module
                                       -- (includes nested definitions)
   } deriving (Show, Generic, NFData, Functor)
 
@@ -106,7 +106,7 @@ data IfaceDecls = IfaceDecls
   , ifSignatures    :: !(Map.Map Name ModParamNames)
   , ifFunctors      :: !(Map.Map Name (IfaceG Name))
     {- ^ XXX: Maybe arg info?
-    Also, with the current implementation we aim to complete remove functors
+    Also, with the current implementation we aim to completely remove functors
     by essentially inlining them.  To achieve this with just interfaces
     we'd have to store here the entire module, not just its interface.
     At the moment we work around this by passing all loaded modules to the
