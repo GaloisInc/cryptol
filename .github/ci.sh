@@ -9,6 +9,23 @@ mkdir -p "$BIN"
 
 is_exe() { [[ -x "$1/$2$EXT" ]] || command -v "$2" > /dev/null 2>&1; }
 
+# Create a cryptol.buildinfo.json file for the benefit of the Docker image.
+# (See Note [cryptol.buildinfo.json] in src/Cryptol/Version.hs.)
+#
+# The first argument is the git commit, and the second argument is the git
+# branch name.
+generate_buildinfo() {
+  CI_COMMIT_SHA=$1
+  CI_COMMIT_REF_NAME=$2
+
+  jq -n \
+    --arg hash "$CI_COMMIT_SHA" \
+    --arg branch "$CI_COMMIT_REF_NAME" \
+    --argjson dirty false \
+    '{"hash": $hash, "branch": $branch, "dirty": $dirty}' \
+    > cryptol.buildinfo.json
+}
+
 # The deps() function is primarily used for producing debug output to
 # the CI logging files.  For each platform, it will indicate which
 # shared libraries are needed and if they are present or not.  The

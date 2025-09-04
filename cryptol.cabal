@@ -14,6 +14,7 @@ Category:            Language
 Build-type:          Simple
 extra-source-files:  bench/data/*.cry
                      lib/*.cry lib/*.smt2 lib/*.h
+                     cryptol.buildinfo.json
 
 extra-doc-files:     CHANGES.md
 
@@ -47,6 +48,7 @@ library
   Default-language:
     Haskell2010
   Build-depends:       base              >= 4.9 && < 5,
+                       aeson             >= 2.0 && < 2.3,
                        arithmoi          >= 0.12,
                        async             >= 2.2 && < 2.3,
                        base-compat       >= 0.6 && < 0.13,

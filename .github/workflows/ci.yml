@@ -442,6 +442,10 @@ jobs:
             image: ghcr.io/galoisinc/cryptol-remote-api
             cache: ghcr.io/galoisinc/cache-cryptol-remote-api
     steps:
+      - name: Generate cryptol.buildinfo.json
+        shell: bash
+        run: .github/ci.sh generate_buildinfo "${{ github.sha }}" "${{ github.ref_name }}"
+
       - if: matrix.build-args == 'PORTABILITY=true'
         id: prefix
         run: echo "::set-output name=prefix::portable-"
