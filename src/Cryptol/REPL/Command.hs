@@ -1162,9 +1162,11 @@ timeCmd :: String -> (Int, Int) -> Maybe FilePath -> REPL CommandResult
 timeCmd str pos fnm = do
   period <- getKnownUser "timeMeasurementPeriod" :: REPL Int
   quiet <- getKnownUser "timeQuiet"
+  pExpr <- replParseExpr str pos fnm `catch` \e -> do 
+                                                    rPutStrLn $ findCmdHelp ":time"
+                                                    raise e
   unless quiet $
     rPutStrLn $ "Measuring for " ++ show period ++ " seconds"
-  pExpr <- replParseExpr str pos fnm
   (_, def, sig) <- replCheckExpr pExpr
   replPrepareCheckedExpr def sig >>= \case
     Nothing -> raise (EvalPolyError sig)
@@ -1928,6 +1930,12 @@ findCommandExact str = lookupTrieExact str commands
 findNbCommand :: Bool -> String -> [CommandDescr]
 findNbCommand True  str = lookupTrieExact str nbCommands
 findNbCommand False str = lookupTrie      str nbCommands
+
+-- | Look up a command, then return its help message as a helpful error message.
+findCmdHelp :: String -> String
+findCmdHelp cmd = unlines ["ERROR", "Command Description: " ++ cHelp descmd]
+  where 
+    [descmd] = findCommandExact cmd
 
 -- | Parse a line as a command.
 parseCommand :: (String -> [CommandDescr]) -> String -> Maybe Command
