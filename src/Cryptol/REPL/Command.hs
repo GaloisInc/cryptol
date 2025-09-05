@@ -779,6 +779,9 @@ rethrowErrorCall m = REPL (\r -> unREPL m r `X.catches` hs)
 
 -- | Attempts to prove the given term is safe for all inputs
 safeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+safeCmd "" _pos _fnm = 
+  do  rPutStrLn $ findCmdHelp ":safe"
+      return emptyCommandResult {crSuccess = False}
 safeCmd str pos fnm = do
   proverName <- getKnownUser "prover"
   fileName   <- getKnownUser "smtFile"
@@ -1104,6 +1107,9 @@ mkSolverResult thing rng result earg =
        in ((argName,t),(argName,e))
 
 specializeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+specializeCmd "" _pos _fnm = 
+  do  rPutStrLn $ findCmdHelp ":debug_specialize"
+      return emptyCommandResult {crSuccess = False}
 specializeCmd str pos fnm = do
   parseExpr <- replParseExpr str pos fnm
   (_, expr, schema) <- replCheckExpr parseExpr
@@ -1118,6 +1124,9 @@ specializeCmd str pos fnm = do
   pure emptyCommandResult { crValue = Just value }
 
 refEvalCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+refEvalCmd "" _pos _fnm = 
+  do  rPutStrLn $ findCmdHelp ":eval"
+      return emptyCommandResult {crSuccess = False}
 refEvalCmd str pos fnm = do
   parseExpr <- replParseExpr str pos fnm
   (_, expr, schema) <- replCheckExpr parseExpr
@@ -1130,6 +1139,9 @@ refEvalCmd str pos fnm = do
   pure emptyCommandResult { crValue = Just value }
 
 astOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+astOfCmd "" _pos _fnm = 
+  do  rPutStrLn $ findCmdHelp ":ast"
+      return emptyCommandResult {crSuccess = False}
 astOfCmd str pos fnm = do
  expr <- replParseExpr str pos fnm
  (re,_,_) <- replCheckExpr (P.noPos expr)
@@ -1143,6 +1155,10 @@ extractCoqCmd = do
   pure emptyCommandResult
 
 typeOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+typeOfCmd "" _pos _fnm = 
+  do  rPutStrLn $ findCmdHelp ":type"
+      return emptyCommandResult {crSuccess = False}
+
 typeOfCmd str pos fnm = do
 
   expr         <- replParseExpr str pos fnm
