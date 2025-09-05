@@ -160,7 +160,16 @@ visibleNames (NamingEnv env) = check <$> env
 --
 --   We don't qualify fresh names, because they should not be directly
 --   visible to the end users (i.e., they shouldn't really be exported)
--- 
+--
+--   NOTE re the calls to `qualify`:
+--     - used in modParamNamingEnv for module parameters, all names here are
+--       `Unqual`
+--     - used by interpImportEnv used by tryImport:
+--       - here also, all names are `Unqual`.
+--     - used by interpImportEnv and called from saw-script code:
+--       - here, some names are inside submodules and thus qualified, thus
+--         the need for the `consChunk` machinery.
+--     
 qualify :: ModName -> NamingEnv -> NamingEnv
 qualify pfx (NamingEnv env) = NamingEnv (Map.mapKeys toQual <$> env)
   where
@@ -300,7 +309,8 @@ interpImportEnv imp public = qualified
 
   where
 
-  -- optionally qualify names based on the import
+  -- optionally qualify names in NamingEnv if the import is "qualified",
+  --   i.e., if `isJust (iAs imp)`
   qualified | Just pfx <- iAs imp = qualify pfx restricted
             | otherwise           =             restricted
 
