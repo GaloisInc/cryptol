@@ -1159,12 +1159,14 @@ typeOfCmd str pos fnm = do
   pure emptyCommandResult { crType = Just output }
 
 timeCmd :: String -> (Int, Int) -> Maybe FilePath -> REPL CommandResult
+timeCmd "" _pos _fnm = 
+  do  rPutStrLn $ findCmdHelp ":time"
+      return emptyCommandResult {crSuccess = False}
+
 timeCmd str pos fnm = do
   period <- getKnownUser "timeMeasurementPeriod" :: REPL Int
   quiet <- getKnownUser "timeQuiet"
-  pExpr <- replParseExpr str pos fnm `catch` \e -> do 
-                                                    rPutStrLn $ findCmdHelp ":time"
-                                                    raise e
+  pExpr <- replParseExpr str pos fnm
   unless quiet $
     rPutStrLn $ "Measuring for " ++ show period ++ " seconds"
   (_, def, sig) <- replCheckExpr pExpr
