@@ -442,6 +442,10 @@ jobs:
             image: ghcr.io/galoisinc/cryptol-remote-api
             cache: ghcr.io/galoisinc/cache-cryptol-remote-api
     steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Generate cryptol.buildinfo.json
         shell: bash
         run: .github/ci.sh generate_buildinfo "${{ github.sha }}" "${{ github.ref_name }}"
@@ -491,11 +495,6 @@ jobs:
           file: ${{ matrix.file }}
           build-args: ${{ matrix.build-args }}
           cache-to: type=registry,ref=${{ matrix.cache }}:cache-${{ steps.common-tag.outputs.common-tag }},mode=max
-
-      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
         uses: actions/setup-python@v2
