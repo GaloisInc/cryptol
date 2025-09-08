@@ -1,0 +1,5 @@
+f : [0] -> [inf][0]
+f = split
+
+main : [0]
+main = (f []) @ 0

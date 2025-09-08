@@ -1,0 +1,12 @@
+:set proverTimeout=1
+
+:l ../../examples/funstuff/NQueens.cry
+
+:set prover=sbv-z3
+:sat nQueens : (Solution 50)
+
+:set prover=sbv-cvc5
+:sat nQueens : (Solution 50)
+
+:set prover=sbv-yices
+:sat nQueens : (Solution 50)

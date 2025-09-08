@@ -2,3 +2,7 @@
 :check
 :prove
 :sat
+:m Issue639_M
+:check
+:prove
+:sat

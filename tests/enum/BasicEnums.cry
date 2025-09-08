@@ -1,5 +1,5 @@
 
-/** Custom docs fo E1 */
+/** Custom docs for E1 */
 enum E1  = A | B | C
 enum M a = N | J a
 enum N n a =
@@ -22,6 +22,8 @@ c2 e =
     X a -> a
     Y b -> zero # b
     Z a -> a
+
+c3 e = case e of A -> 1 : [8]; B -> 2; C -> 3
 
 // Construction
 

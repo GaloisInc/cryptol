@@ -226,7 +226,7 @@ rewDef :: RewMap -> DeclDef -> M DeclDef
 rewDef rews (DExpr e)       = DExpr <$> rewE rews e
 rewDef _    DPrim           = return DPrim
 rewDef rews (DForeign t me) = DForeign t <$> traverse (rewE rews) me
-
+ 
 rewDeclGroup :: RewMap -> DeclGroup -> M DeclGroup
 rewDeclGroup rews dg =
   case dg of
@@ -246,9 +246,10 @@ rewDeclGroup rews dg =
   consider d   =
     case dDefinition d of
       DPrim         -> Left d
-      DForeign _ me -> case me of
-                         Nothing -> Left d
-                         Just e  -> conExpr e
+      DForeign _ me ->
+        case me of
+          Nothing -> Left d
+          Just e  -> conExpr e
       DExpr e       -> conExpr e
     where
     conExpr e =

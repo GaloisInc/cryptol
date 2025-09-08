@@ -175,6 +175,38 @@ that will be true precisely when the given test case succeeds.
   parameter) works.}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{Generating test vectors}
+\label{sec:gentestvec}
+
+Cryptol has the ability to generate test vectors for non-polymorphic functions (there is limited support for polymorphic types) using the \texttt{:dumptests} REPL command.
+The \texttt{:dumptests} command takes a file and an in-scope function; it randomly generates inputs for the function, executes the function on those inputs, and prints the output and inputs to the file.
+\begin{Verbatim}
+  :dumptests <results file> <function>
+  :dumptests results.txt myFunction
+\end{Verbatim}
+The results file will contain a tab delimited table in which the first column contains the output, and each column after contains the inputs to the function in order.
+You can set the number of tests you want to generate in your test vector by using the \texttt{:set tests=100} command. Additionally, you can also change the base used to print to the results file using \texttt{:set base=2}.
+This is because the command \texttt{:dumptests} uses the same settings for random generation that is used in \ref{sec:quickcheck}. 
+The example below shows \texttt{:dumptests} run on an instance of a function polymorphic \texttt{f} which has two inputs. 
+\begin{code}
+  f : {n} (fin n, n >= 2) => [n] -> [n] -> [2 * n] 
+  f x y = x # (2 * y)
+\end{code}
+\begin{Verbatim}
+Cryptol> :set tests = 5
+Cryptol> :set base = 2
+Cryptol> :dumptests result.txt f`{4}
+Cryptol> :quit
+% cat result.txt 
+0b10100000	0b1010	0b0000
+0b10111100	0b1011	0b0110
+0b11111010	0b1111	0b0101
+0b10000010	0b1000	0b1001
+0b00001000	0b0000	0b0100
+\end{Verbatim}
+
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 \subsection{Polymorphic properties}
 \label{sec:polythm}
 

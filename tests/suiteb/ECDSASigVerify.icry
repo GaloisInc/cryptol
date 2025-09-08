@@ -1,2 +1,4 @@
+:m NISTCurves
+:check
 :l ECDSASigVerify.cry
 :check

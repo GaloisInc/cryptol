@@ -130,14 +130,14 @@ evalExpr sym env expr = case expr of
     -- NB, even if the list cannot be packed, we must use `VWord`
     -- when the element type is `Bit`.
     | isTBit tyv -> {-# SCC "evalExpr->Elist/bit" #-}
-        VWord len <$>
+        VWord <$>
           (tryFromBits sym vs >>= \case
              Just w  -> pure (wordVal w)
              Nothing -> do xs <- mapM (\x -> sDelay sym (fromVBit <$> x)) vs
                            bitmapWordVal sym len $ finiteSeqMap sym xs)
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (sDelay sym) vs
-        return $ VSeq len $ finiteSeqMap sym xs
+        mkSeq sym (Nat len) tyv $ finiteSeqMap sym xs
    where
     tyv = evalValType (envTypes env) ty
     vs  = map eval es
@@ -594,7 +594,7 @@ evalSel sym val sel = case sel of
     case v of
       VSeq _ vs       -> lookupSeqMap vs (toInteger n)
       VStream vs      -> lookupSeqMap vs (toInteger n)
-      VWord _ wv      -> VBit <$> indexWordValue sym wv (toInteger n)
+      VWord wv        -> VBit <$> indexWordValue sym wv (toInteger n)
       _               -> do vdoc <- ppValue sym defaultPPOpts val
                             evalPanic "Cryptol.Eval.evalSel"
                               [ "Unexpected value in list selection"
@@ -608,7 +608,7 @@ evalSetSel :: forall sym.
   sym ->
   TValue ->
   GenValue sym -> Selector -> SEval sym (GenValue sym) -> SEval sym (GenValue sym)
-evalSetSel sym _tyv e sel v =
+evalSetSel sym tyv e sel v =
   case sel of
     TupleSel n _  -> setTuple n
     RecordSel n _ -> setRecord n
@@ -641,9 +641,10 @@ evalSetSel sym _tyv e sel v =
 
   setList n =
     case e of
-      VSeq i mp  -> pure $ VSeq i  $ updateSeqMap mp n v
+      VSeq i mp | TVSeq _ elty <- tyv -> 
+        mkSeq sym (Nat i) elty $ updateSeqMap mp n v
       VStream mp -> pure $ VStream $ updateSeqMap mp n v
-      VWord i m  -> VWord i <$> updateWordValue sym m n asBit
+      VWord m    -> VWord <$> updateWordValue sym m n asBit
       _ -> bad "Sequence update on a non-sequence."
 
   asBit = do res <- v
@@ -781,7 +782,7 @@ evalMatch sym (lsz, lenv) m = seq lsz $ case m of
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen
                       lookupSeqMap vss q >>= \case
-                        VWord _ w   -> VBit <$> indexWordValue sym w r
+                        VWord w     -> VBit <$> indexWordValue sym w r
                         VSeq _ xs'  -> lookupSeqMap xs' r
                         VStream xs' -> lookupSeqMap xs' r
                         _           -> evalPanic "evalMatch" ["Not a list value"]
@@ -795,7 +796,7 @@ evalMatch sym (lsz, lenv) m = seq lsz $ case m of
         let env = EvalEnv (leStatic lenv) (leTypes lenv)
         xs <- evalExpr sym env expr
         let vs i = case xs of
-                     VWord _ w   -> VBit <$> indexWordValue sym w i
+                     VWord w     -> VBit <$> indexWordValue sym w i
                      VSeq _ xs'  -> lookupSeqMap xs' i
                      VStream xs' -> lookupSeqMap xs' i
                      _           -> evalPanic "evalMatch" ["Not a list value"]
@@ -811,6 +812,6 @@ evalMatch sym (lsz, lenv) m = seq lsz $ case m of
     where
       f env =
           case dDefinition d of
-            DPrim        -> evalPanic "evalMatch" ["Unexpected local primitive"]
-            DForeign _ _ -> evalPanic "evalMatch" ["Unexpected local foreign"]
-            DExpr e      -> evalExpr sym env e
+            DPrim       -> evalPanic "evalMatch" ["Unexpected local primitive"]
+            DForeign {} -> evalPanic "evalMatch" ["Unexpected local foreign"]
+            DExpr e     -> evalExpr sym env e

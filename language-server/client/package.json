@@ -1,0 +1,76 @@
+{
+  "name": "cryptol-language-server",
+  "displayName": "Cryptol",
+  "description": "Language support for Cryptol",
+  "icon": "images/icon.png",
+  "publisher": "GaloisInc",
+  "version": "0.1.2",
+  "engines": {
+    "vscode": "^1.100.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GaloisInc/cryptol.git"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Cryptol",
+      "properties": {
+        "cryptol.language-server-path": {
+          "type": "string",
+          "default": "cryptol-language-server",
+          "description": "Path to the Cryptol language server"
+        },
+        "cryptol.search-path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Path to search for Cryptol modules"
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "cryptol",
+        "aliases": [
+          "Cryptol",
+          "cryptol"
+        ],
+        "extensions": [
+          ".cry"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "package": "node esbuild.js && vsce package",
+    "publish": "node esbuild.js && vsce publish"
+  },
+  "dependencies": {
+    "@vscode/vsce": "^3.6.0",
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.100.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "esbuild": "^0.25.5",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3"
+  }
+}

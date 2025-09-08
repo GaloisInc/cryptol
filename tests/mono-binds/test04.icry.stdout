@@ -14,7 +14,6 @@ test04::test =
       f = \{c} (x : c) -> (a, x)
 
 
-
 Loading module Cryptol
 Loading module test04
 

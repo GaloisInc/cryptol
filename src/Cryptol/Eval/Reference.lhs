@@ -247,7 +247,28 @@ Operations on Values
 >   where
 >     g (Nat n) = f n
 >     g Inf     = evalPanic "vFinPoly" ["Expected finite numeric type"]
-
+>
+> -- | Reduce a value to normal form.
+> forceValue :: Value -> E ()
+> forceValue v =
+>   case v of
+>     -- Values where the field is already is normal form
+>     VBit{}       -> pure ()
+>     VInteger{}   -> pure ()
+>     VRational{}  -> pure ()
+>     VFloat{}     -> pure ()
+>     -- Values with fields containing other values to reduce to normal form
+>     VList _ xs   -> forceValues xs
+>     VTuple xs    -> forceValues xs
+>     VRecord fs   -> forceValues $ map snd fs
+>     VEnum _ xs   -> forceValues xs
+>     -- Lambdas and other abstractions are already in normal form
+>     VFun{}       -> pure ()
+>     VPoly{}      -> pure ()
+>     VNumPoly{}   -> pure ()
+>   where
+>     forceValues :: [E Value] -> E ()
+>     forceValues = mapM_ (\x -> forceValue =<< x)
 
 Environments
 ------------
@@ -758,6 +779,10 @@ by corresponding type classes:
 >   , "lg2"        ~> vFinPoly $ \n -> pure $
 >                     VFun $ \v ->
 >                       vWord n <$> appOp1 lg2Wrap (fromVWord =<< v)
+>   , "toSignedInteger"
+>                  ~> vFinPoly $ \_n -> pure $
+>                     VFun $ \x ->
+>                     VInteger <$> (fromSignedVWord =<< x)
 >   -- Rational
 >   , "ratio"      ~> VFun $ \l -> pure $
 >                     VFun $ \r ->
@@ -944,6 +969,13 @@ by corresponding type classes:
 >                           -- executes parmap sequentially
 >                           pure $ VList n (map f' xs')
 >
+>   , "deepseq"    ~> VPoly $ \_a -> pure $
+>                     VPoly $ \_b -> pure $
+>                     VFun $ \x -> pure $
+>                     VFun $ \y ->
+>                       do forceValue =<< x
+>                          y
+>
 >   , "error"      ~> VPoly $ \_a -> pure $
 >                     VNumPoly $ \_ -> pure $
 >                     VFun $ \s ->
@@ -1073,6 +1105,7 @@ Given a literal integer, construct a value of a type that can represent that lit
 >   where
 >    go TVInteger  = pure (VInteger i)
 >    go TVRational = pure (VRational (fromInteger i))
+>    go (TVFloat e p) = pure (VFloat (fpToBF e p (FP.bfFromInteger i)))
 >    go (TVIntMod n)
 >         | i < n = pure (VInteger i)
 >         | otherwise = evalPanic "literal"
@@ -1707,13 +1740,23 @@ and integers.
 These functions capture the interactions with rationals.
 
 
-This just captures a common pattern for binary floating point primitives.
+These just capture common patterns for unary, binary, and ternary floating
+point primitives.
 
+> fpUn :: (FP.BFOpts -> BigFloat -> (BigFloat,FP.Status)) ->
+>         FP.RoundMode -> Integer -> Integer ->
+>         BigFloat -> E BigFloat
+> fpUn f r e p x = pure (FP.fpCheckStatus (f (FP.fpOpts e p r) x))
+>
 > fpBin :: (FP.BFOpts -> BigFloat -> BigFloat -> (BigFloat,FP.Status)) ->
 >          FP.RoundMode -> Integer -> Integer ->
 >          BigFloat -> BigFloat -> E BigFloat
 > fpBin f r e p x y = pure (FP.fpCheckStatus (f (FP.fpOpts e p r) x y))
-
+>
+> fpTern :: (FP.BFOpts -> BigFloat -> BigFloat -> BigFloat -> (BigFloat,FP.Status)) ->
+>           FP.RoundMode -> Integer -> Integer ->
+>           BigFloat -> BigFloat -> BigFloat -> E BigFloat
+> fpTern f r e p x y z = pure (FP.fpCheckStatus (f (FP.fpOpts e p r) x y z))
 
 Computes the reciprocal of a floating point number via division.
 This assumes that 1 can be represented exactly, which should be
@@ -1752,16 +1795,55 @@ true for all supported precisions.
 >                           y <- fromVFloat <$> yv
 >                           pure (VBit (FP.bfCompare x y == EQ))
 >
->    , "fpIsFinite" ~> vFinPoly \_ -> pure $
->                      vFinPoly \_ -> pure $
+>    , "fpIsNaN"     ~> vFinPoly \_ -> pure $
+>                       vFinPoly \_ -> pure $
+>                       VFun \xv ->
+>                         do x <- fromVFloat <$> xv
+>                            pure (VBit (FP.bfIsNaN x))
+>
+>    , "fpIsInf"     ~> vFinPoly \_ -> pure $
+>                       vFinPoly \_ -> pure $
+>                       VFun \xv ->
+>                         do x <- fromVFloat <$> xv
+>                            pure (VBit (FP.bfIsInf x))
+>
+>    , "fpIsZero"    ~> vFinPoly \_ -> pure $
+>                       vFinPoly \_ -> pure $
+>                       VFun \xv ->
+>                         do x <- fromVFloat <$> xv
+>                            pure (VBit (FP.bfIsZero x))
+>
+>    , "fpIsNeg"     ~> vFinPoly \_ -> pure $
+>                       vFinPoly \_ -> pure $
+>                       VFun \xv ->
+>                         do x <- fromVFloat <$> xv
+>                            pure (VBit (FP.bfIsNeg x))
+>
+>    , "fpIsNormal"  ~> vFinPoly \e -> pure $
+>                       vFinPoly \p -> pure $
+>                       VFun \xv ->
+>                         do x <- fromVFloat <$> xv
+>                            let opts = FP.fpOpts e p fpImplicitRound
+>                            pure (VBit (FP.bfIsNormal opts x))
+>
+>    , "fpIsSubnormal" ~> vFinPoly \e -> pure $
+>                         vFinPoly \p -> pure $
+>                         VFun \xv ->
+>                           do x <- fromVFloat <$> xv
+>                              let opts = FP.fpOpts e p fpImplicitRound
+>                              pure (VBit (FP.bfIsSubnormal opts x))
+>
+>    , "fpAdd"      ~> fpBinArith FP.bfAdd
+>    , "fpSub"      ~> fpBinArith FP.bfSub
+>    , "fpMul"      ~> fpBinArith FP.bfMul
+>    , "fpDiv"      ~> fpBinArith FP.bfDiv
+>    , "fpFMA"      ~> fpTernArith FP.bfFMA
+>    , "fpAbs"      ~> vFinPoly \e -> pure $
+>                      vFinPoly \p -> pure $
 >                      VFun \xv ->
 >                        do x <- fromVFloat <$> xv
->                           pure (VBit (FP.bfIsFinite x))
->
->    , "fpAdd"      ~> fpArith FP.bfAdd
->    , "fpSub"      ~> fpArith FP.bfSub
->    , "fpMul"      ~> fpArith FP.bfMul
->    , "fpDiv"      ~> fpArith FP.bfDiv
+>                           pure (VFloat (fpToBF e p (FP.bfAbs x)))
+>    , "fpSqrt"     ~> fpUnArith FP.bfSqrt
 >
 >    , "fpToRational" ~>
 >       vFinPoly \_ -> pure $
@@ -1780,16 +1862,38 @@ true for all supported precisions.
 >           pure (VFloat (FP.floatFromRational e p rm' rat))
 >    ]
 >   where
->   fpArith f = vFinPoly \e -> pure $
->               vFinPoly \p -> pure $
->               VFun \vr -> pure $
->               VFun \xv -> pure $
->               VFun \yv ->
->                 do r <- fromVWord =<< vr
->                    rnd <- eitherToE (FP.fpRound r)
->                    x <- fromVFloat <$> xv
->                    y <- fromVFloat <$> yv
->                    VFloat . fpToBF e p <$> fpBin f rnd e p x y
+>   fpUnArith f = vFinPoly \e -> pure $
+>                 vFinPoly \p -> pure $
+>                 VFun \vr -> pure $
+>                 VFun \xv ->
+>                   do r <- fromVWord =<< vr
+>                      rnd <- eitherToE (FP.fpRound r)
+>                      x <- fromVFloat <$> xv
+>                      VFloat . fpToBF e p <$> fpUn f rnd e p x
+>
+>   fpBinArith f = vFinPoly \e -> pure $
+>                  vFinPoly \p -> pure $
+>                  VFun \vr -> pure $
+>                  VFun \xv -> pure $
+>                  VFun \yv ->
+>                    do r <- fromVWord =<< vr
+>                       rnd <- eitherToE (FP.fpRound r)
+>                       x <- fromVFloat <$> xv
+>                       y <- fromVFloat <$> yv
+>                       VFloat . fpToBF e p <$> fpBin f rnd e p x y
+>
+>   fpTernArith f = vFinPoly \e -> pure $
+>                   vFinPoly \p -> pure $
+>                   VFun \vr -> pure $
+>                   VFun \xv -> pure $
+>                   VFun \yv -> pure $
+>                   VFun \zv ->
+>                     do r <- fromVWord =<< vr
+>                        rnd <- eitherToE (FP.fpRound r)
+>                        x <- fromVFloat <$> xv
+>                        y <- fromVFloat <$> yv
+>                        z <- fromVFloat <$> zv
+>                        VFloat . fpToBF e p <$> fpTern f rnd e p x y z
 
 
 Error Handling

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Files &mdash; Cryptol 3.2.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=86f27845" />
+
+  
+  
+        <script src="_static/jquery.js?v=8dae8fb0"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=4f6ddb47"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Foreign Function Interface" href="FFI.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="RefMan.html" class="icon icon-home">
+            Cryptol
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Cryptol Reference Manual</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="BasicSyntax.html">Basic Syntax</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Expressions.html">Expressions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="BasicTypes.html">Basic Types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="OverloadedOperations.html">Overloaded Operations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="TypeDeclarations.html">Type Declarations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="Modules.html">Modules</a></li>
+<li class="toctree-l1"><a class="reference internal" href="FFI.html">Foreign Function Interface</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Project Files</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#cryproject-toml-format"><code class="docutils literal notranslate"><span class="pre">cryproject.toml</span></code> Format</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#loadcache-toml-format"><code class="docutils literal notranslate"><span class="pre">loadcache.toml</span></code> Format</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="RefMan.html">Cryptol</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="RefMan.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Project Files</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/Project.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="project-files">
+<h1>Project Files<a class="headerlink" href="#project-files" title="Link to this heading"></a></h1>
+<p>Cryptol supports specifying a <em>project</em> file that can accelerate the
+repeated loading and testing of a large, interconnected set of source
+files. Cryptol will remember the hashes of the files previously checked
+and use this to avoid type-checking and testing files that are unchanged
+since the previous loading of the project.</p>
+<p>To use this feature a <code class="docutils literal notranslate"><span class="pre">cryproject.toml</span></code> should be created in the root
+directory of the cryptol source files that lists all of the top-level
+modules of the project. The dependencies of these modules will implicitly
+be added to the project.</p>
+<p>To check a whole project, Cryptol can be invoked with the <code class="docutils literal notranslate"><span class="pre">--project</span></code>
+or <code class="docutils literal notranslate"><span class="pre">-p</span></code> flag using the directory containing the project as an
+argument. This will type-check all of the modules in the project and
+check the docstrings for all modules in the project.</p>
+<p>All errors are reported to stdout. When all modules load and all tests
+pass cryptol’s exit code will be <code class="docutils literal notranslate"><span class="pre">0</span></code>. When the project does not load
+successfully the exit code is <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p>
+<p>For each module, which is processed, we report a line like this:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>Successes:<span class="w"> </span>X,<span class="w"> </span>No<span class="w"> </span>fences:<span class="w"> </span>Y,<span class="w"> </span>Failures:<span class="w"> </span>Z
+</pre></div>
+</div>
+<dl class="simple">
+<dt>where:</dt><dd><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">X</span></code> is the nubmer of docstring tests which completed successfully,</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Y</span></code> is the number of declarations that have no docstring tests, and</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Z</span></code> is the number of dcostring tests which resulted in an error.</p></li>
+</ul>
+</dd>
+</dl>
+<p>Note that these are only reported for modules that are actually checked
+(i.e., either they were not checked before, or something changed).</p>
+<p>After all modules are processed we also report a summay of the form:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>Passing:<span class="w"> </span>X,<span class="w"> </span>Failing:<span class="w"> </span>Y,<span class="w"> </span>Missing:<span class="w"> </span>Z
+</pre></div>
+</div>
+<dl class="simple">
+<dt>where:</dt><dd><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">X</span></code> is the number of modules that have no failing tests,</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Y</span></code> is the number of modules with at least one failing test, and</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Z</span></code> is the number of modules for which we did not run tests.</p></li>
+</ul>
+</dd>
+</dl>
+<p>At present we do not run tests for built-in modules (e.g., <code class="docutils literal notranslate"><span class="pre">Cryptol</span></code> or
+<code class="docutils literal notranslate"><span class="pre">Float</span></code>), so almost always there will be at least 1 “missing” module.</p>
+<p>After loading a project the cache information is saved into a Cryptol-
+managed file in the project root directory <code class="docutils literal notranslate"><span class="pre">.cryproject/loadcache.toml</span></code>.</p>
+<p>Example:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>cryptol<span class="w"> </span>-p<span class="w"> </span>myproject/
+</pre></div>
+</div>
+<p>To discard the previous cached results and reload a whole project use
+<code class="docutils literal notranslate"><span class="pre">--refresh-project</span></code>. This can be useful when versions of external
+tools have changed or simply to get confidence that everything is still
+in a working state.</p>
+<p>Example:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>cryptol<span class="w"> </span>-p<span class="w"> </span>myproject/<span class="w"> </span>--refresh-project
+</pre></div>
+</div>
+<section id="cryproject-toml-format">
+<h2><code class="docutils literal notranslate"><span class="pre">cryproject.toml</span></code> Format<a class="headerlink" href="#cryproject-toml-format" title="Link to this heading"></a></h2>
+<p>Project files are described by a <a class="reference external" href="https://toml.io/en/">TOML</a> file
+using the following top-level key-value assignments:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">root</span></code> - <em>optional</em> - <em>string</em> - can optionally be specified to override the directory that
+Cryptol files are located in. Otherwise modules are loaded relative
+to the directory containing the <code class="docutils literal notranslate"><span class="pre">cryproject.toml</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">modules</span></code> - <em>required</em> - <em>list of strings</em> -  is a list of filenames patterns matching the
+top-level modules in a project. These modules, and all of their dependencies, will be loaded
+when the project is loaded. These patterns will match using the common <code class="docutils literal notranslate"><span class="pre">*</span></code>, <code class="docutils literal notranslate"><span class="pre">?</span></code>, and
+character class matching of <code class="docutils literal notranslate"><span class="pre">fnmatch</span></code> extended with <code class="docutils literal notranslate"><span class="pre">**</span></code> matching for multiple directories
+as found in the Git format for <code class="docutils literal notranslate"><span class="pre">.gitignore</span></code></p></li>
+</ul>
+<p>Example directory structure:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>project
+├── Id.c
+├── Id.cry
+├── Id.dylib
+├── Main.cry
+└── cryproject.toml
+</pre></div>
+</div>
+<p>Example <code class="docutils literal notranslate"><span class="pre">cryproject.toml</span></code>:</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="n">modules</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">&quot;Id.cry&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;Main.cry&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+</div>
+</section>
+<section id="loadcache-toml-format">
+<h2><code class="docutils literal notranslate"><span class="pre">loadcache.toml</span></code> Format<a class="headerlink" href="#loadcache-toml-format" title="Link to this heading"></a></h2>
+<p>After loading a project a cache file is generated and stored in
+<code class="docutils literal notranslate"><span class="pre">.cryproject/loadcache.toml</span></code>. This file contains a version number to
+allow caches to automatically invalidate when the project subsystem
+updates. Modules that fail to load at all are not listed in the cache
+file and will be reprocessed on subsequent project loads even if unchanged.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">version</span></code> - <em>integer</em> - specifies the cache file format version in order to allow
+old caches to be invalidated when Cryptol changes the meaning of this
+file.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">file</span></code> - <em>string</em> - specifies the absolute path to a Cryptol module for those
+stored in files.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">memory</span></code> - <em>string</em> - specifies the module name of a primitive module built into
+Cryptol.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fingerprint</span></code> - <em>string</em> - specifies a SHA2-256 hash of the source file which is
+used to detect when the source file has changed from the previous run.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">foreign_fingerprints</span></code> - <em>list of string</em> - is a list of SHA2-256 hashes of dynamic
+libraries that this Cryptol file directly loads.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">include_fingerprints</span></code> - <em>list of string</em> - is a list of SHA2-256 hashes of pre-processor
+included files that this Cryptol files directly includes.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">docstring_result</span></code> - <em>boolean</em> - is <code class="docutils literal notranslate"><span class="pre">true</span></code> when <code class="docutils literal notranslate"><span class="pre">:check-docstrings</span></code>
+previously succeeded for this module and <code class="docutils literal notranslate"><span class="pre">false</span></code> when it previously
+failed. It will be missing if tests were never run on this module.</p></li>
+</ul>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span>
+
+<span class="k">[[modules]]</span>
+<span class="n">fingerprint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;2f671b21f2933a006b6a843c7f281388e6b8227f9944b111f87711dc9ca8448f&quot;</span>
+<span class="n">foreign_fingerprints</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+<span class="n">include_fingerprints</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+<span class="n">memory</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Cryptol&quot;</span>
+
+<span class="k">[[modules]]</span>
+<span class="n">docstring_result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+<span class="n">file</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/path/to/project/Id.cry&quot;</span>
+<span class="n">fingerprint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;a9e6f7a4b65ead6bd8e27442717d6b0dc54afc73e34b18c32f005ceb7a8f3c34&quot;</span>
+<span class="n">foreign_fingerprints</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="s2">&quot;c7767a13281a56631c72b9b6f69a17746dc02213e7f2b24a8a4a6fe7afd9ee0a&quot;</span><span class="w"> </span><span class="p">]</span>
+<span class="n">include_fingerprints</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+
+<span class="k">[[modules]]</span>
+<span class="n">docstring_result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+<span class="n">file</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/path/to/project/Main.cry&quot;</span>
+<span class="n">fingerprint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;6b36f965ebb1a68cf76d689a966806ec879540aa6576a76c1aaa7705a4af09d5&quot;</span>
+<span class="n">foreign_fingerprints</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+<span class="n">include_fingerprints</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="FFI.html" class="btn btn-neutral float-left" title="Foreign Function Interface" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024: The Cryptol Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book">Doc version</span>
+    v: 
+    <span class="fa fa-caret-down"></span>
+    <div class="rst-other-versions">
+      <dl>
+        <dt>Versions</dt>
+        
+      </dl>
+      <dl>
+        <dt>Pull Requests</dt>
+        
+      </dl>
+    </div>
+  </span>
+</div><script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

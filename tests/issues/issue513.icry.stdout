@@ -18,7 +18,6 @@ Main::test =
                                                     | y <- Main::$mono]
 
 
-
 Main::test
 test : {a} [1 + a]
 Main::test 8

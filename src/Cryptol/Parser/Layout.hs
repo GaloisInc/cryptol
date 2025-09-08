@@ -67,9 +67,11 @@ layout isMod ts0
         rng       = srcRange t
         blockCol  = max 1 (col (from rng)) -- see startImplicitBlock
         implictMod = case map (tokenType . thing) ts0 of
-                       KW KW_module : _                   -> False
+                       KW KW_module : _ -> False
                        KW KW_interface : KW KW_module : _ -> False
-                       _                                  -> True
+                       White DocStr : KW KW_module : _ -> False
+                       White DocStr : KW KW_interface : KW KW_module : _ -> False
+                       _ -> True
   , isMod && implictMod =
     virt rng VCurlyL : go [ Virtual blockCol ] blockCol True ts0
 
@@ -91,7 +93,7 @@ layout isMod ts0
        noVirtSep:
           Do not emit a virtual separator even if token matches block alignment.
           This is enabled at the beginning of a block, or after a doc string,
-          or if we just emitted a separtor, but have not yet consumed the
+          or if we just emitted a separator, but have not yet consumed the
           next token.
 
        tokens:

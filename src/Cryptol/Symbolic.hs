@@ -56,7 +56,6 @@ import qualified LibBF as FP
 
 import           Cryptol.Backend
 import           Cryptol.Backend.FloatHelpers(bfValue)
-import           Cryptol.Backend.SeqMap (finiteSeqMap)
 import           Cryptol.Backend.WordValue (wordVal)
 
 import qualified Cryptol.Eval.Concrete as Concrete
@@ -268,9 +267,11 @@ varShapeToValue sym var =
     VarBit b     -> VBit b
     VarInteger i -> VInteger i
     VarRational n d -> VRational (SRational n d)
-    VarWord w    -> VWord (wordLen sym w) (wordVal w)
+    VarWord w    -> VWord (wordVal w)
     VarFloat f   -> VFloat f
-    VarFinSeq n vs -> VSeq n (finiteSeqMap sym (map (pure . varShapeToValue sym) vs))
+    VarFinSeq n vs -> case toFinSeq (map (varShapeToValue sym) vs) of
+      Just vs' -> finSeq sym n vs'
+      Nothing -> panic "varShapeToValue" ["Unexpected VarBit in VarFinSeq"]
     VarTuple vs  -> VTuple (map (pure . varShapeToValue sym) vs)
     VarRecord fs -> VRecord (fmap (pure . varShapeToValue sym) fs)
     VarEnum tag cons ->

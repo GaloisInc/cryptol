@@ -25,6 +25,11 @@ import Cryptol.TypeCheck.FFI.Error
 import Cryptol.ModuleSystem.Name(Name)
 import Cryptol.Utils.RecordMap
 
+-- | Clean up error messages by:
+---  * only reporting one error (most severe) for any given source location
+--   * sorting errors by source location (they are accumulated in
+--     reverse order by 'recordError')
+--   * dropping any errors that are subsumed by another
 cleanupErrors :: [(Range,Error)] -> [(Range,Error)]
 cleanupErrors = dropErrorsFromSameLoc
               . sortBy (compare `on` (cmpR . fst))    -- order errors
@@ -56,6 +61,17 @@ cleanupErrors = dropErrorsFromSameLoc
          in dropSubsumed (err : filter keep survived) (filter keep rest)
       [] -> survived
 
+-- | Clean up warning messages by sorting them by source location
+--   (they are accumulated in reverse order by 'recordWarning').
+cleanupWarnings :: [(Range,Warning)] -> [(Range,Warning)]
+cleanupWarnings = 
+  sortBy (compare `on` (cmpR . fst))    -- order warnings
+  where
+    cmpR r  = ( source r    -- First by file
+              , from r      -- Then starting position
+              , to r        -- Finally end position
+              )
+
 -- | Should the first error suppress the next one.
 subsumes :: (Range,Error) -> (Range,Error) -> Bool
 subsumes (_,NotForAll _ _ x _) (_,NotForAll _ _ y _) = x == y
@@ -65,6 +81,8 @@ subsumes (r1,KindMismatch {}) (r2,err) =
   case err of
     KindMismatch {} -> r1 == r2
     _               -> True
+subsumes (_, TooManyParams nm1 _ _ _) (_, TypeMismatch (DefinitionOf nm2) _ _ _) =
+  nm1 == nm2
 subsumes _ _ = False
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
@@ -92,6 +110,12 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
 
               | RecursiveTypeDecls [Name]
                 -- ^ The type synonym declarations are recursive
+
+              | TooManyParams Name Type Int Int
+                -- ^ Name of bind, bind signature, number of patterns given,
+                --   expected number of parameters from signature.
+                --   More patterns provided for a bind than expected,
+                --   given its signature.
 
               | TypeMismatch TypeSource Path Type Type
                 -- ^ Expected type, inferred type
@@ -220,6 +244,7 @@ errorImportance err =
 
     KindMismatch {}                                  -> 10
     TyVarWithParams {}                               -> 9
+    TooManyParams{}                                  -> 9
     TypeMismatch {}                                  -> 8
     EnumTypeMismatch {}                              -> 7
     SchemaMismatch {}                                -> 7
@@ -296,6 +321,7 @@ instance TVars Error where
       RecursiveTypeDecls {}     -> err
       SchemaMismatch i t1 t2  ->
         SchemaMismatch i !$ (apSubst su t1) !$ (apSubst su t2)
+      TooManyParams b t i j     -> TooManyParams b !$ (apSubst su t) .$ i .$ j
       TypeMismatch src pa t1 t2 -> TypeMismatch src pa !$ (apSubst su t1) !$ (apSubst su t2)
       EnumTypeMismatch t        -> EnumTypeMismatch !$ apSubst su t
       InvalidConPat {}          -> err
@@ -348,6 +374,7 @@ instance FVS Error where
       TooFewTyParams {}         -> Set.empty
       RecursiveTypeDecls {}     -> Set.empty
       SchemaMismatch _ t1 t2    -> fvs (t1,t2)
+      TooManyParams _ t _ _     -> fvs t
       TypeMismatch _ _ t1 t2    -> fvs (t1,t2)
       EnumTypeMismatch t        -> fvs t
       InvalidConPat {}          -> Set.empty
@@ -470,6 +497,14 @@ instance PP (WithNames Error) where
         addTVarsDescsAfter names err $
         nested "Recursive type declarations:"
                (commaSep $ map nm ts)
+      
+      TooManyParams n t i j ->
+        addTVarsDescsAfter names err $
+        nested "Type signature mismatch." $
+          vcat $
+            [ "Expected number of parameters:" <+> int j
+            , "Actual number of parameters:" <+> int i
+            , "When defining" <+> quotes ((pp n <> ":") <+> ppWithNames names t) ]
 
       TypeMismatch src pa t1 t2 ->
         addTVarsDescsAfter names err $
@@ -816,9 +851,10 @@ explainUnsolvable names gs =
 
 
 -- | This picks the names to use when showing errors and warnings.
-computeFreeVarNames :: [(Range,Warning)] -> [(Range,Error)] -> NameMap
-computeFreeVarNames warns errs =
+computeFreeVarNames :: PPCfg -> [(Range,Warning)] -> [(Range,Error)] -> NameMap
+computeFreeVarNames cfg warns errs =
   mkMap numRoots numVaras `IntMap.union` mkMap otherRoots otherVars
+    `IntMap.union` mpNames
 
   {- XXX: Currently we pick the names based on the unique of the variable:
      smaller uniques get an earlier name (e.g., 100 might get `a` and 200 `b`)
@@ -828,23 +864,19 @@ computeFreeVarNames warns errs =
      so for now we just go with the simple approximation. -}
 
   where
-  mkName x v = (tvUnique x, v)
+  mkName x v = (tvUnique x, text v)
   mkMap roots vs = IntMap.fromList (zipWith mkName vs (variants roots))
 
-  (numVaras,otherVars) = partition ((== KNum) . kindOf)
-                       $ Set.toList
-                       $ Set.filter isFreeTV
-                       $ fvs (map snd warns, map snd errs)
+  (uvars,non_uvars) = partition isFreeTV
+                    $ Set.toList
+                    $ fvs (map snd warns, map snd errs)
+        
+  mpNames = computeModParamNames cfg [ tp | TVBound tp <- non_uvars ] mempty
+        
+  (numVaras,otherVars) = partition ((== KNum) . kindOf) uvars
 
   otherRoots = [ "a", "b", "c", "d" ]
   numRoots   = [ "m", "n", "u", "v" ]
 
-  useUnicode = True
+  variants roots = [ nameVariant n r | n <- [ 0 .. ], r <- roots ]
 
-  suff n
-    | n < 10 && useUnicode = [toEnum (0x2080 + n)]
-    | otherwise = show n
-
-  variant n x = if n == 0 then x else x ++ suff n
-
-  variants roots = [ variant n r | n <- [ 0 .. ], r <- roots ]

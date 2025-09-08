@@ -13,7 +13,6 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric       #-}
 {-# LANGUAGE OverloadedStrings                   #-}
-{-# LANGUAGE NamedFieldPuns                      #-}
 {-# LANGUAGE ViewPatterns                        #-}
 module Cryptol.TypeCheck.AST
   ( module Cryptol.TypeCheck.AST
@@ -28,13 +27,12 @@ module Cryptol.TypeCheck.AST
   , Fixity(..)
   , PrimMap(..)
   , module Cryptol.TypeCheck.Type
+  , FFI(..)
   ) where
-
-import Data.Maybe(mapMaybe)
 
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
-import Cryptol.Parser.Position(Located,Range,HasLoc(..))
+import Cryptol.Parser.Position(Located, HasLoc(..), Range)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv.Types
 import Cryptol.ModuleSystem.Interface
@@ -55,11 +53,12 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 
-import           Data.Set    (Set)
+import qualified Data.IntMap as IntMap
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
-import qualified Data.IntMap as IntMap
-import           Data.Text (Text)
+import           Data.Maybe  (catMaybes, mapMaybe, isJust)
+import           Data.Set    (Set)
+import           Data.Text   (Text)
 
 
 data TCTopEntity =
@@ -84,7 +83,7 @@ tcTopEntityToModule ent =
 -- | A Cryptol module.
 data ModuleG mname =
               Module { mName             :: !mname
-                     , mDoc              :: !(Maybe Text)
+                     , mDoc              :: ![Text]
                      , mExports          :: ExportSpec Name
 
                      -- Functors:
@@ -109,7 +108,7 @@ data ModuleG mname =
                      , mTySyns           :: Map Name TySyn
                      , mNominalTypes     :: Map Name NominalType
                      , mDecls            :: [DeclGroup]
-                     , mSubmodules       :: Map Name (IfaceNames Name)
+                     , mSubmodules       :: Map Name Submodule
                      , mSignatures       :: !(Map Name ModParamNames)
 
                      , mInScope          :: NamingEnv
@@ -117,11 +116,16 @@ data ModuleG mname =
                        --   Submodule in-scope information is in 'mSubmodules'.
                      } deriving (Show, Generic, NFData)
 
+data Submodule = Submodule
+  { smIface :: IfaceNames Name
+  , smInScope :: NamingEnv
+  } deriving (Show, Generic, NFData)
+
 emptyModule :: mname -> ModuleG mname
 emptyModule nm =
   Module
     { mName             = nm
-    , mDoc              = Nothing
+    , mDoc              = mempty
     , mExports          = mempty
 
     , mParams           = mempty
@@ -142,12 +146,12 @@ emptyModule nm =
     }
 
 -- | Find all the foreign declarations in the module and return their names and FFIFunTypes.
-findForeignDecls :: ModuleG mname -> [(Name, FFIFunType)]
+findForeignDecls :: ModuleG mname -> [(Name, FFI)]
 findForeignDecls = mapMaybe getForeign . concatMap groupDecls . mDecls
   where getForeign d =
           case dDefinition d of
-            DForeign ffiType _ -> Just (dName d, ffiType)
-            _                  -> Nothing
+            DForeign ffi _ -> Just (dName d, ffi)
+            _              -> Nothing
 
 -- | Find all the foreign declarations that are in functors, including in the
 -- top-level module itself if it is a functor.
@@ -222,6 +226,8 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
 
             | EWhere Expr [DeclGroup]
 
+            {- | Use 'ePropGuards' when constructing to get automatic
+                 simplification of trivial constraints -}
             | EPropGuards [([Prop], Expr)] Type
 
               deriving (Show, Generic, NFData)
@@ -259,10 +265,13 @@ data Decl       = Decl { dName        :: !Name
 data DeclDef    = DPrim
                 -- | Foreign functions can have an optional cryptol
                 -- implementation
-                | DForeign FFIFunType (Maybe Expr)
+                | DForeign FFI (Maybe Expr)
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
 
+data FFI = CallC (FFIFunType FFIType)
+         | CallAbstract (FFIFunType Type)
+           deriving (Show,Generic,NFData)
 
 --------------------------------------------------------------------------------
 
@@ -283,6 +292,20 @@ eChar :: PrimMap -> Char -> Expr
 eChar prims c = ETApp (ETApp (ePrim prims (prelPrim "number")) (tNum v)) (tWord (tNum w))
   where v = fromEnum c
         w = 8 :: Int
+
+-- | Construct a prop guard expression simplifying trivial cases.
+ePropGuards :: [([Prop], Expr)] -> Type -> Expr
+ePropGuards guards ty =
+  case check True guards of
+    Left body     -> body
+    Right guards' -> EPropGuards guards' ty
+  where
+    check _ [] = Right []
+    check trivial ((p, e):xs)
+      | trivial, all (null . pSplitAnd) p = Left e
+      | otherwise = ((p,e):) <$> check trivial' xs
+      where
+        trivial' = trivial && any (isJust . tIsError) p
 
 instance PP TCTopEntity where
   ppPrec _ te =
@@ -363,7 +386,7 @@ instance PP (WithNames Expr) where
                          , hang "where" 2 (vcat (map ppW ds))
                          ]
 
-      EPropGuards guards _ -> 
+      EPropGuards guards _ ->
         parens (text "propguards" <+> vsep (ppGuard <$> guards))
         where ppGuard (props, e) = indent 1
                                  $ pipe <+> commaSep (ppW <$> props)
@@ -380,21 +403,24 @@ instance PP CaseAlt where
 ppLam :: NameMap -> Int -> [TParam] -> [Prop] -> [(Name,Type)] -> Expr -> Doc
 ppLam nm prec [] [] [] e = nest 2 (ppWithNamesPrec nm prec e)
 ppLam nm prec ts ps xs e =
+  withPPCfg $ \cfg ->
+  let
+    ns1 = addTNames cfg ts nm
+
+    tsD = if null ts then [] else [braces $ commaSep $ map ppT ts]
+    psD = if null ps then [] else [parens $ commaSep $ map ppP ps]
+    xsD = if null xs then [] else [sep    $ map ppArg xs]
+  
+    ppT = ppWithNames ns1
+    ppP = ppWithNames ns1
+    ppArg (x,t) = parens (pp x <+> text ":" <+> ppWithNames ns1 t)
+  in
   optParens (prec > 0) $
   nest 2 $ sep
     [ text "\\" <.> hsep (tsD ++ psD ++ xsD ++ [text "->"])
     , ppWithNames ns1 e
     ]
-  where
-  ns1 = addTNames ts nm
 
-  tsD = if null ts then [] else [braces $ commaSep $ map ppT ts]
-  psD = if null ps then [] else [parens $ commaSep $ map ppP ps]
-  xsD = if null xs then [] else [sep    $ map ppArg xs]
-
-  ppT = ppWithNames ns1
-  ppP = ppWithNames ns1
-  ppArg (x,t) = parens (pp x <+> text ":" <+> ppWithNames ns1 t)
 
 
 splitWhile :: (a -> Maybe (b,a)) -> a -> ([b],a)
@@ -490,10 +516,14 @@ instance PP (WithNames Decl) where
 
 instance PP (WithNames DeclDef) where
   ppPrec _ (WithNames DPrim _) = text "<primitive>"
-  ppPrec _ (WithNames (DForeign _ me) nm) =
+  ppPrec _ (WithNames (DForeign mo me) nm) =
+    let lab = "foreign" <+> case mo of
+                              CallC {} -> "c"
+                              CallAbstract {} -> "abstract"
+    in
     case me of
-      Just e -> text "(foreign)" <+> ppWithNames nm e
-      Nothing -> text "<foreign>"
+      Just e -> parens lab <+> ppWithNames nm e
+      Nothing -> hsep ["<",lab,">"]
   ppPrec _ (WithNames (DExpr e) nm) = ppWithNames nm e
 
 instance PP Decl where
@@ -504,17 +534,29 @@ instance PP n => PP (ModuleG n) where
 
 instance PP n => PP (WithNames (ModuleG n)) where
   ppPrec _ (WithNames Module { .. } nm) =
-    vcat [ text "module" <+> pp mName
+    withPPCfg $ \cfg ->
+      let
+        mps = map mtpParam (Map.elems mParamTypes)
+        pp' :: PP (WithNames a) => a -> Doc
+        pp' = ppWithNames (addTNames cfg mps nm)
+        ppSig (x,y) = "interface module" <+> pp x <+> "where"
+                      $$ indent 2 (pp y)
+        vcat' xs = if null xs then Nothing else Just (vcat xs)
+      in
+    vcat $
+    catMaybes
+         [ Just (text "module" <+> pp mName)
+         , Just ""
          -- XXX: Print exports?
-         , vcat (map pp' (Map.elems mTySyns))
+         , vcat' (map pp' (Map.elems mTySyns))
          -- XXX: Print abstarct types/functions
-         , vcat (map pp' mDecls)
+         , vcat' (map pp' mDecls)
 
-         , vcat (map pp (Map.elems mFunctors))
+         , vcat' (map pp (Map.elems mFunctors))
+
+         , vcat' (map ppSig (Map.toList mSignatures))
          ]
-    where mps = map mtpParam (Map.elems mParamTypes)
-          pp' :: PP (WithNames a) => a -> Doc
-          pp' = ppWithNames (addTNames mps nm)
+
 
 instance PP (WithNames TCTopEntity) where
   ppPrec _ (WithNames ent nm) =

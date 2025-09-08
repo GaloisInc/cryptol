@@ -16,7 +16,7 @@ Loading module Main
   Failed to validate user-specified signature.
     in the definition of 'Main::last', at issue058.cry:7:1--7:5,
     we need to show that
-      for any type n, a
+      for any type n
       assuming
         • n >= 1
       the following constraints hold:

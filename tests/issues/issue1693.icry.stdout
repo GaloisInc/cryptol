@@ -1,0 +1,12 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at issue1693.cry:1:5--1:21:
+  Incorrect type form.
+    Expected: a constraint
+    Inferred: a numeric type
+[error] at issue1693.cry:4:5--4:12:
+  Incorrect type form.
+    Expected: a constraint
+    Inferred: a numeric type

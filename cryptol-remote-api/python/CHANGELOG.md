@@ -1,5 +1,30 @@
 # Revision history for `cryptol` Python package
 
+## next -- TBA
+
+Nothing yet.
+
+## 3.3.0 -- 2025-03-21
+
+* Add `modules` command to return the modules, submodules and associated
+  documentation for them.
+
+* Add `focus module` command to set the current module for evaluation
+  and running tests.
+
+* Add `check docstrings` to run the docstring tests on the currently
+  focused module.
+
+## 3.2.1 -- 2024-08-18
+
+* Require building with `argo-client-0.0.13` or later. `argo-client-0.0.13` uses
+  blocking IO, which should reduce CPU load when receiving replies.
+
+## 3.2.0 -- 2024-08-20
+
+* The v3.2.0 release is made in tandem with the Cryptol 3.2.0 release. See the
+  Cryptol 3.2.0 release notes for relevant Cryptol changes.
+
 ## 3.1.1 -- 2024-05-15
 
 * Add support for Python 3.12.

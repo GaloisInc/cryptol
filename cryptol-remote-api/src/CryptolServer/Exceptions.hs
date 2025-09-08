@@ -11,6 +11,8 @@ module CryptolServer.Exceptions
   , cryptolParseErr
   , cryptolError
   , moduleNotLoaded
+  , configLoadError
+  , noModule
   ) where
 
 import qualified Data.Aeson as JSON
@@ -34,6 +36,7 @@ import qualified Cryptol.TypeCheck.Type as TC
 import Argo
 import CryptolServer.AesonCompat
 import CryptolServer.Data.Type
+import qualified Cryptol.Project.Config as Proj
 
 cryptolError :: ModuleError -> [ModuleWarning] -> JSONRPCException
 cryptolError modErr warns =
@@ -49,24 +52,27 @@ cryptolError modErr warns =
     (errorNum, errorData) = moduleError modErr
 
     moduleError err = case err of
-      ModuleNotFound src path ->
-        (20500, [ ("source", jsonPretty src)
+      ModuleNotFound isrc src path ->
+        (20500, [ ("import", jsonPretty isrc)
+                , ("source", jsonPretty src)
                 , ("path", jsonList (map jsonString path))
                 ])
       CantFindFile path ->
         (20050, [ ("path", jsonString path)
                 ])
-      BadUtf8 path ue ->
+      BadUtf8 path fp ue ->
         (20010, [ ("path", jsonShow path)
                 , ("error", jsonShow ue)
+                , ("fingerprint", jsonShow fp)
                 ])
       OtherIOError path exn ->
         (20060, [ ("path", jsonString path)
                 , ("error", jsonShow exn)
                 ])
-      ModuleParseError source message ->
+      ModuleParseError source fp message ->
         (20540, [ ("source", jsonShow source)
                 , ("error", jsonShow message)
+                , ("fingerprint", jsonShow fp)
                 ])
       RecursiveModules mods ->
         (20550, [ ("modules", jsonList (reverse (map jsonPretty mods)))
@@ -107,6 +113,10 @@ cryptolError modErr warns =
       FFILoadErrors x errs ->
         (20660, [ ("module", jsonPretty x)
                 , ("errors", jsonList (map jsonPretty errs))
+                ])
+      ConfigLoadError (Proj.ConfigLoadError path info) ->
+        (20670, [ ("path", jsonShow path)
+                , ("error", jsonShow info)
                 ])
       OtherFailure x ->
         (29999, [ ("error", jsonString x)
@@ -215,4 +225,16 @@ moduleNotLoaded m =
   makeJSONRPCException
     20100 "Module not loaded"
     (Just (JSON.object ["error" .= show (pretty m)]))
+
+configLoadError :: Proj.ConfigLoadError -> JSONRPCException
+configLoadError e =
+  makeJSONRPCException
+    20670 "Project config load error"
+    (Just (JSON.object ["error" .= show (pretty e)]))
+
+noModule :: JSONRPCException
+noModule =
+  makeJSONRPCException
+    20110 "No module"
+    (Nothing :: Maybe JSON.Value)
 

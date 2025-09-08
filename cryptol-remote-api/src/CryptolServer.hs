@@ -98,6 +98,7 @@ liftModuleCmd cmd =
        reader <- CryptolCommand $ const Argo.getFileReader
        let minp = ModuleInput
                   { minpCallStacks = callStacks
+                  , minpSaveRenamed = False
                   , minpEvalOpts   = pure evOpts
                   , minpByteReader = reader
                   , minpModuleEnv  = view moduleEnv s
@@ -195,6 +196,6 @@ validateServerState =
         InMem{} -> continue
         InFile file ->
           do fp <- fingerprintFile file
-             if fp == Just (fiFingerprint (lmFileInfo lm))
+             if fp == Right (fiFingerprint (lmFileInfo lm))
                then continue
                else return False

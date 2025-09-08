@@ -25,7 +25,7 @@ import Cryptol.TypeCheck.Type (Kind(..), PC(..), TC(..), TCon(..),
           NominalType(..), NominalTypeDef(..)
           )
 import Cryptol.Utils.Ident (mkIdent)
-import Cryptol.Utils.PP (pp)
+import Cryptol.Utils.PP (pp, defaultPPCfg)
 import Cryptol.Utils.RecordMap (canonicalFields)
 
 import qualified Argo.Doc as Doc
@@ -37,13 +37,14 @@ newtype JSONSchema = JSONSchema Schema
 newtype JSONPType = JSONPType { unJSONPType :: C.Type C.PName }
 
 data JSONType = JSONType NameMap Type
-  deriving (Eq, Show)
+  deriving (Show)
 
 newtype JSONKind = JSONKind Kind
 
 instance JSON.ToJSON JSONSchema where
   toJSON (JSONSchema (Forall vars props ty)) =
-    let ns = addTNames vars emptyNameMap
+    let cfg = defaultPPCfg
+        ns = addTNames cfg vars emptyNameMap
     in JSON.object [ "forall" .=
                       [JSON.object
                         [ "name" .= show (ppWithNames ns v)
@@ -251,18 +252,18 @@ instance JSON.FromJSON JSONPType where
       asType "record" = \o -> C.TRecord <$> ((o .: "fields") >>= getFields)
         where
           getFields obj = recordFromFields <$> traverse (\(k, v) -> (mkIdent (keyToText k),) . (emptyRange,) <$> getType v) (toListKM obj)
-      asType "variable" = \o -> C.TUser <$> (name <$> o .: "name") <*> (map unJSONPType <$> (o .:? "arguments" .!= []))
+      asType "variable" = \o -> tUser <$> (name <$> o .: "name") <*> (map unJSONPType <$> (o .:? "arguments" .!= []))
       asType "number" = \o -> C.TNum <$> (o .: "value")
-      asType "inf" = const $ pure $ C.TUser (name "inf") []
+      asType "inf" = const $ pure $ tUser (name "inf") []
       asType "Bit" = const $ pure $ C.TBit
-      asType "Integer" = const $ pure $ C.TUser (name "Integer") []
-      asType "Z" = \o -> typeField o "modulus" <&> \m -> C.TUser (name "Z") [m]
+      asType "Integer" = const $ pure $ tUser (name "Integer") []
+      asType "Z" = \o -> typeField o "modulus" <&> \m -> tUser (name "Z") [m]
       asType "bitvector" = \o -> typeField o "width" <&> \w -> C.TSeq w C.TBit
       asType "sequence" = binTC C.TSeq "length" "contents"
       asType "function" = binTC C.TFun "domain" "range"
       asType "unit" = const $ pure $ C.TTuple []
       asType "tuple" = \o -> C.TTuple <$> typeListField o "contents"
-      asType "Rational" = const $ pure $ C.TUser (name "Rational") []
+      asType "Rational" = const $ pure $ tUser (name "Rational") []
       asType "+" = tyFun "+"
       asType "-" = tyFun "-"
       asType "*" = tyFun "*"
@@ -295,16 +296,18 @@ instance JSON.FromJSON JSONPType where
       asProp "Literal" = binPropF "Literal" "size" "subject"
       asProp "Zero" = unaryPropF "Zero" "subject"
       asProp "Logic" = unaryPropF "Logic" "subject"
-      asProp "True" = const $ pure $ C.TUser (name "True") []
+      asProp "True" = const $ pure $ tUser (name "True") []
       asProp "And" = binPropF "And" "left" "right"
       asProp other = const $ fail $ "Didn't understand proposition " ++ show other
 
-      binProp prop a b = C.TUser (name prop) [a, b]
+      binProp prop a b = tUser (name prop) [a, b]
       binPropF prop f1 f2 o = binProp prop <$> typeField o f1 <*> typeField o f2
-      unaryProp prop a = C.TUser (name prop) [a]
+      unaryProp prop a = tUser (name prop) [a]
       unaryPropF prop f o = unaryProp prop <$> typeField o f
       binTC tc f1 f2 o = tc <$> typeField o f1 <*> typeField o f2
-      tyFun tf o = C.TUser (name tf) <$> typeListField o "arguments"
+      tyFun tf o = tUser (name tf) <$> typeListField o "arguments"
+
+      tUser nm = C.TUser (C.Located emptyRange nm)
 
 instance Doc.Described JSONSchema where
   typeName = "JSON Cryptol Types"

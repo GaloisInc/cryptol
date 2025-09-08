@@ -1,0 +1,53 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T10
+Checking module T10
+  Docstrings on T10
+    :check
+      property p Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+      property M::q Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+      property T10::M::r Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+      property F1::s Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+      property T10::F1::t Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+  Docstrings on T10::where_at__30_11::N
+  Docstrings on T10::F1::N
+  Docstrings on T10::M::q
+    :exhaust q // implicit
+      Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+  Docstrings on T10::M::r
+    :exhaust r // implicit
+      Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+  Docstrings on T10::F1::s
+    :exhaust s // implicit
+      Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+  Docstrings on T10::F1::t
+    :exhaust t // implicit
+      Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+  Docstrings on T10::p
+    :exhaust p // implicit
+      Using exhaustive testing.
+      Testing... Passed 1 tests.
+      Q.E.D.
+  Docstrings on submodule T10::M
+  Docstrings on submodule T10::where_at__30_11
+  Docstrings on submodule T10::F1
+  Docstrings on submodule T10::F__parameter
+Successes: 6, No fences: 6, Failures: 0

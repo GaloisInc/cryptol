@@ -2,12 +2,17 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Issue639_M
 Loading module Issue639_C
-property Issue639_M::p Using exhaustive testing.
+There are no properties in scope.
+There are no properties in scope.
+There are no properties in scope.
+Loading module Cryptol
+Loading module Issue639_M
+property p Using exhaustive testing.
 Testing... Counterexample
-Issue639_M::p False = False
-:prove Issue639_M::p
+p False = False
+:prove p
 	Counterexample
-Issue639_M::p False = False
-:sat Issue639_M::p
+p False = False
+:sat p
 	Satisfiable
-Issue639_M::p True = True
+p True = True

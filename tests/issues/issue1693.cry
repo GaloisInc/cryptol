@@ -1,0 +1,4 @@
+f : {n} [n] -> [n+1]
+f x
+  | (fin n) => x # [False]
+  | (inf n) => x

@@ -1,0 +1,3 @@
+module Y = B where
+type a = 0
+type y = 3

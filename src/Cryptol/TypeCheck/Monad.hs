@@ -51,11 +51,11 @@ import           Cryptol.TypeCheck.Unify(doMGU, runResult, UnificationError(..)
                                         , Path, rootPath)
 import           Cryptol.TypeCheck.InferTypes
 import           Cryptol.TypeCheck.Error( Warning(..),Error(..)
-                                        , cleanupErrors, computeFreeVarNames
+                                        , cleanupErrors, computeFreeVarNames, cleanupWarnings
                                         )
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import           Cryptol.TypeCheck.PP(NameMap)
+import           Cryptol.TypeCheck.PP(NameMap, defaultPPCfg)
 import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets,debugShowUniques)
 import           Cryptol.Utils.Ident(Ident,Namespace(..),ModName)
 import           Cryptol.Utils.Panic(panic)
@@ -184,10 +184,20 @@ runInferM info m0 =
               errs -> inferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
-  inferOk ws a b c  = pure (InferOK (computeFreeVarNames ws []) ws a b c)
+  ppcfg = defaultPPCfg
+  -- XXX: perhaps this should be a part of the input?
+  -- We use it when picking how to display names; we need to pick names
+  -- for things that don't have their own, and we need to pick names that
+  -- don't clash with existing ones.   This is affected by how things are
+  -- pretty printed.
+
+  inferOk ws a b c  = 
+    let ws1 = cleanupWarnings ws
+    in pure (InferOK (computeFreeVarNames ppcfg ws1 []) ws1 a b c)
   inferFailed ws es =
     let es1 = cleanupErrors es
-    in pure (InferFailed (computeFreeVarNames ws es1) ws es1)
+        ws1 = cleanupWarnings ws
+    in pure (InferFailed (computeFreeVarNames ppcfg ws1 es1) ws1 es1)
 
 
   rw = RW { iErrors     = []
@@ -420,7 +430,9 @@ recordError = recordErrorLoc Nothing
 -- | Report an error.
 recordErrorLoc :: Maybe Range -> Error -> InferM ()
 recordErrorLoc rng e =
-  do r <- case rng of
+  do r' <- curRange
+     r <- case rng of
+            Just r | rangeWithin r' r -> pure r'
             Just r  -> pure r
             Nothing -> case e of
                          AmbiguousSize d _ -> return (tvarSource d)
@@ -573,7 +585,7 @@ solveHasGoal n e =
 newLocalName :: Namespace -> Ident -> InferM Name
 newLocalName ns x =
   do r <- curRange
-     liftSupply (mkLocal ns x r)
+     liftSupply (mkLocal SystemName ns x r)
 
 newName :: (NameSeeds -> (a , NameSeeds)) -> InferM a
 newName upd = IM $ sets $ \s -> let (x,seeds) = upd (iNameSeeds s)
@@ -852,7 +864,7 @@ lookupModule iname =
       do localMods <- getScope mSubmodules
          case Map.lookup m localMods of
            Just names ->
-              do n <- genIfaceWithNames names <$> getCurDecls
+              do n <- genIfaceWithNames (smIface names) <$> getCurDecls
                  pure (If.ifaceForgetName n)
 
            Nothing ->
@@ -998,16 +1010,16 @@ newTopSignatureScope x = newScope (TopSignatureScope x)
 to initialize an empty module.  As we type check declarations they are
 added to this module's scope. -}
 newSubmoduleScope ::
-  Name -> Maybe Text -> ExportSpec Name -> NamingEnv -> InferM ()
+  Name -> [Text] -> ExportSpec Name -> NamingEnv -> InferM ()
 newSubmoduleScope x docs e inScope =
   do updScope \o -> o { mNested = Set.insert x (mNested o) }
      newScope (SubModule x)
      updScope \m -> m { mDoc = docs, mExports = e, mInScope = inScope }
 
-newModuleScope :: P.ModName -> ExportSpec Name -> NamingEnv -> InferM ()
-newModuleScope x e inScope =
+newModuleScope :: [Text] -> P.ModName -> ExportSpec Name -> NamingEnv -> InferM ()
+newModuleScope docs x e inScope =
   do newScope (MTopModule x)
-     updScope \m -> m { mDoc = Nothing, mExports = e, mInScope = inScope }
+     updScope \m -> m { mDoc = docs, mExports = e, mInScope = inScope }
 
 -- | Update the current scope (first in the list). Assumes there is one.
 updScope :: (ModuleG ScopeName -> ModuleG ScopeName) -> InferM ()
@@ -1057,7 +1069,10 @@ endSubmodule =
                  , mSignatures  = add mSignatures
                  , mSubmodules  = if isFun
                                     then mSubmodules y
-                                    else Map.insert m (genIfaceNames x1)
+                                    else let sm = Submodule
+                                                    { smIface = genIfaceNames x1
+                                                    , smInScope = mInScope x }
+                                         in Map.insert m sm
                                                (mSubmodules x <> mSubmodules y)
                  , mFunctors    = if isFun
                                     then Map.insert m x1 (mFunctors y)
@@ -1132,7 +1147,7 @@ getCurDecls =
   mergeDecls m1 m2 =
     Module
       { mName             = ()
-      , mDoc              = Nothing
+      , mDoc              = mempty
       , mExports          = mempty
       , mParams           = mempty
       , mParamTypes       = mempty
@@ -1183,7 +1198,7 @@ addSignatures :: Map Name ModParamNames -> InferM ()
 addSignatures mp =
   updScope \r -> r { mSignatures = Map.union mp (mSignatures r) }
 
-addSubmodules :: Map Name (If.IfaceNames Name) -> InferM ()
+addSubmodules :: Map Name Submodule -> InferM ()
 addSubmodules mp =
   updScope \r -> r { mSubmodules = Map.union mp (mSubmodules r) }
 
@@ -1191,7 +1206,9 @@ addFunctors :: Map Name (ModuleG Name) -> InferM ()
 addFunctors mp =
   updScope \r -> r { mFunctors = Map.union mp (mFunctors r) }
 
-
+setNested :: Set Name -> InferM ()
+setNested names =
+  updScope \r -> r { mNested = names }
 
 
 -- | The sub-computation is performed with the given abstract function in scope.

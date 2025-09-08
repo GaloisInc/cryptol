@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading interface module `parameter` interface of T1
+Loading interface module T1__parameter
 Loading module T1
 
 Expression depends on definitions from a parameterized module:

@@ -1,0 +1,5 @@
+// A regression test for #1874. This ensures that we can change tcSolver to a
+// non-Z3 solver (e.g., CVC5) and still handle the basics of Cryptol's
+// typechecking.
+:set tcSolver = cvc5 --lang smt2 --incremental
+let f (x : [8]) = x # [True]

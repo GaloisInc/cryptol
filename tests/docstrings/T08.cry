@@ -1,0 +1,16 @@
+/** A functor that works for all 8-bit numbers
+
+```
+"F"
+```
+*/
+submodule F where
+  parameter n: [8]
+
+/** An instance of F where n is 2
+
+```
+"M"
+```
+*/
+submodule M = submodule F where n = 2

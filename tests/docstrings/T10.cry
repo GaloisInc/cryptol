@@ -1,0 +1,30 @@
+/**
+```
+:check
+```
+*/
+module T10 where
+
+p : Bit
+property p = True
+
+submodule M where
+  q : Bit
+  property q = True
+
+  private
+    r : Bit
+    property r = True
+
+submodule F where
+  parameter
+    type N : #
+
+  s : Bit
+  property s = True
+
+  private
+    t : Bit
+    property t = True
+
+submodule F1 = submodule F where type N = 1

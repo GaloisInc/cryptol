@@ -9,7 +9,7 @@
 -- Module      :  Cryptol.Parser.PropGuards
 -- Copyright   :  (c) 2022 Galois, Inc.
 -- License     :  BSD3
--- Maintainer  :  cryptol@galois.com
+-- Mintiner  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 --
@@ -18,7 +18,9 @@
 -- function.
 module Cryptol.Parser.ExpandPropGuards where
 
+import Data.Maybe(fromMaybe)
 import Control.DeepSeq
+import Cryptol.Parser.Position(emptyRange)
 import Cryptol.Parser.AST
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
@@ -103,7 +105,7 @@ expandBind :: Bind PName -> ExpandPropGuardsM [Bind PName]
 expandBind bind =
   case thing (bDef bind) of
     DImpl (DPropGuards guards) -> expand (DImpl . DPropGuards) guards
-    DForeign (Just (DPropGuards guards)) -> expand (DForeign . Just . DPropGuards) guards
+    DForeign cc (Just (DPropGuards guards)) -> expand (DForeign cc . Just . DPropGuards) guards
     _ ->
       do checkNestedGuardsInBind bind
          pure [bind]
@@ -112,7 +114,7 @@ expandBind bind =
   expand def guards = do
     Forall params props t rng <-
       case bSignature bind of
-        Just schema -> pure schema
+        Just schema -> pure (thing schema)
         Nothing -> Left . NoSignature $ bName bind
     let goGuard ::
           PropGuardCase PName ->
@@ -121,21 +123,25 @@ expandBind bind =
           checkNestedGuardsInExpr e
           bName' <- newName (bName bind) (thing <$> props')
           -- call to generated function
-          tParams <- case bSignature bind of
+          tParams <- case thing <$> bSignature bind of
             Just (Forall tps _ _ _) -> pure tps
             Nothing -> Left $ NoSignature (bName bind)
           typeInsts <-
-            (\(TParam n _ _) -> Right . PosInst $ TUser n [])
+            (\tp ->
+               let loc = fromMaybe emptyRange (tpRange tp) in
+               Right (PosInst (TUser (Located loc (tpName tp)) [])))
               `traverse` tParams
-          let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bParams bind)
+          let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bindParams bind)
           pure
             ( PropGuardCase props' e',
               bind
                 { bName = bName',
                   -- include guarded props in signature
-                  bSignature = Just (Forall params
+                  bSignature = Just Located 
+                                  { srcRange = maybe (srcRange (bName bind)) srcRange (bSignature bind),
+                                    thing = Forall params
                                         (props <> map thing props')
-                                        t rng),
+                                        t rng },
                   -- keeps same location at original bind
                   -- i.e. "on top of" original bind
                   bDef = (bDef bind) {thing = exprDef e}
@@ -250,7 +256,7 @@ checkNestedGuardsInBind bind =
   case thing (bDef bind) of
     DPrim         -> pure ()
     DImpl bi      -> checkNestedGuardsInBindImpl bi
-    DForeign mbBi -> traverse_ checkNestedGuardsInBindImpl mbBi
+    DForeign _ mbBi -> traverse_ checkNestedGuardsInBindImpl mbBi
   where
     nestedConstraintGuards :: ExpandPropGuardsM ()
     nestedConstraintGuards = Left . NestedConstraintGuard $ bName bind

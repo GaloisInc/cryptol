@@ -278,7 +278,13 @@ class CryptolSafeRaw(CryptolProveSatRaw):
 class CryptolSafe(CryptolProveSat):
     def __init__(self, connection : HasProtocolState, expr : Any, solver : Solver, timeout: Optional[float]) -> None:
         super(CryptolSafe, self).__init__(connection, SmtQueryType.SAFE, expr, solver, 1, timeout=timeout)
+ 
+class CryptolModules(argo.Command):
+    def __init__(self, connection : HasProtocolState, timeout: Optional[float]) -> None:
+        super(CryptolModules, self).__init__('visible modules', {}, connection, timeout=timeout)
 
+    def process_result(self, res : Any) -> Any:
+        return res
 
 class CryptolNames(argo.Command):
     def __init__(self, connection : HasProtocolState, timeout: Optional[float]) -> None:
@@ -310,6 +316,18 @@ class CryptolFocusedModule(argo.Command):
     def process_result(self, res : Any) -> Any:
         return res
 
+
+class CryptolFocusModule(argo.Command):
+    def __init__(self, connection : HasProtocolState, name: str, timeout: Optional[float]) -> None:
+        super(CryptolFocusModule, self).__init__(
+            'focus module',
+            {'module name': name},
+            connection,
+            timeout=timeout
+        )
+
+    def process_result(self, res : Any) -> Any:
+        return res
 
 class CryptolVersion(argo.Command):
     def __init__(self, connection : HasProtocolState, timeout: Optional[float]) -> None:
@@ -347,3 +365,27 @@ class CryptolInterrupt(argo.Notification):
             {},
             connection
         )
+
+class CryptolCheckDocstrings(argo.Command):
+    def __init__(self, connection : HasProtocolState, cache_id: str, timeout: Optional[float]) -> None:
+        super(CryptolCheckDocstrings, self).__init__(
+            'check docstrings',
+            {"cache_id": cache_id},
+            connection,
+            timeout=timeout
+        )
+
+    def process_result(self, res : Any) -> Any:
+        return res
+
+class CryptolLoadProject(argo.Command):
+    def __init__(self, connection : HasProtocolState, path: str, mode: str, timeout: Optional[float]) -> None:
+        super(CryptolLoadProject, self).__init__(
+            'load project',
+            {"path": path, "mode": mode},
+            connection,
+            timeout=timeout
+        )
+
+    def process_result(self, res : Any) -> Any:
+        return res

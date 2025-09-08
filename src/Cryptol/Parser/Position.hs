@@ -10,11 +10,30 @@
 
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RecordWildCards #-}
-module Cryptol.Parser.Position where
+module Cryptol.Parser.Position (
+  -- * Position
+  Position,
+  line, col, colOffset,
+  start,
+  startOfLine, beforeStartOfLine,
+  move, moves, advanceColBy,
+  replPosition,
+
+  -- * Range
+  Range(..),
+  emptyRange,
+  rComb, rCombs, rCombMaybe,
+  rangeWithin,
+
+  -- * Located
+  Located(..),
+  HasLoc(..), AddLoc(..),
+  at,
+  combLoc
+
+) where
 
 import           Data.Text(Text)
 import qualified Data.Text as T
@@ -28,9 +47,38 @@ data Located a  = Located { srcRange :: !Range, thing :: !a }
                   deriving (Eq, Ord, Show, Generic, NFData
                            , Functor, Foldable, Traversable )
 
+data Position = Position {
+  pLine :: !Int,
+  -- ^ 1 based
 
-data Position   = Position { line :: !Int, col :: !Int }
-                  deriving (Eq, Ord, Show, Generic, NFData)
+  pCol :: !Int,
+  -- ^ 1 based. Interpreting tabs.
+  -- This is used for layout processing and pretty printing.
+
+  pColOffset :: !Int
+  -- ^ 0 based. UTF-32 offset in the line.
+  -- Note that this does not interpret tabs.
+  -- It is used for comparisons.
+} deriving (Show, Generic, NFData)
+
+line :: Position -> Int
+line = pLine
+
+col :: Position -> Int
+col = pCol
+
+colOffset :: Position -> Int
+colOffset = pColOffset
+
+instance Eq Position where
+  x == y = line x == line y && colOffset x == colOffset y
+
+instance Ord Position where
+  compare x y =
+    case compare (line x) (line y) of
+      LT -> LT
+      EQ -> compare (colOffset x) (colOffset y)
+      GT -> GT
 
 data Range      = Range { from   :: !Position
                         , to     :: !Position
@@ -49,17 +97,29 @@ a `rangeWithin` b =
 emptyRange :: Range
 emptyRange  = Range { from = start, to = start, source = "" }
 
+replPosition :: (Int,Int) -> Position
+replPosition (l,c) = Position { pLine = l, pCol = c, pColOffset = c }
+
 start :: Position
-start = Position { line = 1, col = 1 }
+start = Position { pLine = 1, pCol = 1, pColOffset = 0 }
+
+startOfLine :: Int -> Position
+startOfLine n = start { pLine = n }
+
+beforeStartOfLine :: Int -> Position
+beforeStartOfLine n = Position { pLine = n, pCol = 0, pColOffset = -1 }
+
+advanceColBy :: Int -> Position -> Position
+advanceColBy n p = p { pCol = pCol p + n, pColOffset = pColOffset p + n }
 
 move :: Position -> Char -> Position
 move p c = case c of
-            '\t' -> p { col = ((col p + 7) `div` 8) * 8 + 1 }
-            '\n' -> p { col = 1, line = 1 + line p }
-            _    -> p { col = 1 + col p }
+            '\t' -> p { pCol = ((col p + 7) `div` 8) * 8 + 1, pColOffset = colOffset p + 1 }
+            '\n' -> p { pCol = 1, pLine = 1 + line p, pColOffset = 0 }
+            _    -> p { pCol = 1 + col p, pColOffset = colOffset p + 1 }
 
 moves :: Position -> Text -> Position
-moves p cs = T.foldl' move p cs
+moves = T.foldl' move
 
 rComb :: Range -> Range -> Range
 rComb r1 r2  = Range { from = rFrom, to = rTo, source = source r1 }
@@ -119,6 +179,10 @@ instance HasLoc a => HasLoc [a] where
     go (Just l) (x : xs) = case getLoc x of
                              Nothing -> go (Just l) xs
                              Just l1 -> go (Just (rComb l l1)) xs
+
+instance HasLoc a => HasLoc (Maybe a) where
+  getLoc Nothing = Nothing
+  getLoc (Just x) = getLoc x
 
 class HasLoc t => AddLoc t where
   addLoc  :: t -> Range -> t

@@ -58,7 +58,7 @@ instance RemovePatterns (NestedModule PName) where
     where (m1,errs) = removePatterns m
 
 simpleBind :: Located PName -> Expr PName -> Bind PName
-simpleBind x e = Bind { bName = x, bParams = []
+simpleBind x e = Bind { bName = x, bParams = noParams
                       , bDef = at e (Located emptyRange (exprDef e))
                       , bSignature = Nothing, bPragmas = []
                       , bMono = True, bInfix = False, bFixity = Nothing
@@ -68,7 +68,7 @@ simpleBind x e = Bind { bName = x, bParams = []
 
 sel :: Pattern PName -> PName -> Selector -> Bind PName
 sel p x s = let (a,ts) = splitSimpleP p
-            in simpleBind a (foldl ETyped (ESel (EVar x) s) ts)
+            in simpleBind a (at p (foldl ETyped (ESel (EVar x) s) ts))
 
 -- | Given a pattern, transform it into a simple pattern and a set of bindings.
 -- Simple patterns may only contain variables and type annotations.
@@ -238,16 +238,16 @@ noMatchB :: Bind PName -> NoPatM (Bind PName)
 noMatchB b =
   case thing (bDef b) of
 
-    DPrim | null (bParams b) -> return b
+    DPrim | null (bindParams b) -> return b
           | otherwise        -> panic "NoPat" [ "noMatchB: primitive with params"
                                               , show b ]
 
-    DForeign Nothing
-      | null (bParams b) -> return b
+    DForeign _ Nothing
+      | null (bindParams b) -> return b
       | otherwise        -> panic "NoPat" [ "noMatchB: foreign with params"
                                           , show b ]
 
-    DForeign (Just i) -> noMatchI (DForeign . Just) i
+    DForeign cc (Just i) -> noMatchI (DForeign cc . Just) i
 
     DImpl i -> noMatchI DImpl i
 
@@ -255,12 +255,12 @@ noMatchB b =
   noMatchI def i =
     do i' <- case i of
                DExpr e ->
-                 DExpr <$> noPatFun (Just (thing (bName b))) 0 (bParams b) e
+                 DExpr <$> noPatFun (Just (thing (bName b))) 0 (bindParams b) e
                DPropGuards guards ->
                  let nm = thing (bName b)
-                     ps = bParams b
+                     ps = bindParams b
                  in  DPropGuards <$> mapM (noPatPropGuardCase nm ps) guards
-       pure b { bParams = [], bDef = def i' <$ bDef b }
+       pure b { bParams = dropParams (bParams b), bDef = def i' <$ bDef b }
 
 noPatPropGuardCase ::
   PName ->
@@ -286,7 +286,7 @@ noMatchD decl =
                           e1 <- noPatE e
                           let e2 = foldl ETyped e1 ts
                           return $ DBind Bind { bName = x
-                                              , bParams = []
+                                              , bParams = noParams
                                               , bDef = at e (Located emptyRange (exprDef e2))
                                               , bSignature = Nothing
                                               , bPragmas = []
@@ -394,15 +394,15 @@ noPatModule m =
 
 -- | For each binding name, does there exist an empty foreign bind, a normal
 -- cryptol bind, or both.
-data AnnForeign = OnlyForeign | OnlyImpl | BothForeignImpl
+data AnnForeign = OnlyForeign ForeignMode | OnlyImpl | BothForeignImpl ForeignMode
 
 instance Semigroup AnnForeign where
-  OnlyForeign     <> OnlyImpl        = BothForeignImpl
-  OnlyImpl        <> OnlyForeign     = BothForeignImpl
-  _               <> BothForeignImpl = BothForeignImpl
-  BothForeignImpl <> _               = BothForeignImpl
-  OnlyForeign     <> OnlyForeign     = OnlyForeign
-  OnlyImpl        <> OnlyImpl        = OnlyImpl
+  OnlyForeign cc     <> OnlyImpl           = BothForeignImpl cc
+  OnlyImpl           <> OnlyForeign cc     = BothForeignImpl cc
+  _                  <> BothForeignImpl cc = BothForeignImpl cc
+  BothForeignImpl cc <> _                  = BothForeignImpl cc
+  OnlyForeign cc     <> OnlyForeign _      = OnlyForeign cc
+  OnlyImpl           <> OnlyImpl           = OnlyImpl
 
 data AnnotMap = AnnotMap
   { annPragmas  :: Map.Map PName [Located  Pragma       ]
@@ -499,9 +499,9 @@ annotB Bind { .. } =
      -- Compute the new def before updating the state, since we don't want to
      -- consume the annotations if we are throwing away an empty foreign def.
      def' <- case thisForeign of
-               Just BothForeignImpl
-                 | DForeign _ <- thing bDef -> raise ()
-                 | DImpl i    <- thing bDef -> pure (DForeign (Just i) <$ bDef)
+               Just (BothForeignImpl cc)
+                 | DForeign _ _ <- thing bDef -> raise ()
+                 | DImpl i    <- thing bDef -> pure (DForeign cc (Just i) <$ bDef)
                _ -> pure bDef
      s <- lift $ lift $ checkSigs name $ jn thisSigs
      f <- lift $ lift $ checkFixs name $ jn thisFixes
@@ -550,11 +550,11 @@ annotPrimType pt =
      pure pt { primTFixity = f }
 
 -- | Check for multiple signatures.
-checkSigs :: PName -> [Located (Schema PName)] -> NoPatM (Maybe (Schema PName))
+checkSigs :: PName -> [Located (Schema PName)] -> NoPatM (Maybe (Located (Schema PName)))
 checkSigs _ []             = return Nothing
-checkSigs _ [s]            = return (Just (thing s))
+checkSigs _ [s]            = return (Just s)
 checkSigs f xs@(s : _ : _) = do recordError $ MultipleSignatures f xs
-                                return (Just (thing s))
+                                return (Just s)
 
 checkFixs :: PName -> [Located Fixity] -> NoPatM (Maybe Fixity)
 checkFixs _ []       = return Nothing
@@ -611,7 +611,7 @@ toDocs TopLevel { .. }
 toForeigns :: Decl PName -> [(PName, AnnForeign)]
 toForeigns (DLocated d _) = toForeigns d
 toForeigns (DBind Bind {..})
-  | DForeign Nothing <- thing bDef = [ (thing bName, OnlyForeign) ]
+  | DForeign cc Nothing <- thing bDef = [ (thing bName, OnlyForeign cc) ]
   | DImpl _          <- thing bDef = [ (thing bName, OnlyImpl) ]
 toForeigns _ = []
 

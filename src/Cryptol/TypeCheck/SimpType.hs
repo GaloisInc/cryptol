@@ -59,13 +59,16 @@ tAdd x y
   | Just (n,x1) <- isSumK x = addK n (tAdd x1 y)
   | Just (n,y1) <- isSumK y = addK n (tAdd x y1)
   | Just v <- matchMaybe (do (a,b) <- (|-|) y
-                             guard (x == b)
-                             return a) = v
+                             ((guard (x == b) >> return a)
+                              -- added to handle this case: 2 ^^ (1 + h) - 1 == 2 ^^ h - 1 + 2 ^^ h
+                              <|> (same x a >>= \x2 -> return (tSub x2 b)))
+                              ) = v
   | Just v <- matchMaybe (do (a,b) <- (|-|) x
-                             guard (b == y)
-                             return a) = v
+                             ((guard (b == y) >> return a)
+                              <|> (same y a >>= \y2 -> return (tSub y2 b)))
+                             ) = v
 
-  | Just v <- matchMaybe (factor <|> same <|> swapVars) = v
+  | Just v <- matchMaybe (factor <|> same x y <|> swapVars) = v
 
   | otherwise           = tf2 TCAdd x y
   where
@@ -101,8 +104,8 @@ tAdd x y
               guard (a == a')
               return (tMul a (tAdd b1 b2))
 
-  same = do guard (x == y)
-            return (tMul (tNum (2 :: Int)) x)
+  same x1 y1 = do guard (x1 == y1)
+                  return (tMul (tNum (2 :: Int)) x1)
 
   swapVars = do a <- aTVar x
                 b <- aTVar y
@@ -113,6 +116,13 @@ tSub :: Type -> Type -> Type
 tSub x y
   | Just t <- tOp TCSub (op2 nSub) [x,y] = t
   | tIsInf y  = tError (tf2 TCSub x y)
+
+  | tIsInf x = x
+    {- This assumes that `y` is finite and not error.  The first should
+       follow from the typing on `tSub`, which asserts that the second argument
+       is finite and less than the first;  the second should have been handled
+       by the first equation above, see `tOp`. -}
+
   | Just 0 <- yNum = x
   | Just k <- yNum
   , TCon (TF TCAdd) [a,b] <- tNoUser x
@@ -125,6 +135,23 @@ tSub x y
                              (guard (a == y) >> return b)
                                 <|> (guard (b == y) >> return a))
                        = v
+
+    --    x^^(n+h) - x^^h 
+    -- ~> (x^^n * x^^h) - x^^h 
+    -- ~> ((x^^n - 1) * x^^h
+    -- allows subtraction cancelling to occur when
+    -- (2^^h + 2^^h) has been rewritten into 2^^(1+h)
+  | Just v <- matchMaybe $ 
+      do (x_base,x_exp) <- (|^|) x
+         (y_base,y_exp) <- (|^|) y
+         guard (x_base == y_base)
+         x_exp_sum <- anAdd x_exp
+         matchSwap x_exp_sum $ \(h,n) -> 
+           do guard (h == y_exp)
+              let x_to_n = tExp x_base n
+              let lhs = tSub x_to_n (tNum (1 :: Int))
+              return $ tMul lhs y
+       = v
 
   | Just v <- matchMaybe (do (a,b) <- (|-|) y
                              return (tSub (tAdd x b) a)) = v
@@ -142,7 +169,8 @@ tMul x y
   | Just n <- tIsNum x  = mulK n y
   | Just n <- tIsNum y  = mulK n x
   | Just v <- matchMaybe swapVars = v
-  | otherwise           = tf2 TCMul x y
+  | otherwise = checkExpMul x y
+
   where
   mulK 0 _ = tNum (0 :: Int)
   mulK 1 t = t
@@ -154,8 +182,11 @@ tMul x y
            , Just b' <- tIsNum b
            -- XXX: similar for a = b * k?
            , n == b' = tSub a (tMod a b)
-
-
+           -- c * c ^ x = c ^ (1 + x)
+           | TCon (TF TCExp) [a,b] <- t'
+           , Just n' <- tIsNum a
+           , n == n' = tf2 TCExp a (tAdd (tNum (1::Int)) b)
+           -- c^x * c^y = c ^ (y + x)
            | otherwise = tf2 TCMul (tNum n) t
     where t' = tNoUser t
 
@@ -163,6 +194,14 @@ tMul x y
                 b <- aTVar y
                 guard (b < a)
                 return (tf2 TCMul y x)
+
+  -- Check if (K^a * K^b) => K^(a + b) otherwise default to standard mul
+  checkExpMul s t | TCon (TF TCExp) [a,aExp] <- s
+                  , Just a' <- tIsNum a
+                  , TCon (TF TCExp) [b,bExp] <- t
+                  , Just b' <- tIsNum b
+                  , (a' >= 2 && a' == b') = tf2 TCExp a (tAdd aExp bExp)
+                  | otherwise = tf2 TCMul x y
 
 
 
@@ -203,7 +242,9 @@ tExp :: Type -> Type -> Type
 tExp x y
   | Just t <- tOp TCExp (total (op2 nExp)) [x,y] = t
   | Just 0 <- tIsNum y = tNum (1 :: Int)
-  | TCon (TF TCExp) [a,b] <- tNoUser y = tExp x (tMul a b)
+    -- If `x = (a ^^ b)`, then `(a ^^ b) ^^ y` simplifies to `a ^^ (b * y)`.
+    -- This even holds if `a == 0`, given that `0 ^^ 0 == 1` in Cryptol.
+  | TCon (TF TCExp) [a,b] <- tNoUser x = tExp a (tMul b y)
   | otherwise = tf2 TCExp x y
 
 
@@ -298,6 +339,10 @@ tWidth x
   , Just 1 <- tIsNum b
   , TCon (TF TCExp) [p,q] <- tNoUser a
   , Just 2 <- tIsNum p = q
+
+  -- width (2^n) = n + 1
+  | TCon (TF TCExp) [m,n] <- tNoUser x
+  , Just 2 <- tIsNum m = tf2 TCAdd n (tNum (1 :: Int))
 
   | otherwise = tf1 TCWidth x
 

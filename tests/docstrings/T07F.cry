@@ -1,0 +1,7 @@
+/**
+ * ```
+ * 42 : [N]
+ * ```
+ */
+module T07F where
+  parameter type N : #

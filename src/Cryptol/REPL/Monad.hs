@@ -24,6 +24,7 @@ module Cryptol.REPL.Monad (
   , raise
   , stop
   , catch
+  , try
   , finally
   , rPutStrLn
   , rPutStr
@@ -48,7 +49,7 @@ module Cryptol.REPL.Monad (
   , getTypeNames
   , getPropertyNames
   , getModNames
-  , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod
+  , LoadedModule(..), lName, getLoadedMod, setLoadedMod, clearLoadedMod
   , setEditPath, getEditPath, clearEditPath
   , setSearchPath, prependSearchPath
   , getPrompt
@@ -57,10 +58,12 @@ module Cryptol.REPL.Monad (
   , asBatch
   , validEvalContext
   , updateREPLTitle
+  , isolated
   , setUpdateREPLTitle
   , withRandomGen
   , setRandomGen
   , getRandomGen
+  , getModuleInput
 
     -- ** Config Options
   , EnvVal(..)
@@ -79,11 +82,16 @@ module Cryptol.REPL.Monad (
     -- ** Configurable Output
   , getPutStr
   , getLogger
+  , setLogger
   , setPutStr
 
     -- ** Smoke Test
   , smokeTest
   , Smoke(..)
+
+  , RW(..)
+  , defaultRW
+  , mkUserEnv
 
   ) where
 
@@ -120,6 +128,7 @@ import Control.Monad.Base
 import qualified Control.Monad.Catch as Ex
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
+import qualified Data.ByteString as BS
 import Data.Char (isSpace, toLower)
 import Data.IORef
     (IORef,newIORef,readIORef,atomicModifyIORef)
@@ -140,14 +149,18 @@ import qualified System.Random.TF as TF
 
 import Prelude ()
 import Prelude.Compat
+import Cryptol.ModuleSystem.Monad (ModuleInput(minpSaveRenamed))
 
 -- REPL Environment ------------------------------------------------------------
 
 -- | This indicates what the user would like to work on.
 data LoadedModule = LoadedModule
-  { lName :: Maybe P.ModName  -- ^ Working on this module.
-  , lPath :: M.ModulePath     -- ^ Working on this file.
+  { lFocus :: Maybe (P.ImpName T.Name) -- ^ Working on this module.
+  , lPath :: M.ModulePath -- ^ Working on this file.
   }
+
+lName :: LoadedModule -> Maybe P.ModName
+lName lm = M.impNameTopModule <$> lFocus lm
 
 -- | REPL RW Environment.
 data RW = RW
@@ -232,14 +245,15 @@ mkPrompt rw
   detailedPrompt = id False
 
   modLn   =
-    case lName =<< eLoadedMod rw of
+    case lFocus =<< eLoadedMod rw of
       Nothing -> show (pp I.preludeName)
       Just m
         | M.isLoadedParamMod m loaded -> modName ++ "(parameterized)"
         | M.isLoadedInterface m loaded -> modName ++ "(interface)"
         | otherwise -> modName
-        where modName = pretty m
-              loaded = M.meLoadedModules (eModuleEnv rw)
+        where
+          modName = pretty m
+          loaded = M.meLoadedModules (eModuleEnv rw)
 
   withFocus =
     case eLoadedMod rw of
@@ -392,6 +406,9 @@ raise exn = io (X.throwIO exn)
 catch :: REPL a -> (REPLException -> REPL a) -> REPL a
 catch m k = REPL (\ ref -> rethrowEvalError (unREPL m ref) `X.catch` \ e -> unREPL (k e) ref)
 
+try :: REPL a -> REPL (Either REPLException a)
+try m = REPL (X.try . rethrowEvalError . unREPL m)
+
 finally :: REPL a -> REPL b -> REPL a
 finally m1 m2 = REPL (\ref -> unREPL m1 ref `X.finally` unREPL m2 ref)
 
@@ -499,7 +516,7 @@ getEvalOptsAction = REPL $ \rwRef -> pure $
 clearLoadedMod :: REPL ()
 clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })
                     updateREPLTitle
-  where upd x = x { lName = Nothing }
+  where upd x = x { lFocus = Nothing }
 
 -- | Set the name of the currently focused file, loaded via @:r@.
 setLoadedMod :: LoadedModule -> REPL ()
@@ -560,6 +577,11 @@ asBatch body = do
   modifyRW_ $ (\ rw -> rw { eIsBatch = wasBatch })
   return a
 
+isolated :: REPL a -> REPL a
+isolated body = do
+  rw <- getRW
+  body `finally` modifyRW_ (const rw)
+
 -- | Is evaluation enabled? If the currently focused module is parameterized,
 -- then we cannot evaluate.
 validEvalContext :: T.FreeVars a => a -> REPL ()
@@ -592,6 +614,8 @@ getPutStr =
 getLogger :: REPL Logger
 getLogger = eLogger <$> getRW
 
+setLogger :: Logger -> REPL ()
+setLogger logger = modifyRW_ $ \rw -> rw { eLogger = logger }
 
 -- | Use the configured output action to print a string
 rPutStr :: String -> REPL ()
@@ -625,15 +649,29 @@ getTypeNames  =
      return (map (show . pp) (Map.keys (M.namespaceMap M.NSType fNames)))
 
 -- | Return a list of property names, sorted by position in the file.
-getPropertyNames :: REPL ([(M.Name,M.IfaceDecl)],NameDisp)
+-- Only properties defined in the current module are returned, including
+-- private properties in the current module. Imported properties are not
+-- returned.
+getPropertyNames :: REPL ([(M.Name, T.Decl)], NameDisp)
 getPropertyNames =
-  do fe <- getFocusedEnv
-     let xs = M.ifDecls (M.mctxDecls fe)
-         ps = sortBy (comparing (from . M.nameLoc . fst))
-              [ (x,d) | (x,d) <- Map.toList xs,
-                    T.PragmaProperty `elem` M.ifDeclPragmas d ]
+ do fe <- getFocusedEnv
+    let nd = M.mctxNameDisp fe
+    mblm <- fmap (lName =<<) getLoadedMod
+    case mblm of
+      Nothing -> pure ([], nd)
+      Just mn ->
+       do mb <- M.lookupModule mn <$> getModuleEnv
+          case mb of
+            Nothing -> pure ([], nd)
+            Just lm -> pure (ps, nd)
+              where
+                ps =
+                  sortBy (comparing (from . M.nameLoc . fst))
+                    [ (T.dName d,d)
+                    | d <- T.groupDecls =<< T.mDecls (M.lmdModule (M.lmData lm))
+                    , T.PragmaProperty `elem` T.dPragmas d
+                    ]
 
-     return (ps, M.mctxNameDisp fe)
 
 getModNames :: REPL [I.ModName]
 getModNames =
@@ -666,6 +704,21 @@ withRandomGen repl =
       (result, g') <- repl g
       setRandomGen g'
       pure result
+
+getModuleInput :: REPL (M.ModuleInput IO)
+getModuleInput = do
+  evo <- getEvalOptsAction
+  env <- getModuleEnv
+  callStacks <- getCallStacks
+  tcSolver <- getTCSolver
+  pure M.ModuleInput
+    { minpCallStacks = callStacks
+    , minpEvalOpts   = evo
+    , minpByteReader = BS.readFile
+    , minpModuleEnv  = env
+    , minpTCSolver   = tcSolver
+    , minpSaveRenamed = False
+    }
 
 -- | Given an existing qualified name, prefix it with a
 -- relatively-unique string. We make it unique by prefixing with a
@@ -738,12 +791,13 @@ mkUserEnv opts = Map.fromList $ do
   return (optName opt, optDefault opt)
 
 -- | Set a user option.
-setUser :: String -> String -> REPL ()
+-- Returns 'True' on success
+setUser :: String -> String -> REPL Bool
 setUser name val = case lookupTrieExact name userOptionsWithAliases of
 
   [opt] -> setUserOpt opt
-  []    -> rPutStrLn ("Unknown env value `" ++ name ++ "`")
-  _     -> rPutStrLn ("Ambiguous env value `" ++ name ++ "`")
+  []    -> False <$ rPutStrLn ("Unknown env value `" ++ name ++ "`")
+  _     -> False <$ rPutStrLn ("Ambiguous env value `" ++ name ++ "`")
 
   where
   setUserOpt opt = case optDefault opt of
@@ -752,25 +806,26 @@ setUser name val = case lookupTrieExact name userOptionsWithAliases of
     EnvProg _ _ ->
       case splitOptArgs val of
         prog:args -> doCheck (EnvProg prog args)
-        [] -> rPutStrLn ("Failed to parse command for field, `" ++ name ++ "`")
+        [] -> False <$ rPutStrLn ("Failed to parse command for field, `" ++ name ++ "`")
 
     EnvNum _ -> case reads val of
       [(x,_)] -> doCheck (EnvNum x)
-      _ -> rPutStrLn ("Failed to parse number for field, `" ++ name ++ "`")
+      _ -> False <$ rPutStrLn ("Failed to parse number for field, `" ++ name ++ "`")
 
     EnvBool _
       | any (`isPrefixOf` val) ["enable", "on", "yes", "true"] ->
-        writeEnv (EnvBool True)
+        True <$ writeEnv (EnvBool True)
       | any (`isPrefixOf` val) ["disable", "off", "no", "false"] ->
-        writeEnv (EnvBool False)
+        True <$ writeEnv (EnvBool False)
       | otherwise ->
-        rPutStrLn ("Failed to parse boolean for field, `" ++ name ++ "`")
+        False <$ rPutStrLn ("Failed to parse boolean for field, `" ++ name ++ "`")
     where
     doCheck v = do (r,ws) <- optCheck opt v
                    case r of
-                     Just err -> rPutStrLn err
+                     Just err -> False <$ rPutStrLn err
                      Nothing  -> do mapM_ rPutStrLn ws
                                     writeEnv v
+                                    pure True
     writeEnv ev =
       do optEff opt ev
          modifyRW_ (\rw -> rw { eUserEnv = Map.insert (optName opt) ev (eUserEnv rw) })
@@ -935,6 +990,17 @@ userOptions  = mkOptionMap
                           setModuleEnv me { M.meMonoBinds = b }
           _         -> return ()
 
+  , OptionDescr "tcSmtFile" ["tc-smt-file"] (EnvString "-") noCheck
+    (unlines
+      [ "The file to record SMT solver interactions in the type checker (for debugging or offline proving)."
+      , "Use \"-\" for stdout." ]) $
+    \case EnvString fileName -> do let mfile = if fileName == "-" then Nothing else Just fileName
+                                   modifyRW_ (\rw -> rw { eTCConfig = (eTCConfig rw)
+                                                                       { T.solverSmtFile = mfile
+                                                                       }})
+                                   resetTCSolver
+          _                  -> return ()
+
   , OptionDescr "tcSolver" ["tc-solver"] (EnvProg "z3" [ "-smt2", "-in" ])
     noCheck  -- TODO: check for the program in the path
     "The solver that will be used by the type checker." $
@@ -992,6 +1058,9 @@ userOptions  = mkOptionMap
   , simpleOpt "proverStats" ["prover-stats"] (EnvBool True) noCheck
     "Enable prover timing statistics."
 
+  , simpleOpt "proverTimeout" ["prover-timeout"] (EnvNum 0) checkTimeout
+    "Specify timeout in seconds for online prover processes."
+
   , simpleOpt "proverValidate" ["prover-validate"] (EnvBool False) noCheck
     "Validate :sat examples and :prove counter-examples for correctness."
 
@@ -1032,6 +1101,9 @@ userOptions  = mkOptionMap
 
   , simpleOpt "timeQuiet" ["time-quiet"] (EnvBool False) noCheck
     "Suppress output of :time command and only bind result to `it`."
+
+  , simpleOpt "sawFlags" ["saw-flags"] (EnvString "-v 0") noCheck
+    "Flags for all calls to SAW."
   ]
 
 
@@ -1060,6 +1132,14 @@ parseFieldOrder :: String -> Maybe FieldOrder
 parseFieldOrder "canonical" = Just CanonicalOrder
 parseFieldOrder "display" = Just DisplayOrder
 parseFieldOrder _ = Nothing
+
+checkTimeout :: Checker
+checkTimeout val =
+  case val of
+    EnvNum n
+      | n < 0 -> noWarns (Just "timeout should be non-negative")
+      | otherwise -> noWarns Nothing
+    _ -> noWarns (Just "Failed to parse `prover-timeout`")
 
 checkFieldOrder :: Checker
 checkFieldOrder val =

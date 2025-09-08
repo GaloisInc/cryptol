@@ -1,0 +1,21 @@
+module T03 where
+
+/**
+ * Only a subset of REPL commands work in docstrings
+ *
+ * ```repl
+ * :load AFile.cry
+ * ```
+ *
+ * Stuff not marked repl is processed
+ * ```
+ * garbage
+ * ```
+ *
+ * Stuff marked otherwise is ignored
+ * ```cryptol
+ * ignored = 1
+ * ```
+ */
+a : Bit
+a = True

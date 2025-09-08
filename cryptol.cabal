@@ -1,22 +1,24 @@
 Cabal-version:       2.4
 Name:                cryptol
-Version:             3.1.0.99
+Version:             3.3.0.99
 Synopsis:            Cryptol: The Language of Cryptography
 Description: Cryptol is a domain-specific language for specifying cryptographic algorithms. A Cryptol implementation of an algorithm resembles its mathematical specification more closely than an implementation in a general purpose language. For more, see <http://www.cryptol.net/>.
 License:             BSD-3-Clause
 License-file:        LICENSE
 Author:              Galois, Inc.
 Maintainer:          cryptol@galois.com
-Homepage:            http://www.cryptol.net/
+Homepage:            https://tools.galois.com/cryptol
 Bug-reports:         https://github.com/GaloisInc/cryptol/issues
-Copyright:           2013-2022 Galois Inc.
+Copyright:           2013-2025 Galois Inc.
 Category:            Language
 Build-type:          Simple
 extra-source-files:  bench/data/*.cry
-                     CHANGES.md
-                     lib/*.cry lib/*.z3
+                     lib/*.cry lib/*.smt2 lib/*.h
+                     cryptol.buildinfo.json
 
-data-files:          **/*.cry **/*.z3
+extra-doc-files:     CHANGES.md
+
+data-files:          **/*.cry **/*.smt2 **/*.h
 data-dir:            lib
 
 source-repository head
@@ -46,6 +48,7 @@ library
   Default-language:
     Haskell2010
   Build-depends:       base              >= 4.9 && < 5,
+                       aeson             >= 2.0 && < 2.3,
                        arithmoi          >= 0.12,
                        async             >= 2.2 && < 2.3,
                        base-compat       >= 0.6 && < 0.13,
@@ -54,7 +57,7 @@ library
                        array             >= 0.4,
                        containers        >= 0.5,
                        criterion-measurement,
-                       cryptohash-sha1   >= 0.11 && < 0.12,
+                       cryptohash-sha256 >= 0.11 && < 0.12,
                        deepseq           >= 1.3,
                        directory         >= 1.2.2.0,
                        exceptions,
@@ -63,6 +66,7 @@ library
                        gitrev            >= 1.0,
                        ghc-prim,
                        GraphSCC          >= 1.0.4,
+                       heredoc           >= 0.2,
                        language-c99,
                        language-c99-simple,
                        libBF             >= 0.6 && < 0.7,
@@ -73,19 +77,22 @@ library
                        pretty,
                        prettyprinter     >= 1.7.0,
                        pretty-show,
+                       primitive,
                        process           >= 1.2,
+                       rme-what4         ^>= 0.1,
                        sbv               >= 9.1 && < 10.11,
-                       simple-smt        >= 0.9.7,
+                       simple-smt        >= 0.9.8,
                        stm               >= 2.4,
                        strict,
                        text              >= 1.1,
                        tf-random         >= 0.5,
+                       toml-parser       >= 2.0 && <2.1,
                        transformers-base >= 0.4,
                        vector,
                        mtl               >= 2.2.1,
                        time              >= 1.6.0.1,
                        panic             >= 0.3,
-                       what4             >= 1.4 && < 1.7
+                       what4             >= 1.6 && < 1.8
 
   if impl(ghc >= 9.0)
     build-depends:     ghc-bignum        >= 1.0 && < 1.4
@@ -95,6 +102,7 @@ library
   if flag(ffi)
     build-depends:     hgmp,
                        libffi            >= 0.2
+    include-dirs:      lib
     if os(windows)
       build-depends:   Win32
     else
@@ -109,6 +117,7 @@ library
                        Cryptol.Parser.Token,
                        Cryptol.Parser.Layout,
                        Cryptol.Parser.AST,
+                       Cryptol.Parser.AST.Builder,
                        Cryptol.Parser.Position,
                        Cryptol.Parser.Names,
                        Cryptol.Parser.Name,
@@ -156,6 +165,7 @@ library
                        Cryptol.TypeCheck.TypePat,
                        Cryptol.TypeCheck.SimpType,
                        Cryptol.TypeCheck.AST,
+                       Cryptol.TypeCheck.Docstrings,
                        Cryptol.TypeCheck.Parseable,
                        Cryptol.TypeCheck.Monad,
                        Cryptol.TypeCheck.Infer,
@@ -201,8 +211,7 @@ library
                        Cryptol.Backend,
                        Cryptol.Backend.Arch,
                        Cryptol.Backend.Concrete,
-                       Cryptol.Backend.FFI,
-                       Cryptol.Backend.FFI.Error,
+
                        Cryptol.Backend.FloatHelpers,
                        Cryptol.Backend.Monad,
                        Cryptol.Backend.SeqMap,
@@ -214,6 +223,13 @@ library
                        Cryptol.Eval.Concrete,
                        Cryptol.Eval.Env,
                        Cryptol.Eval.FFI,
+                       Cryptol.Eval.FFI.ForeignSrc,
+                       Cryptol.Eval.FFI.Error,
+                       Cryptol.Eval.FFI.C,
+                       Cryptol.Eval.FFI.Abstract,
+                       Cryptol.Eval.FFI.Abstract.Call,
+                       Cryptol.Eval.FFI.Abstract.Export,
+                       Cryptol.Eval.FFI.Abstract.Import,
                        Cryptol.Eval.FFI.GenHeader,
                        Cryptol.Eval.Generic,
                        Cryptol.Eval.Prims,
@@ -238,8 +254,15 @@ library
                        Cryptol.REPL.Help,
                        Cryptol.REPL.Browse,
                        Cryptol.REPL.Monad,
-                       Cryptol.REPL.Trie
+                       Cryptol.REPL.Trie,
 
+                       Cryptol.Project
+                       Cryptol.Project.Config
+                       Cryptol.Project.Monad
+                       Cryptol.Project.Cache
+                       Cryptol.Project.WildMatch
+
+  Autogen-modules:     Paths_cryptol
   Other-modules:       Cryptol.Parser.LexerUtils,
                        Cryptol.Parser.ParserUtils,
                        Cryptol.Prelude,
@@ -254,20 +277,24 @@ library
   if flag(relocatable)
       cpp-options: -DRELOCATABLE
 
-executable cryptol
-  Default-language:
-    Haskell2010
-  Main-is:             Main.hs
-  hs-source-dirs:      cryptol
+-- The portions of the Cryptol REPL that are specific to the Cryptol executable.
+-- We factor this out into a separate internal library because (1) it has some
+-- dependencies (e.g., ansi-terminal and haskeline) that the Cryptol library
+-- does not need to depend on, and (2) we want to be able to test this code in
+-- the cryptol-api-tests test suite.
+library cryptol-repl-internal
+  exposed-modules:     REPL.Haskeline
+                       REPL.Logo
   Autogen-modules:     Paths_cryptol
-
-  Other-modules:       OptParser,
-                       REPL.Haskeline,
-                       REPL.Logo,
-                       Paths_cryptol
-
+  Other-modules:       Paths_cryptol
+  hs-source-dirs:      cryptol-repl-internal
+  default-language:    Haskell2010
+  GHC-options:         -Wall -O2
+  if os(linux) && flag(static)
+      ld-options: -static -pthread
+      ghc-options: -optl-fuse-ld=bfd
   build-depends:       ansi-terminal
-                     , base
+                     , base >= 4.9 && < 5
                      , base-compat
                      , containers
                      , cryptol
@@ -278,6 +305,19 @@ executable cryptol
                      , monad-control
                      , text
                      , transformers
+
+executable cryptol
+  Default-language:
+    Haskell2010
+  Main-is:             Main.hs
+  hs-source-dirs:      cryptol
+  Other-modules:       OptParser
+  build-depends:       base >= 4.9 && < 5
+                     , base-compat
+                     , cryptol
+                     , cryptol-repl-internal
+                     , directory
+                     , filepath
   GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m" -O2
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
@@ -291,7 +331,11 @@ executable cryptol-html
     Haskell2010
   main-is: CryHtml.hs
   hs-source-dirs: utils
-  build-depends: base, text, cryptol, blaze-html
+  build-depends:
+     base >= 4.9 && < 5,
+     text,
+     cryptol,
+     blaze-html
   GHC-options: -Wall
 
   if os(linux) && flag(static)
@@ -304,7 +348,7 @@ executable check-exercises
   Main-is:             CheckExercises.hs
   hs-source-dirs:      cryptol
   build-depends:       ansi-terminal
-                     , base
+                     , base >= 4.9 && < 5
                      , containers
                      , directory
                      , extra
@@ -315,6 +359,26 @@ executable check-exercises
                      , temporary
                      , text
   GHC-options: -Wall
+
+-- Test cases that require the use of the Cryptol API to test effectively. Most
+-- other test cases should be added to the integration tests (which only require
+-- the Cryptol executable and/or the REPL) under tests/.
+test-suite cryptol-api-tests
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  hs-source-dirs:      api-tests
+  default-language:    Haskell2010
+  GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m" -O2
+  if os(linux) && flag(static)
+      ld-options: -static -pthread
+      ghc-options: -optl-fuse-ld=bfd
+  build-depends:       base >= 4.9 && < 5
+                     , cryptol
+                     , cryptol-repl-internal
+                     , haskeline
+                     , tasty
+                     , tasty-hunit
+
 benchmark cryptol-bench
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
@@ -326,7 +390,7 @@ benchmark cryptol-bench
   if os(linux) && flag(static)
       ld-options: -static -pthread
       ghc-options: -optl-fuse-ld=bfd
-  build-depends:       base
+  build-depends:       base >= 4.9 && < 5
                      , criterion
                      , cryptol
                      , deepseq

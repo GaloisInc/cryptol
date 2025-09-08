@@ -62,7 +62,8 @@ module Cryptol.Parser.AST
   , FixityCmp(..), compareFixity
   , TySyn(..)
   , PropSyn(..)
-  , Bind(..)
+  , Bind(..), bindParams, bindHeaderLoc
+  , BindParams(..), dropParams, noParams
   , BindDef(..), LBindDef
   , BindImpl(..), bindImpl, exprDef
   , Pragma(..)
@@ -81,6 +82,7 @@ module Cryptol.Parser.AST
   , ModParam(..)
   , ParamDecl(..)
   , PropGuardCase(..)
+  , ForeignMode(..)
 
     -- * Interactive
   , ReplInput(..)
@@ -169,6 +171,8 @@ data ModuleG mname name = Module
     --   Also, for the 'FunctorInstance' case this is not the final result of
     --   the names in scope. The typechecker adds in the names in scope in the
     --   functor, so this will just contain the names in the enclosing scope.
+  , mDocTop   :: Maybe (Located Text)
+  -- ^ only used for top-level modules
   } deriving (Show, Generic, NFData)
 
 
@@ -186,7 +190,7 @@ data ModuleDefinition name =
 
 {- | Maps names in the original functor with names in the instnace.
 Does *NOT* include the parameters, just names for the definitions.
-This *DOES* include entrirs for all the name in the instantiated functor,
+This *DOES* include entries for all the name in the instantiated functor,
 including names in modules nested inside the functor. -}
 type ModuleInstance name = Map name name
 
@@ -211,10 +215,11 @@ mImports m =
     FunctorInstance {}  -> []
     InterfaceModule sig -> mapMaybe topImp (sigImports sig)
   where
-  topImp li = case iModule i of
-               ImpTop n -> Just li { thing = i { iModule = n } }
+  topImp li = case thing mo of
+               ImpTop n -> Just li { thing = i { iModule = Located (srcRange mo) n } }
                _        -> Nothing
     where i = thing li
+          mo = iModule i
 
 
 -- | Get the module parameters of a module (new module system)
@@ -433,7 +438,7 @@ data ModParam name = ModParam
 
 -- | An import declaration.
 data ImportG mname = Import
-  { iModule    :: !mname
+  { iModule    :: !(Located mname)
   , iAs        :: Maybe ModName
   , iSpec      :: Maybe ImportSpec
   , iInst      :: !(Maybe (ModuleInstanceArgs PName))
@@ -482,9 +487,11 @@ psFixity (PropSyn _ f _ _) = f
 -}
 data Bind name = Bind
   { bName      :: Located name            -- ^ Defined thing
-  , bParams    :: [Pattern name]          -- ^ Parameters
+  , bParams    :: BindParams name         -- ^ Parameters
   , bDef       :: Located (BindDef name)  -- ^ Definition
-  , bSignature :: Maybe (Schema name)     -- ^ Optional type sig
+  , bSignature :: Maybe (Located (Schema name))
+    -- ^ Optional type sig
+    -- The location is of the name in the type signature
   , bInfix     :: Bool                    -- ^ Infix operator?
   , bFixity    :: Maybe Fixity            -- ^ Optional fixity info
   , bPragmas   :: [Pragma]                -- ^ Optional pragmas
@@ -493,21 +500,70 @@ data Bind name = Bind
   , bExport    :: !ExportType
   } deriving (Eq, Generic, NFData, Functor, Show)
 
+bindParams :: Bind name -> [Pattern name]
+bindParams b = case bParams b of
+  PatternParams ps -> ps
+  DroppedParams _ _ -> []
+
+-- | Sets the number of parameters for a binding to zero, noting
+-- the original number and source location of the patterns.
+-- e.g. when rewriting @let f a b c = \x -> ...@, into
+-- @let f = \\a b c x -> ...@ the parameters for @f@ change from
+-- @PatternParams [a,b,c]@ to @DroppedParams (getLoc [a,b,c]) 3@
+dropParams :: BindParams name -> BindParams name
+dropParams bps = case bps of
+  PatternParams ps -> DroppedParams (getLoc ps) (length ps)
+  DroppedParams rng i -> DroppedParams rng i
+
+-- | Range encompassing the LHS of a binder, its signature, but not
+-- its definition.
+bindHeaderLoc :: Bind name -> Maybe Range
+bindHeaderLoc b = getLoc (bName b, (bSignature b, bParams b))
+
+-- | An empty 'BindParams' (i.e. zero parameters).
+--   Note that 'dropParams' should be used instead of this
+--   when rewriting an existing 'Bind' to have no parameters.
+noParams :: BindParams name
+noParams = PatternParams []
+
+-- | A list of patterns used as parameters to a 'Bind'.
+--   This is only used to improve error messages, by retaining
+--   information about the original shape of a 'Bind' when
+--   rewriting (see 'dropParams').
+data BindParams name =
+    PatternParams [Pattern name]
+    -- ^ Parameters that appear in the LHS of a binding equation
+    -- as patterns. 
+    -- e.g. @[a,b,c]@ in @let f a b c = \x -> ...@
+  | DroppedParams (Maybe Range) Int
+    -- ^ Represents zero parameters to a binding equation that
+    -- originally had parameters, but was rewritten to have none
+    -- (see 'Cryptol.Parser.NoPat').
+    -- Retains the original source range, and number
+    -- of dropped parameters (see 'dropParams').
+  deriving (Eq, Generic, NFData, Functor, Show)
+
 type LBindDef = Located (BindDef PName)
+
+-- | How to call a foreign functions
+data ForeignMode =
+    ForeignC          -- ^ Call using C-style marshalling
+  | ForeignAbstract   -- ^ Call using import/export objects
+    deriving (Eq, Show, Generic, NFData)
 
 data BindDef name = DPrim
                   -- | Foreign functions can have an optional cryptol
                   -- implementation
-                  | DForeign (Maybe (BindImpl name))
+                  | DForeign ForeignMode (Maybe (BindImpl name))
                   | DImpl (BindImpl name)
                     deriving (Eq, Show, Generic, NFData, Functor)
 
 bindImpl :: Bind name -> Maybe (BindImpl name)
 bindImpl bind =
   case thing (bDef bind) of
-    DPrim       -> Nothing
-    DForeign mi -> mi
-    DImpl i     -> Just i
+    DPrim         -> Nothing
+    DForeign _ mi -> mi
+    DImpl i       -> Just i
 
 data BindImpl name = DExpr (Expr name)
                    | DPropGuards [PropGuardCase name]
@@ -704,7 +760,7 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TBit                    -- ^ @Bit@
             | TNum Integer            -- ^ @10@
             | TChar Char              -- ^ @'a'@
-            | TUser n [Type n]        -- ^ A type variable or synonym
+            | TUser (Located n) [Type n] -- ^ A type variable or synonym
             | TTyApp [Named (Type n)] -- ^ @`{ x = [8], y = Integer }@
             | TRecord (Rec (Type n))  -- ^ @{ x : [8], y : [32] }@
             | TTuple [Type n]         -- ^ @([8], [32])@
@@ -879,7 +935,17 @@ instance HasLoc (TySyn name) where
 instance HasLoc (PropSyn name) where
   getLoc (PropSyn x _ _ _) = getLoc x
 
+instance HasLoc (PropGuardCase name) where
+  getLoc n
+    | null locs = Nothing
+    | otherwise = Just (rCombs locs)
+    where
+    locs = catMaybes (getLoc (pgcExpr n) : map getLoc (pgcProps n))
 
+instance HasLoc (BindParams name) where
+  getLoc bps = case bps of
+    PatternParams ps -> getLoc ps
+    DroppedParams rng _ -> rng
 
 --------------------------------------------------------------------------------
 
@@ -1044,7 +1110,7 @@ instance (Show name, PPName name) => PP (Decl name) where
   ppPrec n decl =
     case decl of
       DSignature xs s -> commaSep (map ppL xs) <+> text ":" <+> pp s
-      DPatBind p e    -> pp p <+> text "=" <+> pp e
+      DPatBind p e    -> nest 2 (pp p <+> text "=" </> pp e)
       DBind b         -> ppPrec n b
       DRec bs         -> nest 2 (vcat ("recursive" : map (ppPrec n) bs))
       DFixity f ns    -> ppFixity f ns
@@ -1119,27 +1185,36 @@ ppPragma xs p =
 
 instance (Show name, PPName name) => PP (Bind name) where
   ppPrec _ b = vcat (sig ++ [ ppPragma [f] p | p <- bPragmas b ] ++
-                     [hang (def <+> eq) 4 (pp (thing (bDef b)))])
+                     [nest 2 (def <+> eq </> pp (thing (bDef b)))])
     where def | bInfix b  = lhsOp
               | otherwise = lhs
           f = bName b
           sig = case bSignature b of
                   Nothing -> []
-                  Just s  -> [pp (DSignature [f] s)]
+                  Just s  -> [pp (DSignature [f] (thing s))]
           eq  = if bMono b then text ":=" else text "="
-          lhs = fsep (ppL f : (map (ppPrec 3) (bParams b)))
+          lhs = fsep (ppL f : (map (ppPrec 3) (bindParams b)))
 
-          lhsOp = case bParams b of
+          lhsOp = case bindParams b of
                     [x,y] -> pp x <+> ppL f <+> pp y
                     xs -> parens (parens (ppL f) <+> fsep (map (ppPrec 0) xs))
                     -- _     -> panic "AST" [ "Malformed infix operator", show b ]
 
 
+instance PP ForeignMode where
+  ppPrec _ fmode =
+    case fmode of
+      ForeignC -> "c"
+      ForeignAbstract -> "abstract"
+      
+
 instance (Show name, PPName name) => PP (BindDef name) where
   ppPrec _ DPrim         = text "<primitive>"
-  ppPrec p (DForeign mi) = case mi of
-                             Just i  -> "(foreign)" <+> ppPrec p i
-                             Nothing -> "<foreign>"
+  ppPrec p (DForeign mo mi) =
+    let lab = "foreign" <+> pp mo in
+    case mi of
+      Just i  -> parens lab <+> ppPrec p i
+      Nothing -> hcat [ "<",lab,">"]
   ppPrec p (DImpl i)     = ppPrec p i
 
 instance (Show name, PPName name) => PP (BindImpl name) where
@@ -1279,7 +1354,7 @@ instance (Show name, PPName name) => PP (Expr name) where
 
       -- low prec
       EFun _ xs e   -> wrap n 0 ((text "\\" <.> hsep (map (ppPrec 3) xs)) <+>
-                                 text "->" <+> pp e)
+                                 text "->" </> pp e)
 
       EIf e1 e2 e3  -> wrap n 0 $ sep [ text "if"   <+> pp e1
                                       , text "then" <+> pp e2
@@ -1302,7 +1377,7 @@ instance (Show name, PPName name) => PP (Expr name) where
               $ ppInfix 2 isInfix ifix
 
       EApp _ _      -> let (e, es) = asEApps expr in
-                       wrap n 3 (ppPrec 3 e <+> fsep (map (ppPrec 4) es))
+                       nest 2 (wrap n 3 (foldl (</>) (ppPrec 3 e) (map (ppPrec 4) es)))
 
       ELocated e _  -> ppPrec n e
 
@@ -1406,7 +1481,7 @@ instance PPName name => PP (Type name) where
                       $ ppPrefixName f <+> fsep (map (ppPrec 4) ts)
 
       TFun t1 t2     -> optParens (n > 1)
-                      $ sep [ppPrec 2 t1 <+> text "->", ppPrec 1 t2]
+                      $ ppPrec 2 t1 <+> text "->" </> ppPrec 1 t2
 
       TLocated t _   -> ppPrec n t
 
@@ -1434,13 +1509,13 @@ class NoPos t where
 -- WARNING: This does not call `noPos` on the `thing` inside
 instance NoPos (Located t) where
   noPos x = x { srcRange = rng }
-    where rng = Range { from = Position 0 0, to = Position 0 0, source = "" }
+    where rng = emptyRange
 
 instance NoPos t => NoPos (Named t) where
   noPos t = Named { name = noPos (name t), value = noPos (value t) }
 
 instance NoPos Range where
-  noPos _ = Range { from = Position 0 0, to = Position 0 0, source = "" }
+  noPos _ = emptyRange
 
 instance NoPos t => NoPos [t]       where noPos = fmap noPos
 instance NoPos t => NoPos (Maybe t) where noPos = fmap noPos
@@ -1454,6 +1529,7 @@ instance NoPos (ModuleG mname name) where
   noPos m = Module { mName      = mName m
                    , mDef       = noPos (mDef m)
                    , mInScope   = mInScope m
+                   , mDocTop    = noPos (mDocTop m)
                    }
 
 instance NoPos (ModuleDefinition name) where
@@ -1489,7 +1565,7 @@ instance NoPos (TopDecl name) where
       DImport x -> DImport (noPos x)
       DModParam d -> DModParam (noPos d)
       DParamDecl _ ds -> DParamDecl rng (noPos ds)
-        where rng = Range { from = Position 0 0, to = Position 0 0, source = "" }
+        where rng = emptyRange
       DInterfaceConstraint d ds -> DInterfaceConstraint d (noPos (noPos <$> ds))
 
 instance NoPos (ParamDecl name) where
@@ -1565,6 +1641,11 @@ instance NoPos (EnumDecl name) where
 
 instance NoPos (EnumCon name) where
   noPos c = EnumCon { ecName = noPos (ecName c), ecFields = noPos (ecFields c) }
+
+instance NoPos (BindParams name) where
+  noPos bp = case bp of
+    PatternParams ps -> PatternParams (noPos ps)
+    DroppedParams _ i -> DroppedParams Nothing i
 
 instance NoPos (Bind name) where
   noPos x = Bind { bName      = noPos (bName      x)

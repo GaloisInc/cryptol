@@ -76,7 +76,13 @@ processModule dcl =
                  Private -> []
              )
 
-        FunctorInstance {} -> ([dcl, mkImp loc [mname]], [])
+        FunctorInstance {} ->
+          let imps = [[mname]]
+          in ( dcl : map (mkImp loc) imps
+             , case tlExport m of
+                 Public  -> imps
+                 Private -> []
+             )
         InterfaceModule {} -> ([dcl], [])
     _ -> panic "processModule" ["Not a module"]
 
@@ -107,7 +113,7 @@ mkImp loc xs =
     Located
       { srcRange = loc
       , thing    = Import
-                     { iModule = ImpNested (isToName xs)
+                     { iModule = Located loc (ImpNested (isToName xs))
                      , iAs     = Just (isToQual xs)
                      , iSpec   = Nothing
                      , iInst   = Nothing

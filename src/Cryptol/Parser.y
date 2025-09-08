@@ -19,6 +19,7 @@ module Cryptol.Parser
   , parseRepl, parseReplWith
   , parseSchema, parseSchemaWith
   , parseModName, parseHelpName
+  , parseImpName
   , ParseError(..), ppError
   , Layout(..)
   , Config(..), defaultConfig
@@ -42,15 +43,6 @@ import Cryptol.Utils.RecordMap(RecordMap)
 
 import Paths_cryptol
 }
-
-{- state 202 contains 1 shift/reduce conflicts.
-     `_` identifier conflicts with `_` in record update.
-    We have `_` as an identifier for the cases where we parse types as
-    expressions, for example `[ 12 .. _ ]`.
--}
-
-%expect 1
-
 
 %token
   NUM         { $$@(Located _ (Token (Num   {}) _))}
@@ -155,6 +147,7 @@ import Paths_cryptol
 %name repl    repl
 %name schema  schema
 %name modName modName
+%name impName impName
 %name helpName help_name
 %tokentype { Located Token }
 %monad { ParseM }
@@ -169,10 +162,10 @@ import Paths_cryptol
 
 
 top_module :: { [Module PName] }
-  : 'module' module_def       {% mkTopMods $2 }
+  : mbDoc 'module' module_def {% mkTopMods $1 $3 }
   | 'v{' vmod_body 'v}'       {% mkAnonymousModule $2 }
-  | 'interface' 'module' modName 'where' 'v{' sig_body 'v}'
-                              { mkTopSig $3 $6 }
+  | mbDoc 'interface' 'module' modName 'where' 'v{' sig_body 'v}'
+                              { mkTopSig $1 $4 $7 }
 
 module_def :: { Module PName }
 
@@ -294,8 +287,8 @@ vtop_decl               :: { [TopDecl PName] }
   | private_decls          { $1                                               }
   | mbDoc 'interface' 'constraint' type {% mkInterfaceConstraint $1 $4 }
   | parameter_decls        { [ $1 ]                                       }
-  | mbDoc 'submodule'
-    module_def             {% ((:[]) . exportModule $1) `fmap` mkNested $3 }
+  | mbDoc 'submodule' module_def
+                           {% ((:[]) . exportModule $1) `fmap` mkNested $3 }
 
   | mbDoc sig_def          { [mkSigDecl $1 $2]  }
   | mod_param_decl         { [DModParam $1] }
@@ -339,7 +332,9 @@ prim_bind               :: { [TopDecl PName] }
   | mbDoc 'primitive' 'type' schema ':' kind {% mkPrimTypeDecl $1 $4 $6 }
 
 foreign_bind            :: { [TopDecl PName] }
-  : mbDoc 'foreign' name ':' schema          {% mkForeignDecl $1 $3 $5 }
+  : mbDoc 'foreign' name ':' schema       {% mkForeignDecl $1 Nothing $3 $5 }
+  | mbDoc 'foreign' name name ':' schema  {% mkForeignDecl $1 (Just $3) $4 $6 }
+  
 
 parameter_decls         :: { TopDecl PName }
   : 'parameter' 'v{' par_decls 'v}' { mkParDecls (reverse $3) }
@@ -378,7 +373,7 @@ decl                    :: { Decl PName }
   | iapat pat_op iapat '=' expr
                            { at ($1,$5) $
                              DBind $ Bind { bName      = $2
-                                          , bParams    = [$1,$3]
+                                          , bParams    = PatternParams [$1,$3]
                                           , bDef       = at $5 (Located emptyRange (exprDef $5))
                                           , bSignature = Nothing
                                           , bPragmas   = []
@@ -408,7 +403,7 @@ let_decl                :: { Decl PName }
   | 'let' iapat pat_op iapat '=' expr
                            { at ($2,$6) $
                              DBind $ Bind { bName      = $3
-                                          , bParams    = [$2,$4]
+                                          , bParams    = PatternParams [$2,$4]
                                           , bDef       = at $6 (Located emptyRange (exprDef $6))
                                           , bSignature = Nothing
                                           , bPragmas   = []
@@ -544,9 +539,7 @@ exprNoWhere                    :: { Expr PName }
   | typedExpr                     { $1 }
 
 whereClause                    :: { Located [Decl PName] }
-  : '{' '}'                       { Located (rComb $1 $2) [] }
-  | '{' decls '}'                 { Located (rComb $1 $3) (reverse $2) }
-  | 'v{' 'v}'                     { Located (rComb $1 $2) [] }
+  : 'v{' 'v}'                     { Located (rComb $1 $2) [] }
   | 'v{' vdecls 'v}'              { let l2 = fromMaybe $3 (getLoc $2)
                                     in Located (rComb $1 l2) (reverse $2) }
 
@@ -564,7 +557,6 @@ longExpr                       :: { Expr PName }
   : 'if' ifBranches 'else' exprNoWhere   { at ($1,$4) $ mkIf (reverse $2) $4 }
   | '\\' iapats '->' exprNoWhere         { at ($1,$4) $ EFun emptyFunDesc (reverse $2) $4 }
   | 'case' expr 'of' 'v{' vcaseBranches 'v}' {at ($1,$6) (ECase $2 (reverse $5))}
-  | 'case' expr 'of' '{' caseBranches '}' { at ($1,$6) (ECase $2 (reverse $5)) }
 
 
 ifBranches                     :: { [(Expr PName, Expr PName)] }
@@ -577,10 +569,7 @@ ifBranch                       :: { (Expr PName, Expr PName) }
 vcaseBranches                  :: { [CaseAlt PName] }
   : caseBranch                    { [$1] }
   | vcaseBranches 'v;' caseBranch { $3 : $1 }
-
-caseBranches                   :: { [CaseAlt PName] }
-  : caseBranch                    { [$1] }
-  | caseBranches ';' caseBranch   { $3 : $1 }
+  | vcaseBranches ';'  caseBranch { $3 : $1 }
 
 caseBranch                     :: { CaseAlt PName }
   : cpat '->' expr                { CaseAlt $1 $3 }
@@ -663,8 +652,7 @@ tuple_exprs                    :: { [Expr PName] }
 
 
 rec_expr :: { Either (Expr PName) [Named (Expr PName)] }
-  : aexpr '|' field_exprs         {  Left (EUpd (Just $1) (reverse $3)) }
-  | '_'   '|' field_exprs         {  Left (EUpd Nothing   (reverse $3)) }
+  : aexpr '|' field_exprs         { Left (EUpd (recExprWildcardCase $1) (reverse $3)) }
   | field_exprs                   {% Right `fmap` mapM ufToNamed $1 }
 
 field_exprs                    :: { [UpdField PName] }
@@ -843,12 +831,12 @@ infix_type                     :: { Type PName }
 app_type                       :: { Type PName }
   : dimensions atype              { at ($1,$2) $ foldr TSeq $2 (reverse (thing $1)) }
   | qname atypes                  { at ($1,head $2)
-                                     $ TUser (thing $1) (reverse $2) }
+                                     $ TUser $1 (reverse $2) }
   | atype                         { $1                    }
 
 atype                          :: { Type PName }
-  : qname                         { at $1 $ TUser (thing $1) []        }
-  | '(' qop ')'                   { at $1 $ TUser (thing $2) []        }
+  : qname                         { at $1 $ TUser $1 []                }
+  | '(' qop ')'                   { at $1 $ TUser $2 []                }
   | NUM                           { at $1 $ TNum  (getNum $1)          }
   | CHARLIT                       { at $1 $ TChar (getChr $1)          }
   | '[' type ']'                  { at ($1,$3) $ TSeq $2 TBit          }
@@ -918,7 +906,7 @@ help_name                      :: { Located PName    }
 {- The types that can come after a back-tick: either a type demotion,
 or an explicit type application. -}
 tick_ty                        :: { Type PName }
-  : qname                         { at $1 $ TUser (thing $1) []      }
+  : qname                         { at $1 $ TUser $1 []                }
   | NUM                           { at $1 $ TNum  (getNum $1)          }
   | '(' type ')'                  {% validDemotedType (rComb $1 $3) $2 }
   | '{' '}'                       { at ($1,$2) (TTyApp [])             }
@@ -942,6 +930,12 @@ field_ty_vals                  :: { [Named (Type PName)] }
 parseModName :: String -> Maybe ModName
 parseModName txt =
   case parseString defaultConfig { cfgModuleScope = False } modName txt of
+    Right a -> Just (thing a)
+    Left _  -> Nothing
+
+parseImpName :: String -> Maybe (ImpName PName)
+parseImpName txt =
+  case parseString defaultConfig { cfgModuleScope = False } impName txt of
     Right a -> Just (thing a)
     Left _  -> Nothing
 
@@ -1011,6 +1005,19 @@ parseSchemaWith cfg = parse cfg { cfgModuleScope = False } schema
 
 parseSchema :: Text -> Either ParseError (Schema PName)
 parseSchema = parseSchemaWith defaultConfig
+
+
+{- record expressions have a special treatment of the `_` expression.
+   These expressions generate record updating functions.
+   We have `_` as an identifier for the cases where we parse types as
+   expressions, for example `[ 12 .. _ ]`.
+-}
+recExprWildcardCase :: (Expr PName) -> Maybe (Expr PName)
+recExprWildcardCase e =
+  case e of
+    EVar (UnQual "_") -> Nothing
+    _                 -> Just e
+
 
 -- vim: ft=haskell
 }

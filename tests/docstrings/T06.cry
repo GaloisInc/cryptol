@@ -1,0 +1,23 @@
+module T06 where
+
+interface submodule I where
+  type N : #
+
+submodule N1 where
+  type N = 1
+
+submodule C where
+  import interface submodule I
+
+  /**
+   * ```repl
+   * let x = lost
+   * ```
+   */
+  lost = ()
+
+submodule B where
+  import interface submodule I
+  submodule C_ = submodule C { submodule N1 }
+
+submodule A = submodule B { submodule N1 }

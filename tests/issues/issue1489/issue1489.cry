@@ -1,0 +1,54 @@
+module ID where
+
+id : {k} (fin k, k > 0) => [2^^k] -> [2^^k]
+id x = join(split`{2,2^^(k-1)}x)
+
+type q = 3329
+
+ct_butterfly :
+    {m, hm}
+    (m >= 2, m <= 8, hm >= 1, hm <= 7, hm == m - 1) =>
+    [2^^m](Z q) -> (Z q) -> [2^^m](Z q)
+ct_butterfly v z = new_v
+  where
+    halflen = 2^^`hm
+    lower, upper : [2^^hm](Z q)
+    lower@x = v@x + z * v@(x + halflen)
+    upper@x = v@x - z * v@(x + halflen)
+    new_v = lower # upper
+
+zeta_expc  : [128](Z q)
+zeta_expc = [ 1, 1729, 2580, 3289, 2642, 630, 1897, 848,
+              1062, 1919, 193, 797, 2786, 3260, 569, 1746,
+              296, 2447, 1339, 1476, 3046, 56, 2240, 1333,
+              1426, 2094, 535, 2882, 2393, 2879, 1974, 821,
+              289, 331, 3253, 1756, 1197, 2304, 2277, 2055,
+              650, 1977, 2513, 632, 2865, 33, 1320, 1915,
+              2319, 1435, 807, 452, 1438, 2868, 1534, 2402,
+              2647, 2617, 1481, 648, 2474, 3110, 1227, 910,
+              17, 2761, 583, 2649, 1637, 723, 2288, 1100,
+              1409, 2662, 3281, 233, 756, 2156, 3015, 3050,
+              1703, 1651, 2789, 1789, 1847, 952, 1461, 2687,
+              939, 2308, 2437, 2388, 733, 2337, 268, 641,
+              1584, 2298, 2037, 3220, 375, 2549, 2090, 1645,
+              1063, 319, 2773, 757, 2099, 561, 2466, 2594,
+              2804, 1092, 403, 1026, 1143, 2150, 2775, 886,
+              1722, 1212, 1874, 1029, 2110, 2935, 885, 2154 ]
+
+fast_nttl :
+    {lv}  // Length of v is a member of {256,128,64,32,16,8,4}
+    (lv >= 2, lv <= 8) =>
+    [2^^lv](Z q) -> [8] -> [2^^lv](Z q)
+fast_nttl v k
+  // Base case. lv==2 so just compute the butterfly and return
+  | lv == 2 => ct_butterfly`{lv,lv-1} v (zeta_expc@k)
+
+  // Recursive case. Butterfly what we have, then recurse on each half,
+  // concatenate the results and return. As above, we need coerceSize
+  // here (twice) to satisfy the type checker.
+  | lv  > 2 => (fast_nttl`{lv-1} s0 (k * 2)) #
+                           (fast_nttl`{lv-1} s1 (k * 2 + 1))
+                where
+                  t = ct_butterfly`{lv,lv-1} v (zeta_expc@k)
+                  // Split t into two halves s0 and s1
+                  [s0, s1] = split t

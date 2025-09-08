@@ -1,0 +1,4 @@
+:m PrimeEC
+ec_mult`{13} 3 {x = 0, y = 0, z = 1}
+:t ec_mult`{13}
+ec_mult`{13} 3 {x = 0, y = 0, z = 1} : ProjectivePoint 13

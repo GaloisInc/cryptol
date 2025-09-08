@@ -729,9 +729,10 @@ renI :: Located (ImportG (ImpName PName)) ->
         RenameM (Located (ImportG (ImpName Name)))
 renI li =
   withLoc (srcRange li)
-  do m <- rename (iModule i)
+  do let mo = iModule i
+     m <- withLoc (srcRange mo) (rename (thing mo))
      unless (isFakeName m) (recordImport (srcRange li) m)
-     pure li { thing = i { iModule = m } }
+     pure li { thing = i { iModule = mo { thing = m } } }
   where
   i = thing li
 
@@ -957,16 +958,6 @@ reportUnboundName expected qn =
 
      mkFakeName expected qn
 
-isFakeName :: ImpName Name -> Bool
-isFakeName m =
-  case m of
-    ImpTop x -> x == undefinedModName
-    ImpNested x ->
-      case nameTopModuleMaybe x of
-        Just y  -> y == undefinedModName
-        Nothing -> False
-
-
 -- | Resolve a name, and report error on failure.
 resolveName :: NameType -> Namespace -> PName -> RenameM Name
 resolveName nt expected qn =
@@ -1036,7 +1027,8 @@ instance Rename Type where
       TBit           -> return TBit
       TNum c         -> return (TNum c)
       TChar c        -> return (TChar c)
-      TUser qn ps    -> TUser <$> renameType NameUse qn <*> traverse rename ps
+      TUser qn ps    -> TUser <$> withLoc (srcRange qn) (traverse (renameType NameUse) qn)
+                              <*> traverse rename ps
       TTyApp fs      -> TTyApp   <$> traverse (traverse rename) fs
       TRecord fs     -> TRecord  <$> traverse (traverse rename) fs
       TTuple fs      -> TTuple   <$> traverse rename fs
@@ -1071,23 +1063,23 @@ instance Rename Bind where
   rename b =
     do n'    <- rnLocated (renameVar NameBind) (bName b)
        depsOf (NamedThing (thing n'))
-         do mbSig <- traverse renameSchema (bSignature b)
-            shadowNames (fst `fmap` mbSig) $
-              do (patEnv,pats') <- renamePats (bParams b)
+         do mbSig <- traverse (traverse renameSchema) (bSignature b)
+            shadowNames ((fst . thing) `fmap` mbSig) $
+              do (patEnv,bParams') <- renameBindParams (bParams b)
                  -- NOTE: renamePats will generate warnings,
                  -- so we don't need to trigger them again here.
                  e' <- shadowNames' CheckNone patEnv (rnLocated rename (bDef b))
                  return b { bName      = n'
-                          , bParams    = pats'
+                          , bParams    = bParams'
                           , bDef       = e'
-                          , bSignature = snd `fmap` mbSig
+                          , bSignature = fmap snd `fmap` mbSig
                           , bPragmas   = bPragmas b
                           }
 
 instance Rename BindDef where
-  rename DPrim        = return DPrim
-  rename (DForeign i) = DForeign <$> traverse rename i
-  rename (DImpl i)    = DImpl <$> rename i
+  rename DPrim           = return DPrim
+  rename (DForeign cc i) = DForeign cc <$> traverse rename i
+  rename (DImpl i)       = DImpl <$> rename i
 
 instance Rename BindImpl where
   rename (DExpr e) = DExpr <$> rename e
@@ -1197,7 +1189,8 @@ instance Rename Expr where
     EInfix x y _ z  -> do op <- renameOp y
                           x' <- rename x
                           z' <- rename z
-                          mkEInfix x' op z'
+                          x'' <- located x'
+                          mkEInfix (Just (srcRange x'')) x' op z'
     EPrefix op e    -> EPrefix op <$> rename e
 
 
@@ -1233,43 +1226,50 @@ checkLabels = foldM_ check [] . map labs
             x':_ -> x'
             [] -> panic "checkLabels" ["UpdFields with no labels"]
 
-mkEInfix :: Expr Name             -- ^ May contain infix expressions
+mkEInfix :: Maybe Range           -- ^ Location of left expression
+         -> Expr Name             -- ^ May contain infix expressions
          -> (Located Name,Fixity) -- ^ The operator to use
          -> Expr Name             -- ^ Will not contain infix expressions
          -> RenameM (Expr Name)
 
-mkEInfix e@(EInfix x o1 f1 y) op@(o2,f2) z =
+mkEInfix mbR e@(EInfix x o1 f1 y) op@(o2,f2) z =
    case compareFixity f1 f2 of
      FCLeft  -> return (EInfix e o2 f2 z)
 
-     FCRight -> do r <- mkEInfix y op z
+     FCRight -> do r <- mkEInfix Nothing y op z
                    return (EInfix x o1 f1 r)
 
      FCError -> do recordError (FixityError o1 f1 o2 f2)
-                   return (EInfix e o2 f2 z)
+                   return (EInfix (maybeLoc mbR e) o2 f2 z)
 
-mkEInfix e@(EPrefix o1 x) op@(o2, f2) y =
+mkEInfix mbR e@(EPrefix o1 x) op@(o2, f2) y =
   case compareFixity (prefixFixity o1) f2 of
     FCRight -> do
       let warning = PrefixAssocChanged o1 x o2 f2 y
       RenameM $ sets_ (\rw -> rw {rwWarnings = warning : rwWarnings rw})
-      r <- mkEInfix x op y
+      r <- mkEInfix Nothing x op y
       return (EPrefix o1 r)
 
     -- Even if the fixities conflict, we make the prefix operator take
     -- precedence.
-    _ -> return (EInfix e o2 f2 y)
-
+    _ -> return (EInfix (maybeLoc mbR e) o2 f2 y)
+  
 -- Note that for prefix operator on RHS of infix operator we make the prefix
 -- operator always have precedence, so we allow a * -b instead of requiring
 -- a * (-b).
 
-mkEInfix (ELocated e' _) op z =
-     mkEInfix e' op z
+mkEInfix _ (ELocated e' r) op z =
+     mkEInfix (Just r) e' op z
 
-mkEInfix e (o,f) z =
-     return (EInfix e o f z)
+mkEInfix mbR e (o,f) z =
+     return (EInfix (maybeLoc mbR e) o f z)
+  
 
+maybeLoc :: Maybe Range -> Expr name -> Expr name
+maybeLoc mb e =
+  case mb of
+    Nothing -> e
+    Just r  -> ELocated e r
 
 renameOp :: Located PName -> RenameM (Located Name, Fixity)
 renameOp ln =
@@ -1351,11 +1351,20 @@ renamePats  = loop
 
     [] -> return (mempty, [])
 
+-- | Rename patterns used as bind parameters, and collect the new environment that they introduce.
+renameBindParams :: BindParams PName -> RenameM (NamingEnv, BindParams Name)
+renameBindParams (PatternParams pats) =
+  (\(env,pats') -> (env, PatternParams pats')) <$> renamePats pats
+renameBindParams (DroppedParams rng i) = return (mempty, DroppedParams rng i)
+
 patternEnv :: Pattern PName -> RenameM NamingEnv
 patternEnv  = go
   where
   go (PVar Located { .. }) =
-    do n <- liftSupply (mkLocal NSValue (getIdent thing) srcRange)
+    do let src = case thing of
+                   NewName {} -> SystemName
+                   _          -> UserName
+       n <- liftSupply (mkLocal src NSValue (getIdent thing) srcRange)
        -- XXX: for deps, we should record a use
        return (singletonNS NSValue thing n)
   go (PCon _ ps)      = bindVars ps
@@ -1382,8 +1391,9 @@ patternEnv  = go
   typeEnv TNum{}     = return mempty
   typeEnv TChar{}    = return mempty
 
-  typeEnv (TUser pn ps) =
-    do mb <- resolveNameMaybe NameUse NSType pn
+  typeEnv (TUser pn' ps) =
+    do let pn = thing pn'
+       mb <- withLoc (srcRange pn') (resolveNameMaybe NameUse NSType pn)
        case mb of
 
          -- The type is already bound, don't introduce anything.
@@ -1395,7 +1405,7 @@ patternEnv  = go
            -- of the type of the pattern.
            | null ps ->
              do loc <- curLoc
-                n   <- liftSupply (mkLocal NSType (getIdent pn) loc)
+                n   <- liftSupply (mkLocalPName NSType pn loc)
                 return (singletonNS NSType pn n)
 
            -- This references a type synonym that's not in scope. Record an
@@ -1403,7 +1413,7 @@ patternEnv  = go
            | otherwise ->
              do loc <- curLoc
                 recordError (UnboundName NSType (Located loc pn))
-                n   <- liftSupply (mkLocal NSType (getIdent pn) loc)
+                n   <- liftSupply (mkLocalPName NSType pn loc)
                 return (singletonNS NSType pn n)
 
   typeEnv (TRecord fs)      = bindTypes (map snd (recordElements fs))

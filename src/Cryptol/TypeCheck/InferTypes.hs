@@ -21,7 +21,7 @@ module Cryptol.TypeCheck.InferTypes where
 import           Control.Monad(guard)
 
 import           Cryptol.Parser.Position
-import           Cryptol.ModuleSystem.Name (asPrim,nameLoc)
+import           Cryptol.ModuleSystem.Name (asPrim,nameLoc,nameIdent)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.PP
 import           Cryptol.TypeCheck.Subst
@@ -31,10 +31,13 @@ import           Cryptol.Utils.Ident (PrimIdent(..), preludeName)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
 
+import           Data.List(mapAccumL,partition)
+import           Data.Maybe(mapMaybe)
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.Map ( Map )
 import qualified Data.Map as Map
+import qualified Data.IntMap as IntMap
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -45,6 +48,9 @@ data SolverConfig = SolverConfig
   , solverVerbose :: Int        -- ^ How verbose to be when type-checking
   , solverPreludePath :: [FilePath]
     -- ^ Look for the solver prelude in these locations.
+  , solverSmtFile :: Maybe FilePath
+    -- ^ The optional file to record SMT solver interactions in the type
+    -- checker. If 'Nothing', this will print to @stdout@ instead.
   } deriving (Show, Generic, NFData)
 
 
@@ -58,6 +64,7 @@ defaultSolverConfig searchPath =
   , solverArgs = [ "-smt2", "-in" ]
   , solverVerbose = 0
   , solverPreludePath = searchPath
+  , solverSmtFile = Nothing
   }
 
 -- | The types of variables in the environment.
@@ -319,13 +326,16 @@ cppKind ki =
     _     -> pp ki
 
 addTVarsDescsAfter :: FVS t => NameMap -> t -> Doc -> Doc
-addTVarsDescsAfter nm t d
+addTVarsDescsAfter nm t = addTVarsDescsAfterFVS nm (fvs t)
+
+addTVarsDescsAfterFVS :: NameMap -> Set TVar -> Doc -> Doc
+addTVarsDescsAfterFVS nm vs d
   | Set.null vs = d
 -- TODO? use `hang` here instead to indent things after "where"
   | otherwise   = d $$ text "where" $$ vcat (map desc (Set.toList vs))
   where
-  vs     = fvs t
   desc v = ppWithNames nm v <+> text "is" <+> pp (tvInfo v)
+
 
 addTVarsDescsBefore :: FVS t => NameMap -> t -> Doc -> Doc
 addTVarsDescsBefore nm t d = vcat (frontMsg ++ [d] ++ backMsg)
@@ -387,29 +397,81 @@ instance PP (WithNames Goal) where
 
 instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
+    withPPCfg $ \cfg ->
+    let
+      bullets xs = [ "•" <+> x | x <- xs ]
+  
+      sig = case name of
+              Just n -> "in the definition of" <+> quotes (pp n) <.>
+                        comma <+> "at" <+> pp (nameLoc n) <.> comma
+              Nothing -> "when checking the module's parameters,"
+  
+      name  = dctSource d
+      vars = case otherTPs of
+               [] -> []
+               xs -> ["for any type" <+> commaSep (map (ppWithNames ns1) xs)]
+      asmps = case dctAsmps d of
+                [] -> []
+                xs -> [hang "assuming"
+                         2 (vcat (bullets (map (ppWithNames ns1) xs)))]
+  
+      tvars = fvs (dctAsmps d, dctGoals d)
+      used = filter ((`Set.member` tvars) . TVBound) (dctForall d)
+      isModP tp =
+        case tpFlav tp of
+          TPModParam {} -> True
+          _ -> False
+      (mpTPs,otherTPs) = partition isModP used
+      explain = addTVarsDescsAfterFVS ns1 (Set.fromList (map TVBound mpTPs))
+      mps = computeModParamNames cfg mpTPs names
+      ns1 = addTNames cfg otherTPs mps
+    in
     sig $$
     hang "we need to show that"
-       2 (vcat ( vars ++ asmps ++ 
+    
+       2 (explain (vcat ( vars ++ asmps ++
                [ hang "the following constraints hold:"
                     2 (vcat
                        $ bullets
                        $ map (ppWithNames ns1)
-                       $ dctGoals d )]))
-    where
-    bullets xs = [ "•" <+> x | x <- xs ]
+                       $ dctGoals d )])))
+ 
+    
+ 
 
-    sig = case name of
-            Just n -> "in the definition of" <+> quotes (pp n) <.>
-                      comma <+> "at" <+> pp (nameLoc n) <.> comma
-            Nothing -> "when checking the module's parameters,"
 
-    name  = dctSource d
-    vars = case dctForall d of
-             [] -> []
-             xs -> ["for any type" <+> commaSep (map (ppWithNames ns1) xs)]
-    asmps = case dctAsmps d of
-              [] -> []
-              xs -> [hang "assuming"
-                       2 (vcat (bullets (map (ppWithNames ns1) xs)))]
 
-    ns1 = addTNames (dctForall d) names
+-- | Add a suffix to a name to make a different label.
+nameVariant :: Int -> String -> String
+nameVariant n x = if n == 0 then x else x ++ suff
+  where
+  useUnicode = True
+
+  suff
+    | n < 10 && useUnicode = [toEnum (0x2080 + n)]
+    | otherwise = show n
+
+  
+
+-- | Pick names for the type parameters that correspond to module parameters,
+-- avoiding strings that already appear in the given name map.
+-- Returns an extended name map.
+computeModParamNames :: PPCfg -> [TParam] -> NameMap -> NameMap
+computeModParamNames cfg tps names = IntMap.fromList newNames `IntMap.union` names
+  where
+  newNames = snd (mapAccumL pickName used0 (mapMaybe isModP tps))
+
+  used0 = Set.fromList (map (show . fixPPCfg cfg) (IntMap.elems names))
+
+  pickName used (u,i) =
+    let ns   = filter (not . (`Set.member` used))
+              $ map (`nameVariant` i) [0..]
+        name = case ns of
+                 x : _ -> x
+                 []    -> panic "computeModParamNames" ["Out of names!"]
+    in (Set.insert name used, (u,text name))
+
+  isModP tp =
+    case tpFlav tp of
+      TPModParam x -> Just (tpUnique tp, show (pp (nameIdent x)))
+      _ -> Nothing

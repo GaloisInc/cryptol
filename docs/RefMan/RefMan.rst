@@ -13,4 +13,6 @@ Cryptol Reference Manual
   TypeDeclarations
   Modules
   FFI
+  Project
+  REPLCommands
 

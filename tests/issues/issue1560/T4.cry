@@ -1,0 +1,27 @@
+module T3 where
+
+interface submodule I1 where
+  type x: #
+  type constraint (x >= 1, x <= 3)
+
+interface submodule I2 where
+  type x: #
+  type constraint (x >= 1, x <= 4)
+
+
+
+submodule F where
+  import interface submodule I1 as I
+
+  y: [I::x]
+  y = 1
+
+  submodule G where
+    import interface submodule I2 as I
+    import interface submodule I2 as J
+
+    csum : [I::x]
+    csum = y
+
+
+

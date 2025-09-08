@@ -51,7 +51,8 @@ genModDefines m =
   where
   nestedInSet = Set.unions . map inNested . Set.toList
   inNested x  = case Map.lookup x (mSubmodules m) of
-                  Just y  -> ifsDefines y `Set.union` nestedInSet (ifsNested y)
+                  Just y  -> ifsDefines iface `Set.union` nestedInSet (ifsNested iface)
+                    where iface = smIface y
                   Nothing -> Set.empty -- must be signature or a functor
 
 genIface :: ModuleG name -> IfaceG name
@@ -71,7 +72,7 @@ genIfaceWithNames names m =
                                        , d  <- groupDecls dg
                                        , let qn = dName d
                                        ]
-    , ifModules         = mSubmodules m
+    , ifModules         = smIface <$> mSubmodules m
     , ifSignatures      = mSignatures m
     , ifFunctors        = genIface <$> mFunctors m
     }

@@ -2,10 +2,6 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module PrimeEC
 Loading module NISTCurves
-Loading module Main
-property p192_keypair_test Using exhaustive testing.
-Testing... Passed 1 tests.
-Q.E.D.
 property p192_valid_curve Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
@@ -15,13 +11,20 @@ Q.E.D.
 property p256_valid_curve Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
-property p224_keypair_test Using exhaustive testing.
-Testing... Passed 1 tests.
-Q.E.D.
 property p384_valid_curve Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 property p521_valid_curve Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+Loading module Cryptol
+Loading module PrimeEC
+Loading module NISTCurves
+Loading module Main
+property p192_keypair_test Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property p224_keypair_test Using exhaustive testing.
 Testing... Passed 1 tests.
 Q.E.D.
 property p256_keypair_test Using exhaustive testing.

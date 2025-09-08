@@ -5,6 +5,8 @@
 module Main (main) where
 
 import Control.Lens ( view, set )
+import Data.List (intercalate)
+import Data.Version (showVersion)
 import System.Environment (lookupEnv)
 import System.Exit (exitFailure)
 import System.FilePath (splitSearchPath)
@@ -13,12 +15,16 @@ import Options.Applicative
     ( Parser,
       Alternative((<|>)),
       help,
+      hidden,
+      infoOption,
       long,
       metavar,
+      short,
       strOption,
       value )
 
 import CryptolServer.Check ( check, checkDescr )
+import CryptolServer.CheckDocstrings ( checkDocstrings, checkDocstringsDescr )
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr)
 import Cryptol.Eval (EvalOpts(..), defaultPPOpts)
@@ -26,9 +32,11 @@ import CryptolServer.Interrupt
     ( interruptServer, interruptServerDescr )
 import Cryptol.ModuleSystem (ModuleInput(..), loadModuleByPath, loadModuleByName)
 import Cryptol.ModuleSystem.Monad (runModuleM, setFocusedModule)
-import Cryptol.TypeCheck.AST (tcTopEntitytName)
+import Cryptol.TypeCheck.AST (tcTopEntitytName, ImpName(..))
 import Cryptol.Utils.Ident (ModName, modNameToText, textToModName, preludeName)
 import Cryptol.Utils.Logger (quietLogger)
+import Cryptol.Version (displayVersionStr)
+import qualified Paths_cryptol_remote_api as RPC
 
 import Argo (AppMethod, mkApp, defaultAppOpts, StateMutability(PureState))
 import Argo.DefaultMain ( customMain, userOptions )
@@ -40,18 +48,18 @@ import CryptolServer
 import CryptolServer.Call ( call )
 import CryptolServer.Data.Expression ( Expression )
 import CryptolServer.Data.Type ( JSONSchema )
-import CryptolServer.EvalExpr
-    ( evalExpressionDescr, evalExpression )
-import CryptolServer.ExtendSearchPath
-    ( extSearchPath, extSearchPathDescr )
-import CryptolServer.FocusedModule
-    ( focusedModuleDescr, focusedModule )
+import CryptolServer.EvalExpr (evalExpressionDescr, evalExpression)
+import CryptolServer.ExtendSearchPath (extSearchPath, extSearchPathDescr)
+import CryptolServer.FocusedModule (focusedModuleDescr, focusedModule)
+import CryptolServer.FocusModule (focusModule, focusModuleDescr)
 import CryptolServer.Names ( visibleNamesDescr, visibleNames )
+import CryptolServer.Modules ( visibleModulesDescr, visibleModules )
 import CryptolServer.TypeCheck ( checkType )
 import CryptolServer.Sat ( proveSatDescr, proveSat )
+import Cryptol.REPL.Command (CommandResult, DocstringResult)
 
 main :: IO ()
-main = customMain initMod initMod initMod initMod description buildApp
+main = customMain initMod initMod initMod initMod versionParser description buildApp
   where
     buildApp opts =
       mkApp
@@ -66,7 +74,14 @@ main = customMain initMod initMod initMod initMod description buildApp
          initSt <- extendSearchPath paths <$> initialState
          let s    = view tcSolver initSt
          let menv = view moduleEnv initSt
-         let minp = ModuleInput False (pure evOpts) reader menv s
+         let minp = ModuleInput {
+                      minpCallStacks = False,
+                      minpSaveRenamed = False,
+                      minpEvalOpts = pure evOpts,
+                      minpByteReader = reader,
+                      minpModuleEnv = menv,
+                      minpTCSolver = s
+         }
          let die =
                \err ->
                  do hPutStrLn stderr $ "Failed to load " ++ either ("file " ++) (("module " ++) . show) file ++ ":\n" ++ show err
@@ -77,7 +92,7 @@ main = customMain initMod initMod initMod initMod description buildApp
               case res of
                 Left err -> die err
                 Right (m, menv') ->
-                  do res' <- fst <$> runModuleM minp{ minpModuleEnv = menv' } (setFocusedModule (tcTopEntitytName (snd m)))
+                  do res' <- fst <$> runModuleM minp{ minpModuleEnv = menv' } (setFocusedModule (ImpTop (tcTopEntitytName (snd m))))
                      case res' of
                        Left err -> die err
                        Right (_, menv'') -> pure menv''
@@ -97,7 +112,9 @@ evalServerDocs =
      Doc.Text " that supports only type checking and evaluation of Cryptol code."]]
   , Doc.Section "Terms and Types"
     [Doc.datatype @Expression,
-     Doc.datatype @JSONSchema]
+     Doc.datatype @JSONSchema,
+     Doc.datatype @DocstringResult,
+     Doc.datatype @CommandResult]
   ]
 
 description :: String
@@ -126,6 +143,24 @@ initMod = StartingFile <$> (Left <$> filename <|> Right . textToModName <$> modu
       help "Cryptol module to load on startup" <>
       value (modNameToText preludeName)
 
+-- | Display the version number when the @--version@/@-v@ option is supplied.
+versionParser :: Parser (a -> a)
+versionParser =
+  infoOption versionStr $
+  mconcat
+    [ long "version"
+    , short 'v'
+    , help "Display version number"
+    , hidden
+    ]
+  where
+    versionStr :: String
+    versionStr =
+      intercalate "\n"
+        [ "Cryptol RPC server " ++ showVersion RPC.version
+        , displayVersionStr
+        ]
+
 cryptolEvalMethods :: [AppMethod ServerState]
 cryptolEvalMethods =
   [ command
@@ -136,6 +171,10 @@ cryptolEvalMethods =
      "focused module"
      focusedModuleDescr
      focusedModule
+  , command
+     "focus module"
+     focusModuleDescr
+     focusModule
   , command
      "evaluate expression"
      evalExpressionDescr
@@ -153,6 +192,10 @@ cryptolEvalMethods =
      visibleNamesDescr
      visibleNames
   , command
+     "visible modules"
+     visibleModulesDescr
+     visibleModules
+  , command
      "check type"
      (Doc.Paragraph [Doc.Text "Check and return the type of the given expression."])
      checkType
@@ -168,6 +211,10 @@ cryptolEvalMethods =
     "clear all states"
     clearAllStatesDescr
     clearAllStates
+  , command
+     "check docstrings"
+     checkDocstringsDescr
+     checkDocstrings
   , notification
      "interrupt"
      interruptServerDescr

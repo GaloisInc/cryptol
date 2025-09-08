@@ -1,0 +1,6 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module PrimeEC
+{x = 0, y = 0, z = 1}
+ec_mult`{13} : Z 13 -> ProjectivePoint 13 -> ProjectivePoint 13
+{x = 0, y = 0, z = 1}

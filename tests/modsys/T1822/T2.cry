@@ -1,0 +1,8 @@
+module Test where
+
+submodule A where
+  submodule B where
+    x = 0x1
+
+submodule C where
+  x = 0x1

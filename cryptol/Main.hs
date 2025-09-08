@@ -8,16 +8,18 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import OptParser
 
-import Cryptol.REPL.Command (loadCmd,loadPrelude,CommandExitCode(..))
+import Cryptol.REPL.Command (loadCmd,loadPrelude,CommandResult(..))
 import Cryptol.REPL.Monad (REPL,updateREPLTitle,setUpdateREPLTitle,
                    io,prependSearchPath,setSearchPath,parseSearchPath)
 import qualified Cryptol.REPL.Monad as REPL
 import Cryptol.ModuleSystem.Env(ModulePath(..))
+import qualified Cryptol.Project as Project
 
 import REPL.Haskeline
 import REPL.Logo
@@ -25,7 +27,8 @@ import REPL.Logo
 import Cryptol.Utils.PP
 import Cryptol.Version (displayVersion)
 
-import Control.Monad (when)
+import Control.Monad (when, void)
+import Data.Maybe (isJust, isNothing)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
@@ -47,6 +50,8 @@ data Options = Options
   , optVersion         :: Bool
   , optHelp            :: Bool
   , optBatch           :: ReplMode
+  , optProject         :: Maybe FilePath
+  , optProjectRefresh  :: Project.LoadProjectMode
   , optCallStacks      :: Bool
   , optCommands        :: [String]
   , optColorMode       :: ColorMode
@@ -62,6 +67,8 @@ defaultOptions  = Options
   , optVersion         = False
   , optHelp            = False
   , optBatch           = InteractiveRepl
+  , optProject         = Nothing
+  , optProjectRefresh  = Project.ModifiedMode
   , optCallStacks      = True
   , optCommands        = []
   , optColorMode       = AutoColor
@@ -78,6 +85,16 @@ options  =
 
   , Option "" ["interactive-batch"] (ReqArg setInteractiveBatchScript "FILE")
     "run the script provided and exit, but behave as if running an interactive session"
+
+  , Option "p" ["project"] (ReqArg setProject "CRYPROJECT")
+    ("Load and verify a Cryptol project using the provided project "
+      ++ "configuration file or directory containing 'cryproject.toml'")
+  
+  , Option "" ["refresh-project"] (NoArg setProjectRefresh)
+    "Ignore a pre-existing cache file when loading a project."
+
+  , Option "" ["untested-project"] (NoArg setProjectUntested)
+    "Load all project files that don't have a test result."
 
   , Option "e" ["stop-on-error"] (NoArg setStopOnError)
     "stop script execution as soon as an error occurs."
@@ -137,6 +154,15 @@ setBatchScript path = modify $ \ opts -> opts { optBatch = Batch path }
 setInteractiveBatchScript :: String -> OptParser Options
 setInteractiveBatchScript path = modify $ \ opts -> opts { optBatch = InteractiveBatch path }
 
+setProject :: String -> OptParser Options
+setProject path = modify $ \opts -> opts { optProject = Just path }
+
+setProjectRefresh :: OptParser Options
+setProjectRefresh = modify $ \opts -> opts { optProjectRefresh = Project.RefreshMode }
+
+setProjectUntested :: OptParser Options
+setProjectUntested = modify $ \opts -> opts { optProjectRefresh = Project.UntestedMode }
+
 -- | Set the color mode of the terminal output.
 setColorMode :: String -> OptParser Options
 setColorMode "auto"   = modify $ \ opts -> opts { optColorMode = AutoColor }
@@ -195,12 +221,16 @@ displayHelp errs = do
             , "addition to the default locations"
             ]
           )
+        , ( "CRYPTOL_SAW"
+          , [ "Sets the command to use when running SAW via the `:saw` command"
+            ]
+          )
         , ( "EDITOR"
           , [ "Sets the editor executable to use when opening an editor"
             , "via the `:edit` command"
             ]
           )
-        , ( "SBV_{ABC,BOOLECTOR,CVC4,CVC5,MATHSAT,YICES,Z3}_OPTIONS"
+        , ( "SBV_{ABC,BITWUZLA,BOOLECTOR,CVC4,CVC5,MATHSAT,YICES,Z3}_OPTIONS"
           , [ "A string of command-line arguments to be passed to the"
             , "corresponding solver invoked for `:sat` and `:prove`"
             , "when using a prover via SBV"
@@ -225,18 +255,21 @@ main  = do
       | optVersion opts -> displayVersion putStrLn
       | otherwise       -> do
           (opts', mCleanup) <- setupCmdScript opts
-          status <- repl (optCryptolrc opts')
-                         (optBatch opts')
-                         (optCallStacks opts')
-                         (optStopOnError opts')
-                         (setupREPL opts')
+          (opts'', mConfig) <- setupProject opts'
+          status <- repl (optCryptolrc opts'')
+                         mConfig
+                         (optProjectRefresh opts'')
+                         (optBatch opts'')
+                         (optCallStacks opts'')
+                         (optStopOnError opts'')
+                         (setupREPL opts'')
           case mCleanup of
             Nothing -> return ()
             Just cmdFile -> removeFile cmdFile
 
-          case status of
-            CommandError -> exitFailure
-            CommandOk    -> exitSuccess
+          if crSuccess status
+            then exitSuccess
+            else exitFailure
 
 setupCmdScript :: Options -> IO (Options, Maybe FilePath)
 setupCmdScript opts =
@@ -249,7 +282,27 @@ setupCmdScript opts =
       hClose h
       when (optBatch opts /= InteractiveRepl) $
         putStrLn "[warning] --command argument specified; ignoring batch file"
-      return (opts { optBatch = InteractiveBatch path }, Just path)
+      when (isJust (optProject opts)) $
+        putStrLn $
+          "[warning] --command argument specified; "
+          ++ "ignoring project configuration file"
+      return
+        ( opts { optBatch = InteractiveBatch path, optProject = Nothing }
+        , Just path )
+
+setupProject :: Options -> IO (Options, Maybe Project.Config)
+setupProject opts =
+  case optProject opts of
+    Nothing -> pure (opts, Nothing)
+    Just path -> do
+      when (optBatch opts /= InteractiveRepl) $
+        putStrLn "[warning] --project argument specified; ignoring batch file"
+      Project.loadConfig path >>= \case
+        Left err -> do
+          print $ pp err
+          exitFailure
+        Right config ->
+          pure (opts { optBatch = InteractiveRepl }, Just config)
 
 setupREPL :: Options -> REPL ()
 setupREPL opts = do
@@ -281,18 +334,20 @@ setupREPL opts = do
     Batch file -> prependSearchPath [ takeDirectory file ]
     _ -> return ()
 
-  case optLoad opts of
-    []  -> loadPrelude `REPL.catch` \x -> io $ print $ pp x
-    [l] -> loadCmd l `REPL.catch` \x -> do
-             io $ print $ pp x
-             -- If the requested file fails to load, load the prelude instead...
-             loadPrelude `REPL.catch` \y -> do
-               io $ print $ pp y
-             -- ... but make sure the loaded module is set to the file
-             -- we tried, instead of the Prelude
-             REPL.setEditPath l
-             REPL.setLoadedMod REPL.LoadedModule
-               { REPL.lName = Nothing
-               , REPL.lPath = InFile l
-               }
-    _   -> io $ putStrLn "Only one file may be loaded at the command line."
+  when (isNothing (optProject opts)) $
+    case optLoad opts of
+      []  -> loadPrelude `REPL.catch` \x -> io $ print $ pp x
+      [l] -> void (loadCmd l) `REPL.catch` \x -> do
+              io $ print $ pp x
+              -- If the requested file fails to load,
+              -- load the prelude instead...
+              loadPrelude `REPL.catch` \y -> do
+                io $ print $ pp y
+              -- ... but make sure the loaded module is set to the file
+              -- we tried, instead of the Prelude
+              REPL.setEditPath l
+              REPL.setLoadedMod REPL.LoadedModule
+                { REPL.lFocus = Nothing
+                , REPL.lPath = InFile l
+                }
+      _   -> io $ putStrLn "Only one file may be loaded at the command line."

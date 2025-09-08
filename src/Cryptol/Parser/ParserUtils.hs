@@ -14,15 +14,14 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 -- See Note [-Wincomplete-uni-patterns and irrefutable patterns] in Cryptol.TypeCheck.TypePat
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.Parser.ParserUtils where
 
-import qualified Data.Text as Text
-import Data.Char(isAlphaNum)
-import Data.Maybe(fromMaybe)
+import Data.Char(isAlphaNum, isSpace)
+import Data.Maybe(fromMaybe, mapMaybe)
 import Data.Bits(testBit,setBit)
-import Data.Maybe(mapMaybe)
 import Data.List(foldl')
 import Data.List.NonEmpty ( NonEmpty(..) )
 import qualified Data.List.NonEmpty as NE
@@ -32,6 +31,7 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
 import Text.Read(readMaybe)
+import Data.Foldable (for_)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -46,9 +46,9 @@ import Cryptol.Parser.Token(SelectorType(..))
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
-                          , identAnonArg, identAnonIfaceMod
+                          , identAnonArg, identAnonIfaceMod, identAnonInstImport
                           , modNameArg, modNameIfaceMod
-                          , modNameToText, modNameIsNormal
+                          , mainModName, modNameIsNormal
                           , modNameToNormalModName
                           , unpackIdent, isUpperIdent
                           )
@@ -74,6 +74,8 @@ parse cfg p cs    = case unP p cfg eofPos S { sPrevTok = Nothing
 newtype ParseM a =
   P { unP :: Config -> Position -> S -> Either ParseError (a,S) }
 
+askConfig :: ParseM Config
+askConfig = P \cfg _ s -> Right (cfg, s)
 
 lexerP :: (Located Token -> ParseM a) -> ParseM a
 lexerP k = P $ \cfg p s ->
@@ -484,7 +486,7 @@ eFromToLessThanType r e1 e2 t =
 
 exprToNumT :: Range -> Expr PName -> ParseM (Type PName)
 exprToNumT r expr =
-  case translateExprToNumT expr of
+  case translateExprToNumT r expr of
     Just t -> return t
     Nothing -> bad
   where
@@ -590,9 +592,8 @@ addDeclDocstring doc decl =
         Nothing -> pure x { tlDoc = Just doc }
 
 privateDocedDecl :: Located Text -> [TopDecl PName] -> ParseM [TopDecl PName]
-privateDocedDecl doc [decl] = traverse (addDeclDocstring doc) [decl]
-privateDocedDecl doc _ =
-  errorMessage (srcRange doc) ["Docstring on private requires since declaration"]
+privateDocedDecl doc (decl:decls) = fmap (: decls) (addDeclDocstring doc decl)
+privateDocedDecl doc [] = errorMessage (srcRange doc) ["Docstring on empty private section"]
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
@@ -660,10 +661,10 @@ mkConDecl mbDoc expT ty =
     case t of
       TLocated t1 r -> go (Just r) t1
       TUser n ts ->
-        case n of
+        case thing n of
           UnQual i
             | isUpperIdent i ->
-              pure EnumCon { ecName = Located (getL mbLoc) (UnQual i)
+              pure EnumCon { ecName = Located (srcRange n) (UnQual i)
                            , ecFields = ts
                            }
             | otherwise ->
@@ -705,8 +706,8 @@ typeToDecl ty0 =
       TLocated ty1 loc1 -> goP loc1 ty1
 
       TUser f [] ->
-        do goN loc f
-           pure TParam { tpName = f, tpKind = Nothing, tpRange = Just loc }
+        do goN (srcRange f) (thing f)
+           pure TParam { tpName = thing f, tpKind = Nothing, tpRange = Just loc }
 
       TParens t mb ->
         case mb of
@@ -729,16 +730,16 @@ typeToDecl ty0 =
       TTyApp {}     -> badP loc
       TTuple {}     -> badP loc
 
-
+  
   goD loc ty =
     case ty of
 
       TLocated ty1 loc1 -> goD loc1 ty1
 
       TUser f ts ->
-        do goN loc f
+        do goN (srcRange f) (thing f)
            ps <- mapM (goP loc) ts
-           pure (Located { thing = f, srcRange = loc },ps)
+           pure (f,ps)
 
       TInfix l f _ r ->
         do goN (srcRange f) (thing f)
@@ -788,7 +789,7 @@ mkPoly rng terms
 mkProperty :: LPName -> [Pattern PName] -> Expr PName -> Decl PName
 mkProperty f ps e = at (f,e) $
                     DBind Bind { bName       = f
-                               , bParams     = reverse ps
+                               , bParams     = PatternParams (reverse ps)
                                , bDef        = at e (Located emptyRange (exprDef e))
                                , bSignature  = Nothing
                                , bPragmas    = [PragmaProperty]
@@ -804,7 +805,7 @@ mkIndexedDecl ::
   LPName -> ([Pattern PName], [Pattern PName]) -> Expr PName -> Decl PName
 mkIndexedDecl f (ps, ixs) e =
   DBind Bind { bName       = f
-             , bParams     = reverse ps
+             , bParams     = PatternParams (reverse ps)
              , bDef        = at e (Located emptyRange (exprDef rhs))
              , bSignature  = Nothing
              , bPragmas    = []
@@ -831,7 +832,7 @@ mkPropGuardsDecl f (ps, ixs) guards =
      let gs  = reverse guards
      pure $
        DBind Bind { bName       = f
-                  , bParams     = reverse ps
+                  , bParams     = PatternParams (reverse ps)
                   , bDef        = Located (srcRange f) (DImpl (DPropGuards gs))
                   , bSignature  = Nothing
                   , bPragmas    = []
@@ -894,9 +895,21 @@ mkPrimDecl :: Maybe (Located Text) -> LPName -> Schema PName -> [TopDecl PName]
 mkPrimDecl = mkNoImplDecl DPrim
 
 mkForeignDecl ::
-  Maybe (Located Text) -> LPName -> Schema PName -> ParseM [TopDecl PName]
-mkForeignDecl mbDoc nm ty =
+  Maybe (Located Text) -> Maybe LPName -> LPName -> Schema PName -> ParseM [TopDecl PName]
+mkForeignDecl mbDoc mbCC nm ty =
   do let txt = unpackIdent (getIdent (thing nm))
+     fgn <- case mbCC of
+              Nothing -> pure ForeignC
+              Just cc ->
+                case thing cc of
+                  UnQual i
+                     | tx == "c" -> pure ForeignC
+                     | tx == "abstract" -> pure ForeignAbstract
+                     where tx = identText i
+                  _ -> errorMessage (srcRange cc)
+                          [ "Invalid calling convention."
+                          , "We support `c` and `abstract` at present."
+                          ]
      unless (all isOk txt)
        (errorMessage (srcRange nm)
             [ "`" ++ txt ++ "` is not a valid foreign name."
@@ -906,7 +919,7 @@ mkForeignDecl mbDoc nm ty =
      -- will be merged with this binding in the NoPat pass. In the parser they
      -- are just treated as a completely separate (non-foreign) binding with the
      -- same name.
-     pure (mkNoImplDecl (DForeign Nothing) mbDoc nm ty)
+     pure (mkNoImplDecl (DForeign fgn Nothing) mbDoc nm ty)
   where
   isOk c = c == '_' || isAlphaNum c
 
@@ -922,7 +935,7 @@ mkNoImplDecl :: BindDef PName
 mkNoImplDecl def mbDoc ln sig =
   [ exportDecl Nothing Public
     $ DBind Bind { bName      = ln
-                 , bParams    = []
+                 , bParams    = noParams
                  , bDef       = at sig (Located emptyRange def)
                  , bSignature = Nothing
                  , bPragmas   = []
@@ -942,7 +955,7 @@ mkPrimTypeDecl ::
   Located Kind ->
   ParseM [TopDecl PName]
 mkPrimTypeDecl mbDoc (Forall as qs st ~(Just schema_rng)) finK =
-  case splitT schema_rng st of
+  case splitT st of
     Just (n,xs) ->
       do vs <- mapM tpK as
          unless (distinct (map fst vs)) $
@@ -974,19 +987,19 @@ mkPrimTypeDecl mbDoc (Forall as qs st ~(Just schema_rng)) finK =
     Nothing -> errorMessage schema_rng ["Invalid primitive signature"]
 
   where
-  splitT r ty = case ty of
-                  TLocated t r1 -> splitT r1 t
-                  TUser n ts -> mkT r Located { srcRange = r, thing = n } ts
-                  TInfix t1 n _ t2  -> mkT r n [t1,t2]
+  splitT ty   = case ty of
+                  TLocated t _ -> splitT t
+                  TUser n ts -> mkT n ts
+                  TInfix t1 n _ t2  -> mkT n [t1,t2]
                   _ -> Nothing
 
-  mkT r n ts = do ts1 <- mapM (isVar r) ts
+  mkT n ts   = do ts1 <- mapM isVar ts
                   guard (distinct (map thing ts1))
                   pure (n,ts1)
 
-  isVar r ty = case ty of
-                 TLocated t r1  -> isVar r1 t
-                 TUser n []     -> Just Located { srcRange = r, thing = n }
+  isVar ty   = case ty of
+                 TLocated t _   -> isVar t
+                 TUser n []     -> Just n
                  _              -> Nothing
 
   -- inefficient, but the lists should be small
@@ -1010,39 +1023,67 @@ mkDoc ltxt = ltxt { thing = docStr }
   where
 
   docStr = T.unlines
-         $ dropPrefix
-         $ trimFront
+         $ handlePrefixes
          $ T.lines
          $ T.dropWhileEnd commentChar
          $ thing ltxt
 
   commentChar :: Char -> Bool
-  commentChar x = x `elem` ("/* \r\n\t" :: String)
+  commentChar x = x `elem` ("/*" :: String) || isSpace x
 
-  prefixDroppable x = x `elem` ("* \r\n\t" :: String)
+  -- Prefix dropping with a special case for the first line and common
+  -- prefix dropping for the following lines. The first line and following
+  -- lines are treated independently
+  handlePrefixes :: [Text] -> [Text]
+  handlePrefixes [] = []
+  handlePrefixes (l:ls)
+    | T.all commentChar l = ls'
+    | otherwise           = T.dropWhile commentChar l : ls'
+    where ls' = dropPrefix ls
 
-  whitespaceChar :: Char -> Bool
-  whitespaceChar x = x `elem` (" \r\n\t" :: String)
+  dropPrefix :: [Text] -> [Text]
+  dropPrefix ts =
+    case startDropPrefixChar ts of
+      Nothing -> ts -- done dropping
+      Just ts' -> dropPrefix ts' -- keep dropping
 
-  trimFront []                     = []
-  trimFront (l:ls)
-    | T.all commentChar l = ls
-    | otherwise           = T.dropWhile commentChar l : ls
-
-  dropPrefix []        = []
-  dropPrefix [t]       = [T.dropWhile commentChar t]
-  dropPrefix ts@(l:ls) =
+  -- At the beginning of a prefix stripping operation we check the
+  -- first character of the first line. If that first character is
+  -- droppable we use it as the prefix to check for, otherwise we
+  -- continue searching for whitespace. Return Nothing if there
+  -- was no prefix to drop.
+  startDropPrefixChar :: [Text] -> Maybe [Text]
+  startDropPrefixChar [] = Nothing
+  startDropPrefixChar (l:ls) =
     case T.uncons l of
-      Just (c,_) | prefixDroppable c &&
-                   all (commonPrefix c) ls -> dropPrefix (map (T.drop 1) ts)
-      _                                    -> ts
+      Nothing -> (l:) <$> searchWhitePrefixChar ls
+      Just (c, l')
+        | c == '*' || isSpace c -> (l':) <$> checkPrefixChar c ls
+        | otherwise -> Nothing
 
-    where
-    commonPrefix c t =
-      case T.uncons t of
-        Just (c',_) -> c == c'
-        Nothing     -> whitespaceChar c -- end-of-line matches any whitespace
+  -- So far we've only seen empty lines, so we accept empty
+  -- lines and lines starting with whitespace.
+  searchWhitePrefixChar :: [Text] -> Maybe [Text]
+  searchWhitePrefixChar [] = Just []
+  searchWhitePrefixChar (l:ls) =
+    case T.uncons l of
+      Nothing -> (l:) <$> searchWhitePrefixChar ls
+      Just (c, l')
+        | isSpace c -> (l':) <$> checkPrefixChar c ls
+        | otherwise -> Nothing
 
+  -- So far we've seen a non-empty line and we know what character
+  -- we're looking for. If that character is whitespace then we also
+  -- will accept empty lines as matching the prefix
+  checkPrefixChar :: Char -> [Text] -> Maybe [Text]
+  checkPrefixChar _ [] = Just []
+  checkPrefixChar p (l:ls) =
+    case T.uncons l of
+      Nothing
+        | isSpace p -> (l:) <$> checkPrefixChar p ls
+      Just (c,l')
+        | c == p -> (l':) <$> checkPrefixChar p ls
+      _ -> Nothing
 
 distrLoc :: Located [a] -> [Located a]
 distrLoc x = [ Located { srcRange = r, thing = a } | a <- thing x ]
@@ -1091,6 +1132,7 @@ mkModule :: Located ModName -> [TopDecl PName] -> Module PName
 mkModule nm ds = Module { mName = nm
                         , mDef = NormalModule ds
                         , mInScope = mempty
+                        , mDocTop = Nothing
                         }
 
 mkNested :: Module PName -> ParseM (NestedModule PName)
@@ -1112,6 +1154,7 @@ mkSigDecl doc (nm,sig) =
                         Module { mName    = nm
                                , mDef     = InterfaceModule sig
                                , mInScope = mempty
+                               , mDocTop  = Nothing
                                }
            }
 
@@ -1175,10 +1218,22 @@ mkIfacePropSyn mbDoc d =
 
 -- | Make an unnamed module---gets the name @Main@.
 mkAnonymousModule :: [TopDecl PName] -> ParseM [Module PName]
-mkAnonymousModule = mkTopMods
-                  . mkModule Located { srcRange = emptyRange
-                                     , thing    = mkModName [T.pack "Main"]
-                                     }
+mkAnonymousModule ds =
+  do for_ ds \case
+       DParamDecl l _            -> mainParamError l
+       DModParam p               -> mainParamError (srcRange (mpSignature p))
+       DInterfaceConstraint _ ps -> mainParamError (srcRange ps)
+       _                         -> pure ()
+     src <- cfgSource <$> askConfig
+     mkTopMods Nothing $
+        mkModule Located
+          { srcRange = emptyRange
+          , thing    = mainModName src
+          }
+                          ds
+  where
+  mainParamError l = errorMessage l
+    ["Unnamed module cannot be parameterized"]
 
 -- | Make a module which defines a functor instance.
 mkModuleInstanceAnon :: Located ModName ->
@@ -1189,6 +1244,7 @@ mkModuleInstanceAnon nm fun ds =
   Module { mName    = nm
          , mDef     = FunctorInstance fun (DefaultInstAnonArg ds) mempty
          , mInScope = mempty
+         , mDocTop  = Nothing
          }
 
 mkModuleInstance ::
@@ -1200,6 +1256,7 @@ mkModuleInstance m f as =
   Module { mName    = m
          , mDef     = FunctorInstance f as emptyModuleInstance
          , mInScope = mempty
+         , mDocTop  = Nothing
          }
 
 
@@ -1245,7 +1302,7 @@ exprToFieldPath e0 = reverse <$> go noLoc e0
         , Just (_,bs) <- T.uncons bs'
         , Just b <- readMaybe (T.unpack bs)
         , let fromP = from loc
-        , let midP  = fromP { col = col fromP + T.length as + 1 } ->
+        , let midP  = advanceColBy (T.length as + 1) fromP ->
           -- these are backward because we reverse above
           pure [ Located { thing    = TupleSel b Nothing
                          , srcRange = loc { from = midP }
@@ -1298,7 +1355,7 @@ mkImport loc impName optInst mbAs mbImportSpec optImportWhere doc =
 
      pure Located { srcRange = rComb loc end
                   , thing    = Import
-                                 { iModule    = thing impName
+                                 { iModule    = impName
                                  , iAs        = thing <$> mbAs
                                  , iSpec      = thing <$> mbImportSpec
                                  , iInst      = i
@@ -1329,14 +1386,17 @@ mkImport loc impName optInst mbAs mbImportSpec optImportWhere doc =
 
 
 
-mkTopMods :: Module PName -> ParseM [Module PName]
-mkTopMods = desugarMod
+mkTopMods :: Maybe (Located Text) -> Module PName -> ParseM [Module PName]
+mkTopMods doc m =
+ do (m', ms) <- desugarMod m { mDocTop = doc }
+    pure (ms ++ [m'])
 
-mkTopSig :: Located ModName -> Signature PName -> [Module PName]
-mkTopSig nm sig =
+mkTopSig :: Maybe (Located Text) -> Located ModName -> Signature PName -> [Module PName]
+mkTopSig doc nm sig =
   [ Module { mName    = nm
            , mDef     = InterfaceModule sig
            , mInScope = mempty
+           , mDocTop  = doc
            }
   ]
 
@@ -1345,24 +1405,27 @@ class MkAnon t where
   mkAnon    :: AnonThing -> t -> t
   toImpName :: t -> ImpName PName
 
-data AnonThing = AnonArg | AnonIfaceMod
+data AnonThing = AnonArg Int Int
+                -- ^ The ints are line, column used for disambiguation
+               | AnonIfaceMod
 
 instance MkAnon ModName where
   mkAnon what   = case what of
-                    AnonArg      -> modNameArg
+                    AnonArg l c  -> modNameArg l c
                     AnonIfaceMod -> modNameIfaceMod
   toImpName     = ImpTop
 
 instance MkAnon PName where
   mkAnon what   = mkUnqual
                 . case what of
-                    AnonArg      -> identAnonArg
+                    AnonArg l c  -> const (identAnonArg l c)
                     AnonIfaceMod -> identAnonIfaceMod
                 . getIdent
   toImpName     = ImpNested
 
-
-desugarMod :: MkAnon name => ModuleG name PName -> ParseM [ModuleG name PName]
+-- | Desugar a module returning first the updated original module and a
+-- list of any new modules generated by desugaring.
+desugarMod :: MkAnon name => ModuleG name PName -> ParseM (ModuleG name PName, [ModuleG name PName])
 desugarMod mo =
   case mDef mo of
 
@@ -1377,19 +1440,24 @@ desugarMod mo =
                 [ "Instantiation of a parameterized module may not itself be "
                   ++ "parameterized" ]
            _ -> pure ()
-         let i      = mkAnon AnonArg (thing (mName mo))
+         let i      = mkAnon (AnonArg (line pos) (col pos)) (thing (mName mo))
+             pos    = from (srcRange nm)
              nm     = Located { srcRange = srcRange (mName mo), thing = i }
              as'    = DefaultInstArg (ModuleArg . toImpName <$> nm)
-         pure [ Module
-                  { mName = nm, mDef  = NormalModule lds', mInScope = mempty }
-              , mo { mDef = FunctorInstance f as' mempty }
-              ]
+         pure ( mo { mDef = FunctorInstance f as' mempty }
+              , [ Module
+                    { mName = nm
+                    , mDef  = NormalModule lds'
+                    , mInScope = mempty
+                    , mDocTop = Nothing
+                    }]
+              )
 
     NormalModule ds ->
       do (newMs, newDs) <- desugarTopDs (mName mo) ds
-         pure (newMs ++ [ mo { mDef = NormalModule newDs } ])
+         pure (mo {mDef = NormalModule newDs }, newMs)
 
-    _ -> pure [mo]
+    _ -> pure (mo, [])
 
 
 desugarTopDs ::
@@ -1432,6 +1500,7 @@ desugarTopDs ownerName = go emptySig
              pure ( [ Module { mName = nm
                              , mDef = InterfaceModule sig
                              , mInScope = mempty
+                             , mDocTop = Nothing
                              }
                      ]
                   , [ DModParam
@@ -1454,7 +1523,7 @@ desugarTopDs ownerName = go emptySig
         case d of
 
           DImport i
-            | ImpTop _ <- iModule (thing i)
+            | ImpTop _ <- thing (iModule (thing i))
             , Nothing  <- iInst (thing i) ->
             cont [d] (addI i sig)
 
@@ -1466,8 +1535,14 @@ desugarTopDs ownerName = go emptySig
           DParamDecl _ ds' -> cont [] (jnSig ds' sig)
 
           DModule tl | NestedModule mo <- tlValue tl ->
-            do ms <- desugarMod mo
-               cont [ DModule tl { tlValue = NestedModule m } | m <- ms ] sig
+            do (mo', ms) <- desugarMod mo
+               cont ([ DModule TopLevel
+                          { tlExport = tlExport tl
+                          , tlValue = NestedModule m
+                          , tlDoc = Nothing -- generated modules have no docstrings
+                          }
+                      | m <- ms] ++ [DModule tl { tlValue = NestedModule mo' }])
+                    sig
 
           _ -> cont [d] sig
 
@@ -1476,26 +1551,27 @@ desugarInstImport ::
   ModuleInstanceArgs PName          {- ^ The insantiation -} ->
   ParseM [TopDecl PName]
 desugarInstImport i inst =
-  do ms <- desugarMod
-           Module { mName    = i { thing = iname }
+  do (m, ms) <- desugarMod
+           Module { mName    = iname
                   , mDef     = FunctorInstance
-                                 (iModule <$> i) inst emptyModuleInstance
+                                 origMod inst emptyModuleInstance
                   , mInScope = mempty
+                  , mDocTop  = Nothing
                   }
-     pure (DImport (newImp <$> i) : map modTop ms)
+     pure (DImport (newImp <$> i) : map modTop (ms ++ [m]))
 
   where
-  imp = thing i
-  iname = mkUnqual
-        $ identAnonIfaceMod
-        $ mkIdent
-        $ "import of " <> nm <> " at " <> Text.pack (show (pp (srcRange i)))
-    where
-    nm = case iModule imp of
-           ImpTop f    -> modNameToText f
-           ImpNested n -> "submodule " <> Text.pack (show (pp n))
+  origMod = iModule (thing i)
 
-  newImp d = d { iModule = ImpNested iname
+  iname = Located {
+    thing =mkUnqual
+        $ let pos = from (srcRange i)
+          in identAnonInstImport (line pos) (col pos),
+    srcRange = srcRange origMod
+  }
+      
+
+  newImp d = d { iModule = ImpNested <$> iname
                , iInst   = Nothing
                }
 

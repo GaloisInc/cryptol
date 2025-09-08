@@ -18,6 +18,7 @@ module Cryptol.TypeCheck.Solver.SMT
   , withSolver
   , startSolver
   , stopSolver
+  , killSolver
   , isNumeric
   , resetSolver
 
@@ -41,12 +42,13 @@ import qualified SimpleSMT as SMT
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import           Data.Maybe(catMaybes)
+import           Data.Maybe(catMaybes,isJust)
 import           Data.List(partition)
 import           Control.Exception
 import           Control.Monad(msum,zipWithM,void)
 import           Data.Char(isSpace)
 import           Text.Read(readMaybe)
+import           System.IO(IOMode(..), hClose, openFile)
 import qualified System.IO.Strict as StrictIO
 import           System.FilePath((</>))
 import           System.Directory(doesFileExist)
@@ -75,17 +77,44 @@ data Solver = Solver
 setupSolver :: Solver -> SolverConfig -> IO ()
 setupSolver s cfg = do
   _ <- SMT.setOptionMaybe (solver s) ":global-decls" "false"
+  SMT.setLogic (solver s) "ALL"
   loadTcPrelude s (solverPreludePath cfg)
 
 -- | Start a fresh solver instance
 startSolver :: IO () -> SolverConfig -> IO Solver
 startSolver onExit sCfg =
-   do logger <- if (solverVerbose sCfg) > 0 then SMT.newLogger 0
-
-                                     else return quietLogger
-      let smtDbg = if (solverVerbose sCfg) > 1 then Just logger else Nothing
-      solver <- SMT.newSolverNotify
-                    (solverPath sCfg) (solverArgs sCfg) smtDbg (Just (const onExit))
+   do let smtFileEnabled = isJust (solverSmtFile sCfg)
+      (logger, mbLoggerCloseHdl) <-
+        -- There are two scenarios under which we want to explicitly log SMT
+        -- solver interactions:
+        --
+        -- 1. The user wants to debug-print interactions with the `tcDebug`
+        --    option
+        -- 2. The user wants to write interactions to the `tcSmtFile` option
+        --
+        -- We enable logging if either one is true.
+        if (solverVerbose sCfg) > 0 || smtFileEnabled
+        then case solverSmtFile sCfg of
+               Nothing ->
+                 do logger <- SMT.newLogger 0
+                    pure (logger, Nothing)
+               Just file ->
+                 do loggerHdl <- openFile file WriteMode
+                    logger <- SMT.newLoggerWithHandle loggerHdl 0
+                    pure (logger, Just (hClose loggerHdl))
+        else pure (quietLogger, Nothing)
+      let smtDbg = if (solverVerbose sCfg) > 1 || smtFileEnabled
+                   then Just logger
+                   else Nothing
+      solver <- SMT.newSolverWithConfig
+                  (SMT.defaultConfig (solverPath sCfg) (solverArgs sCfg))
+                    { SMT.solverOnExit =
+                        Just $ \_exitCode ->
+                        do onExit
+                           sequence_ mbLoggerCloseHdl
+                    , SMT.solverLogger =
+                        maybe SMT.noSolverLogger SMT.smtSolverLogger smtDbg
+                    }
       let sol = Solver solver logger
       setupSolver sol sCfg
       return sol
@@ -97,6 +126,10 @@ startSolver onExit sCfg =
                            , SMT.logTab     = return ()
                            , SMT.logUntab   = return ()
                            }
+
+-- | Kill the process running the solver
+killSolver :: Solver -> IO ()
+killSolver s = void $ SMT.forceStop (solver s)
 
 -- | Shut down a solver instance
 stopSolver :: Solver -> IO ()
@@ -115,7 +148,7 @@ withSolver onExit cfg = bracket (startSolver onExit cfg) stopSolver
 loadTcPrelude :: Solver -> [FilePath] {- ^ Search in this paths -} -> IO ()
 loadTcPrelude s [] = loadString s cryptolTcContents
 loadTcPrelude s (p : ps) =
-  do let file = p </> "CryptolTC.z3"
+  do let file = p </> "CryptolTC.smt2"
      yes <- doesFileExist file
      if yes then loadFile s file
             else loadTcPrelude s ps
@@ -150,7 +183,7 @@ loadString s str = go (dropComments str)
 
 debugBlock :: Solver -> String -> IO a -> IO a
 debugBlock s@Solver { .. } name m =
-  do debugLog s name
+  do debugLog s (";;; " ++ name)
      SMT.logTab logger
      a <- m
      SMT.logUntab logger
@@ -348,7 +381,8 @@ flatGoal g = [ g { goal = p } | p <- pSplitAnd (goal g) ]
 
 -- | Assumes no 'And'
 isNumeric :: Prop -> Bool
-isNumeric ty = matchDefault False $ msum [ is (|=|), is (|/=|), is (|>=|), is aFin ]
+isNumeric ty = matchDefault False $ msum [ is (|=|), is (|/=|), is (|>=|)
+                                         , is aFin, is aPrime ]
   where
   is f = f ty >> return True
 
@@ -368,6 +402,7 @@ toSMT tvs ty = matchDefault (panic "toSMT" [ "Unexpected type", show ty ])
   , aNat            ~> "cryNat"
 
   , aFin            ~> "cryFin"
+  , aPrime          ~> "cryPrime"
   , (|=|)           ~> "cryEq"
   , (|/=|)          ~> "cryNeq"
   , (|>=|)          ~> "cryGeq"

@@ -1,0 +1,34 @@
+module Example where
+
+import Float
+
+newtype N = { unN : [8] }
+
+foreign abstract test_bool : Bit -> Bit
+foreign abstract test_u8 : [8] -> [8]
+foreign abstract test_u16 : [16] -> [16]
+foreign abstract test_u32 : [32] -> [32]
+foreign abstract test_u64 : [64] -> [64]
+foreign abstract test_u128 : [128] -> [128]
+foreign abstract test_i8 : [8] -> [8]
+foreign abstract test_i16 : [16] -> [16]
+foreign abstract test_i32 : [32] -> [32]
+foreign abstract test_i64 : [64] -> [64]
+foreign abstract test_i128 : [128] -> [128]
+foreign abstract test_integer : Integer -> Integer
+foreign abstract test_rational : Rational -> Rational
+foreign abstract test_float : Float32 -> Float32
+foreign abstract test_double : Float64 -> Float64
+foreign abstract test_array_16_u8 : [16][8] -> [16][8]
+foreign abstract test_record0 : {} -> {}
+foreign abstract test_record1_u8 : { x : [8] } -> { x : [8] }
+foreign abstract test_record2_u8_u16 : { x : [8], y : [16] } -> { x : [8], y : [16] }
+foreign abstract test_tuple0 : () -> ()
+foreign abstract test_tuple2_u8_u16 : ([8], [16]) -> ([8], [16])
+foreign abstract test_newtype_u8 : N -> N
+foreign abstract test_option_u8 : Option [8] -> Option [8]
+foreign abstract test_result_u16_u32 : Result [16] [32] -> Result [16] [32]
+foreign abstract test_two_u8_args : [8] -> [8] -> [8]
+foreign abstract test_two_u128_res : [128] -> ([128], [128])
+foreign abstract test_z7 : Z 7 -> Z 7
+foreign abstract test_param : {n} (fin n, n >= 1) => Z n

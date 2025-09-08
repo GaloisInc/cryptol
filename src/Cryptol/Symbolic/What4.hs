@@ -67,6 +67,8 @@ import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.Type (TValue)
 import           Cryptol.Eval.What4
 
+import           Data.RME.What4 (rmeAdapter)
+
 import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
@@ -81,6 +83,7 @@ import qualified What4.SatResult as W4
 import qualified What4.SFloat as W4
 import qualified What4.SWord as SW
 import           What4.Solver
+import qualified What4.Solver.Bitwuzla as W4
 import qualified What4.Solver.Boolector as W4
 import qualified What4.Solver.CVC4 as W4
 import qualified What4.Solver.CVC5 as W4
@@ -144,6 +147,36 @@ doW4Eval sym m =
        W4Error err  -> liftIO (X.throwIO err)
        W4Result p x -> pure (p,x)
 
+-- | Wraps a 'W4.ConfigOption' to provide a consistent interface for setting
+--   solver goal timeouts (see 'configTimeoutMilliSeconds', 'configTimeoutSeconds', 'setConfigTimeout').
+data ConfigTimeout = 
+        ConfigTimeout 
+          (W4.ConfigOption W4.BaseIntegerType)
+          -- | Translate a 'W4.SolverGoalTimeout' into the integer backing this config option.
+          (W4.SolverGoalTimeout -> Integer)
+
+-- | Construct a 'ConfigTimeout' from a 'W4.ConfigOption', where the given
+--   option configures a solver-specific timeout measured in milliseconds.
+configTimeoutMilliSeconds :: W4.ConfigOption W4.BaseIntegerType -> ConfigTimeout
+configTimeoutMilliSeconds opt = ConfigTimeout opt W4.getGoalTimeoutInMilliSeconds
+
+-- | Construct a 'ConfigTimeout' from a 'W4.ConfigOption', where the given
+--   option configures a solver-specific timeout measured in seconds. 
+--   Rounds up to at least 1 second when setting a non-zero timeout 
+--   (see 'W4.getGoalTimeoutInSeconds').
+configTimeoutSeconds :: W4.ConfigOption W4.BaseIntegerType -> ConfigTimeout
+configTimeoutSeconds opt = ConfigTimeout opt W4.getGoalTimeoutInSeconds
+
+setConfigTimeout :: 
+  W4.IsExprBuilder sym =>
+  ConfigTimeout ->
+  W4.SolverGoalTimeout ->
+  sym ->
+  IO ()
+setConfigTimeout (ConfigTimeout opt toOpt) t sym = 
+  do optSetting <- W4.getOptionSetting opt (W4.getConfiguration sym)
+     _ <- W4.trySetOpt optSetting (toOpt t)
+     pure ()
 
 data AnAdapter
   = AnAdapter (forall st. SolverAdapter st)
@@ -152,6 +185,7 @@ data AnAdapter
        String
        W4.ProblemFeatures
        [W4.ConfigDesc]
+       ConfigTimeout
        (Proxy s)
 
 data W4ProverConfig
@@ -159,15 +193,23 @@ data W4ProverConfig
   | W4OfflineConfig
   | W4Portfolio (NonEmpty AnAdapter)
 
+adapters :: W4ProverConfig -> [AnAdapter]
+adapters cfg = case cfg of
+  W4ProverConfig adpt -> [adpt]
+  W4OfflineConfig -> []
+  W4Portfolio adpts -> NE.toList adpts
+
 proverConfigs :: [(String, W4ProverConfig)]
 proverConfigs =
   [ ("w4-cvc4"      , W4ProverConfig cvc4OnlineAdapter)
   , ("w4-cvc5"      , W4ProverConfig cvc5OnlineAdapter)
   , ("w4-yices"     , W4ProverConfig yicesOnlineAdapter)
   , ("w4-z3"        , W4ProverConfig z3OnlineAdapter)
+  , ("w4-bitwuzla"  , W4ProverConfig bitwuzlaOnlineAdapter)
   , ("w4-boolector" , W4ProverConfig boolectorOnlineAdapter)
 
   , ("w4-abc"       , W4ProverConfig (AnAdapter W4.externalABCAdapter))
+  , ("w4-rme"       , W4ProverConfig (AnAdapter rmeAdapter))
 
   , ("w4-offline"   , W4OfflineConfig )
   , ("w4-any"       , allSolvers)
@@ -175,27 +217,32 @@ proverConfigs =
 
 z3OnlineAdapter :: AnAdapter
 z3OnlineAdapter =
-  AnOnlineAdapter "Z3" W4.z3Features W4.z3Options
+  AnOnlineAdapter "Z3" W4.z3Features W4.z3Options (configTimeoutMilliSeconds W4.z3Timeout)
          (Proxy :: Proxy (W4.Writer W4.Z3))
 
 yicesOnlineAdapter :: AnAdapter
 yicesOnlineAdapter =
-  AnOnlineAdapter "Yices" W4.yicesDefaultFeatures W4.yicesOptions
+  AnOnlineAdapter "Yices" W4.yicesDefaultFeatures W4.yicesOptions (configTimeoutSeconds W4.yicesGoalTimeout)
          (Proxy :: Proxy W4.Connection)
 
 cvc4OnlineAdapter :: AnAdapter
 cvc4OnlineAdapter =
-  AnOnlineAdapter "CVC4" W4.cvc4Features W4.cvc4Options
+  AnOnlineAdapter "CVC4" W4.cvc4Features W4.cvc4Options (configTimeoutMilliSeconds W4.cvc4Timeout)
          (Proxy :: Proxy (W4.Writer W4.CVC4))
 
 cvc5OnlineAdapter :: AnAdapter
 cvc5OnlineAdapter =
-  AnOnlineAdapter "CVC5" W4.cvc5Features W4.cvc5Options
+  AnOnlineAdapter "CVC5" W4.cvc5Features W4.cvc5Options (configTimeoutMilliSeconds W4.cvc5Timeout)
          (Proxy :: Proxy (W4.Writer W4.CVC5))
+
+bitwuzlaOnlineAdapter :: AnAdapter
+bitwuzlaOnlineAdapter =
+  AnOnlineAdapter "Bitwuzla" W4.bitwuzlaFeatures W4.bitwuzlaOptions (configTimeoutMilliSeconds W4.bitwuzlaTimeout)
+         (Proxy :: Proxy (W4.Writer W4.Bitwuzla))
 
 boolectorOnlineAdapter :: AnAdapter
 boolectorOnlineAdapter =
-  AnOnlineAdapter "Boolector" W4.boolectorFeatures W4.boolectorOptions
+  AnOnlineAdapter "Boolector" W4.boolectorFeatures W4.boolectorOptions (configTimeoutMilliSeconds W4.boolectorTimeout)
          (Proxy :: Proxy (W4.Writer W4.Boolector))
 
 allSolvers :: W4ProverConfig
@@ -203,6 +250,7 @@ allSolvers = W4Portfolio
   $ z3OnlineAdapter :|
   [ cvc4OnlineAdapter
   , cvc5OnlineAdapter
+  , bitwuzlaOnlineAdapter
   , boolectorOnlineAdapter
   , yicesOnlineAdapter
   , AnAdapter W4.externalABCAdapter
@@ -240,7 +288,7 @@ setupProver nm =
   adapterNames [] = []
   adapterNames (AnAdapter adpt : ps) =
     solver_adapter_name adpt : adapterNames ps
-  adapterNames (AnOnlineAdapter n _ _ _ : ps) =
+  adapterNames (AnOnlineAdapter n _ _ _ _ : ps) =
     n : adapterNames ps
 
   filterAdapters [] = pure []
@@ -256,11 +304,12 @@ setupProver nm =
         W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
         W4.smokeTest sym adpt
 
-  tryAdapter (AnOnlineAdapter _ fs opts (_ :: Proxy s)) = test `X.catch` (pure . Just)
+  tryAdapter (AnOnlineAdapter _ fs opts _ (_ :: Proxy s)) = test `X.catch` (pure . Just)
    where
     test =
       do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator
          W4.extendConfig opts (W4.getConfiguration sym)
+
          (proc :: W4.SolverProcess GlobalNonceGenerator s) <- W4.startSolverProcess fs Nothing sym
          res <- W4.checkSatisfiable proc "smoke test" (W4.falsePred sym)
          case res of
@@ -287,7 +336,7 @@ setupAdapterOptions cfg sym =
   where
   setupAnAdapter (AnAdapter adpt) =
     W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
-  setupAnAdapter (AnOnlineAdapter _n _fs opts _p) =
+  setupAnAdapter (AnOnlineAdapter _n _fs opts _ _p) =
     W4.extendConfig opts (W4.getConfiguration sym)
 
 what4FreshFns :: W4.IsSymExprBuilder sym => sym -> FreshVarFns (What4 sym)
@@ -380,10 +429,11 @@ satProve ::
   W4ProverConfig ->
   Bool {- ^ hash consing -} ->
   Bool {- ^ warn on uninterpreted functions -} ->
+  Int {- ^ timeout milliseconds -} ->
   ProverCommand ->
   M.ModuleCmd (Maybe String, ProverResult)
 
-satProve solverCfg hashConsing warnUninterp pc@ProverCommand {..} =
+satProve solverCfg hashConsing warnUninterp timeoutMs pc@ProverCommand {..} =
   protectStack proverError \modIn ->
   M.runModuleM modIn
   do w4sym   <- liftIO makeSym
@@ -409,6 +459,7 @@ satProve solverCfg hashConsing warnUninterp pc@ProverCommand {..} =
                                   globalNonceGenerator
        setupAdapterOptions solverCfg w4sym
        when hashConsing (W4.startCaching w4sym)
+       when (timeoutMs > 0) (setTimeout solverCfg (fromIntegral timeoutMs) w4sym)
        pure w4sym
 
   doLog lg () =
@@ -470,7 +521,7 @@ satProveOffline hashConsing warnUninterp ProverCommand{ .. } outputContinuation 
   makeSym =
     do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator
        W4.extendConfig W4.z3Options (W4.getConfiguration sym)
-       when hashConsing  (W4.startCaching sym)
+       when hashConsing (W4.startCaching sym)
        pure sym
 
   onError msg minp = pure (Right (Just msg, M.minpModuleEnv minp), [])
@@ -509,7 +560,7 @@ multiSATQuery _sym (W4ProverConfig (AnAdapter adpt)) _pc _primMap _logData _ts _
   fail ("Solver " ++ solver_adapter_name adpt ++ " does not support incremental solving and " ++
         "cannot be used for multi-SAT queries.")
 
-multiSATQuery sym (W4ProverConfig (AnOnlineAdapter nm fs _opts (_ :: Proxy s)))
+multiSATQuery sym (W4ProverConfig (AnOnlineAdapter nm fs _opts _ (_ :: Proxy s)))
                ProverCommand{..} primMap _logData ts args query satNum0 =
     withMaybeFile pcSmtFile WriteMode $ \smtFileHdl ->
     X.bracket
@@ -689,7 +740,7 @@ singleQuery sym (W4ProverConfig (AnAdapter adpt)) _pc primMap logData ts args ms
 
      return (Just (W4.solver_adapter_name adpt), pres)
 
-singleQuery sym (W4ProverConfig (AnOnlineAdapter nm fs _opts (_ :: Proxy s)))
+singleQuery sym (W4ProverConfig (AnOnlineAdapter nm fs _opts _ (_ :: Proxy s)))
               ProverCommand{..} primMap _logData ts args msafe query =
   withMaybeFile pcSmtFile WriteMode $ \smtFileHdl ->
   X.bracket
@@ -754,3 +805,23 @@ varShapeToConcrete evalFn v =
     VarEnum tag cons ->
       VarEnum <$> W4.groundEval evalFn tag
               <*> traverse (traverse (varShapeToConcrete evalFn)) cons
+
+setAdapterTimeout :: 
+  W4.IsExprBuilder sym =>
+  AnAdapter ->
+  W4.SolverGoalTimeout ->
+  sym ->
+  IO ()
+setAdapterTimeout (AnAdapter _) _timeout _sym =
+  pure () -- NOTE: this is only externalABC at the moment, which has no timeout option
+setAdapterTimeout (AnOnlineAdapter _ _ _ cfgTimeout _) timeout sym =
+  setConfigTimeout cfgTimeout timeout sym
+
+setTimeout ::
+  W4.IsExprBuilder sym =>
+  W4ProverConfig ->
+  Integer {- ^ timeout in seconds -} ->
+  sym ->
+  IO ()
+setTimeout cfg s sym = forM_ (adapters cfg) $ \adpt ->
+  setAdapterTimeout adpt (W4.SolverGoalTimeout (1000 * s)) sym

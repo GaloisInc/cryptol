@@ -1,21 +1,18 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading interface module `parameter` interface of Main
-Loading module Main
+Loading interface module AE__parameter
+Loading module AE
 Loading module Cryptol
 Loading module AES
 Loading module Cryptol
+Loading module OptionUtils
 Loading module ChaCha20
-[warning] at ChaChaPolyCryptolIETF.md:1984:5--1984:15
-    This binding for `cypherText` shadows the existing binding at
-    ChaChaPolyCryptolIETF.md:1982:24--1982:34
-[warning] at ChaChaPolyCryptolIETF.md:2062:20--2062:27
+[warning] at ChaChaPolyCryptolIETF.md:1998:5--1998:15
+    This binding for `cipherText` shadows the existing binding at
+    ChaChaPolyCryptolIETF.md:1996:24--1996:34
+[warning] at ChaChaPolyCryptolIETF.md:2076:20--2076:27
     This binding for `AeadAAD` shadows the existing binding at
-    ChaChaPolyCryptolIETF.md:1149:1--1149:8
-[warning] at ChaChaPolyCryptolIETF.md:340:32--340:33
-    Unused name: b
-[warning] at ChaChaPolyCryptolIETF.md:2117:20--2117:21
-    Unused name: b
+    ChaChaPolyCryptolIETF.md:1163:1--1163:8
 Loading module Cryptol
 Loading module Cipher
 Loading module Cryptol
@@ -88,14 +85,14 @@ Loading module AES::SBox
 Loading module AES::SubByteSBox
 Loading module AES::Round
 Loading module AES::TBox
-Loading interface module `parameter` interface of AES
-Loading interface module `parameter` interface of AES::Algorithm
+Loading interface module AES__parameter
+Loading interface module AES::Algorithm__parameter
 Loading module AES::Algorithm
-Loading interface module `parameter` interface of AES::ExpandKey
+Loading interface module AES::ExpandKey__parameter
 Loading module AES::ExpandKey
 Loading module AES
 Loading module Cryptol
-Loading interface module `parameter` interface of Common::AES_GCM_SIV
+Loading interface module Common::AES_GCM_SIV__parameter
 Loading module AES::GF28
 Loading module AES::State
 Loading module AES::SubBytePlain
@@ -103,10 +100,10 @@ Loading module AES::SBox
 Loading module AES::SubByteSBox
 Loading module AES::Round
 Loading module AES::TBox
-Loading interface module `parameter` interface of AES
-Loading interface module `parameter` interface of AES::Algorithm
+Loading interface module AES__parameter
+Loading interface module AES::Algorithm__parameter
 Loading module AES::Algorithm
-Loading interface module `parameter` interface of AES::ExpandKey
+Loading interface module AES::ExpandKey__parameter
 Loading module AES::ExpandKey
 Loading module AES
 Loading module Common::AES_GCM_SIV
@@ -119,24 +116,24 @@ Loading module AES::SBox
 Loading module AES::SubByteSBox
 Loading module AES::Round
 Loading module AES::TBox
-Loading interface module `parameter` interface of AES
-Loading interface module `parameter` interface of AES::Algorithm
+Loading interface module AES__parameter
+Loading interface module AES::Algorithm__parameter
 Loading module AES::Algorithm
-Loading interface module `parameter` interface of AES::ExpandKey
+Loading interface module AES::ExpandKey__parameter
 Loading module AES::ExpandKey
 Loading module AES
-Loading interface module `parameter` interface of Common::GCM
+Loading interface module Common::GCM__parameter
 Loading module Common::GCM
 Loading module GCM_AES_Tests
 Loading module Cryptol
-Loading module `where` argument of SHA256
-Loading interface module `parameter` interface of Common::SHA
+Loading module SHA256__where
+Loading interface module Common::SHA__parameter
 Loading module Common::SHA
 Loading module SHA256
 Loading module SHA
 Loading module Cryptol
-Loading module `where` argument of SHA256
-Loading interface module `parameter` interface of Common::SHA
+Loading module SHA256__where
+Loading interface module Common::SHA__parameter
 Loading module Common::SHA
 Loading module SHA256
 Loading module Cryptol

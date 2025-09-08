@@ -2,6 +2,18 @@
 
 ## next -- TBA
 
+* Add a `--version`/`-v` command-line option.
+
+## 3.3.0 -- 2025-03-21
+
+* Add `visible modules` command to return the modules, submodules and associated
+  documentation for them.
+
+## 3.2.0 -- 2024-08-20
+
+* The v3.2.0 release is made in tandem with the Cryptol 3.2.0 release. See the
+  Cryptol 3.2.0 release notes for relevant Cryptol changes.
+
 * Fix a bug in which the `check`, `prove or satisfy`, and `evaluate expression`
   commands would fail to check the validity of the expression supplied as an
   argument. Among other issues, this could cause the remote API to panic when

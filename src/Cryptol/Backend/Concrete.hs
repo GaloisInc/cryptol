@@ -144,7 +144,9 @@ instance Backend Concrete where
   assertSideCondition _ True _ = return ()
   assertSideCondition sym False err = raiseError sym err
 
-  wordLen _ (BV w _) = w
+  wordLen' _ (BV w _) = w
+  {-# INLINE wordLen' #-}
+  
   wordAsChar _ (BV _ x) = Just $! integerToChar x
 
   wordBit _ (BV w x) idx = pure $! testBit x (fromInteger (w - 1 - idx))

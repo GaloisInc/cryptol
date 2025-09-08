@@ -1,0 +1,53 @@
+cabal-version:      3.0
+name:               cryptol-language-server
+version:            0.1.0.0
+synopsis:           A language server for Cryptol
+-- description:
+homepage:           tools.galois.com/cryptol
+license:            ISC
+license-file:       LICENSE
+author:             Iavor S. Diatchki
+maintainer:         diatchki@galois.com
+-- copyright:
+category:           Development
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+-- extra-source-files:
+
+executable cryptol-language-server
+    main-is:          Main.hs
+    other-modules:
+        State,
+        Monad,
+        Handlers,
+        Commands,
+        SyntaxHighlight,
+        Error,
+        Index,
+        Load,
+        Position,
+        Definitions
+    ghc-options:      -Wall -threaded
+    default-extensions:
+        BlockArguments,
+        LambdaCase,
+        NamedFieldPuns,
+        ImportQualifiedPost,
+        DisambiguateRecordFields,
+        OverloadedStrings,
+        TypeOperators,
+        DataKinds,
+        KindSignatures,
+        FlexibleInstances,
+        GeneralizedNewtypeDeriving
+        
+    build-depends:
+        base, bytestring, text, containers,
+        aeson, lens,
+        lsp,
+        stm,
+        cryptol,
+        co-log-core,
+        monadLib
+    hs-source-dirs:   server
+    default-language: Haskell2010

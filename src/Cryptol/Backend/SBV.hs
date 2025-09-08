@@ -201,7 +201,8 @@ instance Backend SBV where
                 SBVResult pz z ->
                   pure $ SBVResult (svAnd (svIte c px py) pz) z
 
-  wordLen _ v = toInteger (intSizeOf v)
+  wordLen' _ v = toInteger (intSizeOf v)
+  {-# INLINE wordLen' #-}
   wordAsChar _ v = integerToChar <$> svAsInteger v
 
   iteBit _ b x y = pure $! svSymbolicMerge KBool True b x y

@@ -222,10 +222,12 @@ ringBinary sym opw opi opz opq opfp = loop
                   lw <- fromVWord sym "ringLeft" l
                   rw <- fromVWord sym "ringRight" r
                   stk <- sGetCallStack sym
-                  VWord w . wordVal <$> (sWithCallStack sym stk (opw w lw rw))
-      | otherwise -> VSeq w <$> (join (zipSeqMap sym (loop a) (Nat w) <$>
-                                      (fromSeq "ringBinary left" l) <*>
-                                      (fromSeq "ringBinary right" r)))
+                  VWord . wordVal <$> (sWithCallStack sym stk (opw w lw rw))
+      | otherwise -> do
+        vals <- (join (zipSeqMap sym (loop a) (Nat w) <$>
+                  (fromSeq "ringBinary left" l) <*>
+                  (fromSeq "ringBinary right" r)))
+        mkSeq sym (Nat w) a vals
 
     TVStream a ->
       -- streams
@@ -305,8 +307,10 @@ ringUnary sym opw opi opz opq opfp = loop
       | isTBit a -> do
               wx <- fromVWord sym "ringUnary" v
               stk <- sGetCallStack sym
-              VWord w . wordVal <$> sWithCallStack sym stk (opw w wx)
-      | otherwise -> VSeq w <$> (mapSeqMap sym (loop a) (Nat w) =<< fromSeq "ringUnary" v)
+              VWord . wordVal <$> sWithCallStack sym stk (opw w wx)
+      | otherwise -> do
+              vals <- mapSeqMap sym (loop a) (Nat w) =<< fromSeq "ringUnary" v
+              mkSeq sym (Nat w) a vals
 
     TVStream a ->
       VStream <$> (mapSeqMap sym (loop a) Inf =<< fromSeq "ringUnary" v)
@@ -372,10 +376,10 @@ ringNullary sym opw opi opz opq opfp = loop
           -- words and finite sequences
           | isTBit a ->
              do stk <- sGetCallStack sym
-                VWord w . wordVal <$> sWithCallStack sym stk (opw w)
+                VWord . wordVal <$> sWithCallStack sym stk (opw w)
           | otherwise ->
              do v <- sDelay sym (loop a)
-                pure $ VSeq w $ indexSeqMap \_i -> v
+                mkSeq sym (Nat w) a $ indexSeqMap \_i -> v
 
         TVStream a ->
              do v <- sDelay sym (loop a)
@@ -417,7 +421,7 @@ integralBinary sym opw opi ty l r = case ty of
           do wl <- fromVWord sym "integralBinary left" l
              wr <- fromVWord sym "integralBinary right" r
              stk <- sGetCallStack sym
-             VWord w . wordVal <$> sWithCallStack sym stk (opw w wl wr)
+             VWord . wordVal <$> sWithCallStack sym stk (opw w wl wr)
 
     _ -> evalPanic "integralBinary" [show ty ++ " not int class `Integral`"]
 
@@ -690,25 +694,25 @@ complementV sym = logicUnary sym (bitComplement sym) (wordComplement sym)
 {-# INLINE lg2V #-}
 lg2V :: Backend sym => sym -> Prim sym
 lg2V sym =
-  PFinPoly \w ->
+  PFinPoly \_w ->
   PWordFun \x ->
-  PPrim (VWord w . wordVal <$> wordLg2 sym x)
+  PPrim (VWord . wordVal <$> wordLg2 sym x)
 
 {-# SPECIALIZE sdivV :: Concrete -> Prim Concrete #-}
 sdivV :: Backend sym => sym -> Prim sym
 sdivV sym =
-  PFinPoly \w ->
+  PFinPoly \_w ->
   PWordFun \x ->
   PWordFun \y ->
-  PPrim (VWord w . wordVal <$> wordSignedDiv sym x y)
+  PPrim (VWord . wordVal <$> wordSignedDiv sym x y)
 
 {-# SPECIALIZE smodV :: Concrete -> Prim Concrete #-}
 smodV :: Backend sym => sym -> Prim sym
 smodV sym  =
-  PFinPoly \w ->
+  PFinPoly \_w ->
   PWordFun \x ->
   PWordFun \y ->
-  PPrim (VWord w . wordVal <$> wordSignedMod sym x y)
+  PPrim (VWord . wordVal <$> wordSignedMod sym x y)
 
 {-# SPECIALIZE toSignedIntegerV :: Concrete -> Prim Concrete #-}
 toSignedIntegerV :: Backend sym => sym -> Prim sym
@@ -920,7 +924,7 @@ zeroV sym ty = case ty of
       | isTBit ety -> word sym w 0
       | otherwise  ->
            do z <- sDelay sym (zeroV sym ety)
-              pure $ VSeq w (indexSeqMap \_i -> z)
+              mkSeq sym (Nat w) ety (indexSeqMap \_i -> z)
 
   TVStream ety ->
      do z <- sDelay sym (zeroV sym ety)
@@ -969,7 +973,7 @@ joinSeq sym _parts 0 a _val
 joinSeq sym (Nat parts) each TVBit val
   = do w <- delayWordValue sym (parts*each)
               (joinWords sym parts each . fmap (fromWordVal "joinV") =<< val)
-       pure (VWord (parts*each) w)
+       pure (VWord w)
 
 -- infinite sequence of words
 joinSeq sym Inf each TVBit val
@@ -980,18 +984,14 @@ joinSeq sym Inf each TVBit val
          VBit <$> indexWordValue sym ys r
 
 -- finite or infinite sequence of non-words
-joinSeq _sym parts each _a val
-  = return $ vSeq $ indexSeqMap $ \i -> do
+joinSeq sym parts each a val
+  = mkSeq sym len a $ indexSeqMap $ \i -> do
       let (q,r) = divMod i each
       xs <- val
       ys <- fromSeq "join seq" =<< lookupSeqMap xs q
       lookupSeqMap ys r
   where
   len = parts `nMul` (Nat each)
-  vSeq = case len of
-           Inf    -> VStream
-           Nat n  -> VSeq n
-
 
 {-# INLINE joinV #-}
 
@@ -1024,15 +1024,15 @@ takeV sym front back a val =
       case back of
         Nat back' | isTBit a ->
           do w <- delayWordValue sym front' (takeWordVal sym front' back' =<< (fromWordVal "takeV" <$> val))
-             pure (VWord front' w)
+             pure (VWord w)
 
         Inf | isTBit a ->
           do w <- delayWordValue sym front' (bitmapWordVal sym front' . fmap fromVBit =<< (fromSeq "takeV" =<< val))
-             pure (VWord front' w)
+             pure (VWord w)
 
         _ ->
           do xs <- delaySeqMap sym (fromSeq "takeV" =<< val)
-             pure (VSeq front' xs)
+             mkSeq sym (Nat front') a xs
 
 {-# INLINE dropV #-}
 dropV ::
@@ -1047,7 +1047,7 @@ dropV sym front back a val =
   case back of
     Nat back' | isTBit a ->
       do w <- delayWordValue sym back' (dropWordVal sym front back' =<< (fromWordVal "dropV" <$> val))
-         pure (VWord back' w)
+         pure (VWord w)
 
     _ ->
       do xs <- delaySeqMap sym (dropSeqMap front <$> (fromSeq "dropV" =<< val))
@@ -1065,32 +1065,49 @@ splitV :: Backend sym =>
   SEval sym (GenValue sym) ->
   SEval sym (GenValue sym)
 splitV sym parts each a val =
-    case (parts, each) of
-       (Nat p, e) | isTBit a -> do
-          val' <- sDelay sym (fromWordVal "splitV" <$> val)
-          return $ VSeq p $ indexSeqMap $ \i ->
-            VWord e <$> (extractWordVal sym e ((p-i-1)*e) =<< val')
-       (Inf, e) | isTBit a -> do
-          val' <- sDelay sym (fromSeq "splitV" =<< val)
-          return $ VStream $ indexSeqMap $ \i ->
-            VWord e <$> bitmapWordVal sym e (indexSeqMap $ \j ->
-              let idx = i*e + toInteger j
-               in idx `seq` do
-                      xs <- val'
-                      fromVBit <$> lookupSeqMap xs idx)
-       (Nat p, e) -> do
-          val' <- sDelay sym (fromSeq "splitV" =<< val)
-          return $ VSeq p $ indexSeqMap $ \i ->
-            return $ VSeq e $ indexSeqMap $ \j -> do
+  case parts of
+    Nat p
+     | isTBit a ->
+       do val' <- sDelay sym (fromWordVal "splitV" <$> val)
+          mkSeq sym (Nat p) tyv $ indexSeqMap $ \i ->
+            VWord <$> (extractWordVal sym each ((p-i-1)*each) =<< val')
+     | otherwise ->
+       do val' <- sDelay sym (fromSeq "splitV" =<< val)
+          mkSeq sym (Nat p) tyv $ indexSeqMap $ \i ->
+            mkSeq sym (Nat each) a $ indexSeqMap $ \j -> do
               xs <- val'
-              lookupSeqMap xs (e * i + j)
-       (Inf  , e) -> do
-          val' <- sDelay sym (fromSeq "splitV" =<< val)
-          return $ VStream $ indexSeqMap $ \i ->
-            return $ VSeq e $ indexSeqMap $ \j -> do
-              xs <- val'
-              lookupSeqMap xs (e * i + j)
+              lookupSeqMap xs (each * i + j)
 
+    Inf
+      -- The return type is [inf][each], (where each is non-zero) and `val` is
+      -- of type [inf * each], or [inf]. Therefore, `val` is a stream.
+      | isTBit a, each /= 0 ->
+        do val' <- sDelay sym (fromSeq "splitV" =<< val)
+           return $ VStream $ indexSeqMap $ \i ->
+             VWord <$> bitmapWordVal sym each (indexSeqMap $ \j ->
+               let idx = i*each + toInteger j
+                in idx `seq` do
+                       xs <- val'
+                       fromVBit <$> lookupSeqMap xs idx)
+      -- The return type is [inf][0], and `val` is of type [inf * 0], or [0].
+      -- Therefore, `val` is a word. We need to special-case this, because the
+      -- case directly above this one will panic if `val` is not a stream due to
+      -- the use of `fromSeq` (#1749).
+      --
+      -- Because `val` is an empty sequence, there is no need to split it apart.
+      -- Instead, we can just return a stream with infinite copies of `val`.
+      | isTBit a, each == 0 ->
+        return $ VStream $ indexSeqMap $ \_i -> val
+      -- If `a` is not `Bit`, then `val` must be a sequence or a stream (and not
+      -- a word).
+      | otherwise ->
+        do val' <- sDelay sym (fromSeq "splitV" =<< val)
+           return $ VStream $ indexSeqMap $ \i ->
+             mkSeq sym (Nat each) a $ indexSeqMap $ \j -> do
+               xs <- val'
+               lookupSeqMap xs (each * i + j)
+  where
+    tyv = TVSeq each TVBit
 
 {-# INLINE reverseV #-}
 
@@ -1104,11 +1121,11 @@ reverseV :: forall sym.
 
 reverseV sym n TVBit val =
   do w <- delayWordValue sym n (reverseWordVal sym . fromWordVal "reverseV" =<< val)
-     pure (VWord n w)
+     pure (VWord w)
 
-reverseV sym n _a val =
+reverseV sym n a val =
   do xs <- delaySeqMap sym (reverseSeqMap n <$> (fromSeq "reverseV" =<< val))
-     pure (VSeq n xs)
+     mkSeq sym (Nat n) a xs
 
 
 {-# INLINE transposeV #-}
@@ -1123,42 +1140,38 @@ transposeV ::
   SEval sym (GenValue sym)
 transposeV sym a b c xs
   | isTBit c, Nat na <- a = -- Fin a => [a][b]Bit -> [b][a]Bit
-      return $ bseq $ indexSeqMap $ \bi ->
-        VWord na <$> bitmapWordVal sym na (indexSeqMap $ \ai ->
+      bseq $ indexSeqMap $ \bi ->
+        VWord <$> bitmapWordVal sym na (indexSeqMap $ \ai ->
          do xs' <- fromSeq "transposeV" xs
             ys <- lookupSeqMap xs' ai
             case ys of
               VStream ys' -> fromVBit <$> lookupSeqMap ys' bi
-              VWord _ wv  -> indexWordValue sym wv bi
+              VWord wv    -> indexWordValue sym wv bi
               _ -> evalPanic "transpose" ["expected sequence of bits"])
 
   | isTBit c, Inf <- a = -- [inf][b]Bit -> [b][inf]Bit
-      return $ bseq $ indexSeqMap $ \bi ->
+      bseq $ indexSeqMap $ \bi ->
         return $ VStream $ indexSeqMap $ \ai ->
          do xs' <- fromSeq "transposeV" xs
             ys  <- lookupSeqMap xs' ai
             case ys of
               VStream ys' -> lookupSeqMap ys' bi
-              VWord _ wv  -> VBit <$> indexWordValue sym wv bi
+              VWord wv    -> VBit <$> indexWordValue sym wv bi
               _ -> evalPanic "transpose" ["expected sequence of bits"]
 
   | otherwise = -- [a][b]c -> [b][a]c
-      return $ bseq $ indexSeqMap $ \bi ->
-        return $ aseq $ indexSeqMap $ \ai -> do
+      bseq $ indexSeqMap $ \bi ->
+        aseq $ indexSeqMap $ \ai -> do
           xs' <- fromSeq "transposeV 1" xs
           ys  <- fromSeq "transposeV 2" =<< lookupSeqMap xs' ai
           z   <- lookupSeqMap ys bi
           return z
 
  where
-  bseq =
-        case b of
-          Nat nb -> VSeq nb
-          Inf    -> VStream
-  aseq =
-        case a of
-          Nat na -> VSeq na
-          Inf    -> VStream
+  bseq = case b of
+    Nat n -> mkSeq sym b (TVSeq n c)
+    Inf -> mkSeq sym b (TVStream c)
+  aseq = mkSeq sym a c
 
 
 {-# INLINE ccatV #-}
@@ -1179,10 +1192,10 @@ ccatV sym front (Nat back) TVBit l r =
      mr <- isReady sym r
      case (ml, mr) of
        (Just l', Just r') ->
-         VWord (front+back) <$>
+         VWord <$>
            joinWordVal sym (fromWordVal "ccatV left" l') (fromWordVal "ccatV right" r')
        _ ->
-         VWord (front+back) <$> delayWordValue sym (front+back)
+         VWord <$> delayWordValue sym (front+back)
                 (do l' <- fromWordVal "ccatV left"  <$> l
                     r' <- fromWordVal "ccatV right" <$> r
                     joinWordVal sym l' r')
@@ -1250,16 +1263,18 @@ logicBinary sym opb opw = loop
     TVSeq w aty
          -- words
          | isTBit aty
-              -> VWord w <$> delayWordValue sym w
+              -> VWord <$> delayWordValue sym w
                                (wordValLogicOp sym opb opw
                                     (fromWordVal "logicBinary l" l)
                                     (fromWordVal "logicBinary r" r))
 
          -- finite sequences
-         | otherwise -> VSeq w <$>
-                           (join (zipSeqMap sym (loop aty) (Nat w) <$>
-                                    (fromSeq "logicBinary left" l)
-                                    <*> (fromSeq "logicBinary right" r)))
+         | otherwise -> do
+            vals <- join (zipSeqMap sym (loop aty) (Nat w) <$>
+                              (fromSeq "logicBinary left" l)
+                              <*> (fromSeq "logicBinary right" r))
+            mkSeq sym (Nat w) aty vals
+
 
     TVStream aty ->
         VStream <$> (join (zipSeqMap sym (loop aty) Inf <$>
@@ -1314,11 +1329,11 @@ logicUnary sym opb opw = loop
     TVSeq w ety
          -- words
          | isTBit ety
-              -> VWord w <$> delayWordValue sym w (wordValUnaryOp sym opb opw (fromWordVal "logicUnary" val))
+              -> VWord <$> delayWordValue sym w (wordValUnaryOp sym opb opw (fromWordVal "logicUnary" val))
 
          -- finite sequences
          | otherwise
-              -> VSeq w <$> (mapSeqMap sym (loop ety) (Nat w) =<< fromSeq "logicUnary" val)
+              -> mkSeq sym (Nat w) ety =<< (mapSeqMap sym (loop ety) (Nat w) =<< fromSeq "logicUnary" val)
 
          -- streams
     TVStream ety ->
@@ -1388,7 +1403,7 @@ indexPrim sym dir int_op word_op =
   PFun     \idx ->
   PPrim
    do vs <- xs >>= \case
-               VWord _ w  -> return $ indexSeqMap (\i -> VBit <$> indexWordValue sym w i)
+               VWord w    -> return $ indexSeqMap (\i -> VBit <$> indexWordValue sym w i)
                VSeq _ vs  -> return vs
                VStream vs -> return vs
                _ -> evalPanic "Expected sequence value" ["indexPrim"]
@@ -1421,9 +1436,9 @@ updatePrim sym updateWord updateSeq =
    do idx' <- asIndex sym "update" ix <$> idx
       assertIndexInBounds sym len idx'
       case (len, eltTy) of
-        (Nat n, TVBit) -> VWord n <$> delayWordValue sym n
+        (Nat n, TVBit) -> VWord <$> delayWordValue sym n
                              (do w <- fromWordVal "updatePrim" <$> xs; updateWord len eltTy w idx' val)
-        (Nat n, _    ) -> VSeq n <$> delaySeqMap sym
+        (Nat n, _    ) -> mkSeq sym (Nat n) eltTy =<< delaySeqMap sym
                              (do vs <- fromSeq "updatePrim" =<< xs; updateSeq len eltTy vs idx' val)
         (Inf  , _    ) -> VStream <$> delaySeqMap sym
                              (do vs <- fromSeq "updatePrim" =<< xs; updateSeq len eltTy vs idx' val)
@@ -1644,8 +1659,8 @@ intShifter :: Backend sym =>
    SEval sym (GenValue sym)
 intShifter sym nm wop reindex m a xs idx =
   case xs of
-    VWord w x  -> VWord w <$> shiftWordByInteger sym wop (reindex m) x idx
-    VSeq w vs  -> VSeq w  <$> shiftSeqByInteger sym (mergeValue sym) (reindex m) (zeroV sym a) m vs idx
+    VWord x    -> VWord   <$> shiftWordByInteger sym wop (reindex m) x idx
+    VSeq w vs  -> mkSeq sym (Nat w) a =<< shiftSeqByInteger sym (mergeValue sym) (reindex m) (zeroV sym a) m vs idx
     VStream vs -> VStream <$> shiftSeqByInteger sym (mergeValue sym) (reindex m) (zeroV sym a) m vs idx
     _ -> evalPanic "expected sequence value in shift operation" [nm]
 
@@ -1663,8 +1678,8 @@ wordShifter :: Backend sym =>
    SEval sym (GenValue sym)
 wordShifter sym nm wop reindex m a xs idx =
   case xs of
-    VWord w x  -> VWord w <$> shiftWordByWord sym wop (reindex m) x idx
-    VSeq w vs  -> VSeq w  <$> shiftSeqByWord sym (mergeValue sym) (reindex m) (zeroV sym a) (Nat w) vs idx
+    VWord x    -> VWord   <$> shiftWordByWord sym wop (reindex m) x idx
+    VSeq w vs  -> mkSeq sym (Nat w) a =<< shiftSeqByWord sym (mergeValue sym) (reindex m) (zeroV sym a) (Nat w) vs idx
     VStream vs -> VStream <$> shiftSeqByWord sym (mergeValue sym) (reindex m) (zeroV sym a) Inf     vs idx
     _ -> evalPanic "expected sequence value in shift operation" [nm]
 
@@ -1697,7 +1712,7 @@ sshrV sym =
     case asIndex sym ">>$" ix y of
        Left i ->
          do pneg <- intLessThan sym i =<< integerLit sym 0
-            VWord n <$> mergeWord' sym
+            VWord <$> mergeWord' sym
               pneg
               (do i' <- shiftShrink sym (Nat n) ix =<< intNegate sym i
                   amt <- wordFromInt sym n i'
@@ -1708,7 +1723,7 @@ sshrV sym =
 
        Right wv ->
          do amt <- asWordVal sym wv
-            VWord n . wordVal <$> wordSignedShiftRight sym x amt
+            VWord . wordVal <$> wordSignedShiftRight sym x amt
 
 -- Miscellaneous ---------------------------------------------------------------
 
@@ -1734,7 +1749,7 @@ errorV sym _ty msg =
 --   and return the associated character, if it is concrete.
 --   Otherwise, return a '?' character
 valueToChar :: Backend sym => sym -> GenValue sym -> SEval sym Char
-valueToChar sym (VWord 8 wval) =
+valueToChar sym (VWord wval) | wordValWidth wval == 8 =
   do w <- asWordVal sym wval
      pure $! fromMaybe '?' (wordAsChar sym w)
 valueToChar _ _ = evalPanic "valueToChar" ["Not an 8-bit bitvector"]
@@ -1756,8 +1771,8 @@ foldlV sym =
   PStrict  \v ->
   PPrim
     case v of
-      VSeq n m    -> go0 f z (enumerateSeqMap n m)
-      VWord _n wv -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym wv)
+      VSeq n m  -> go0 f z (enumerateSeqMap n m)
+      VWord  wv -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym wv)
       _ -> panic "Cryptol.Eval.Generic.foldlV" ["Expected finite sequence"]
   where
   go0 _f a [] = a
@@ -1781,7 +1796,7 @@ foldl'V sym =
   PPrim
     case v of
       VSeq n m    -> go0 f z (enumerateSeqMap n m)
-      VWord _n wv -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym wv)
+      VWord wv    -> go0 f z . map (pure . VBit) =<< (enumerateWordValue sym wv)
       _ -> panic "Cryptol.Eval.Generic.foldlV" ["Expected finite sequence"]
   where
   go0 _f a [] = a
@@ -1811,7 +1826,7 @@ scanlV sym =
   PPrim
     do sm <- case v of
             VSeq _ m   -> scan n f z m
-            VWord _ wv -> scan n f z (VBit <$> asBitsMap sym wv)
+            VWord wv   -> scan n f z (VBit <$> asBitsMap sym wv)
             VStream m  -> scan n f z m
             _ -> panic "Cryptol.Eval.Generic.scanlV" ["Expected sequence"]
        mkSeq sym (nAdd (Nat 1) n) a sm
@@ -1869,7 +1884,7 @@ parmapV sym =
        xs' <- xs
        m <-
          case xs' of
-           VWord _n w ->
+           VWord w ->
              let m = asBitsMap sym w in
              sparkParMap sym (\x -> f' (VBit <$> x)) n m
            VSeq _n m ->
@@ -1938,8 +1953,8 @@ genericFloatTable sym =
     , "fpPosInf"    ~> fpConst (fpPosInf sym)
     , "fpFromBits"  ~> PFinPoly \e -> PFinPoly \p -> PWordFun \w ->
                        PPrim (VFloat <$> fpFromBits sym e p w)
-    , "fpToBits"    ~> PFinPoly \e -> PFinPoly \p -> PFloatFun \x -> PPrim
-                            (VWord (e+p) . wordVal <$> fpToBits sym x)
+    , "fpToBits"    ~> PFinPoly \_e -> PFinPoly \_p -> PFloatFun \x -> PPrim
+                            (VWord . wordVal <$> fpToBits sym x)
     , "=.="         ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x -> PFloatFun \y ->
                        PPrim (VBit <$> fpLogicalEq sym x y)
 

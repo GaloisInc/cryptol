@@ -174,7 +174,11 @@ instance IsString Doc where
   fromString = text
 
 renderOneLine :: Doc -> String
-renderOneLine d = PP.renderString (PP.layoutCompact (runDocWith defaultPPCfg d))
+renderOneLine d = PP.renderString (PP.layoutPretty opts (runDocWith defaultPPCfg d))
+  where
+    opts = PP.LayoutOptions
+      { PP.layoutPageWidth = PP.Unbounded
+      }
 
 class PP a where
   ppPrec :: Int -> a -> Doc
@@ -278,7 +282,7 @@ infixl 6 <.>, <+>, </>
 (<+>)  = liftPP2 (PP.<+>)
 
 (</>) :: Doc -> Doc -> Doc
-Doc x </> Doc y = Doc (\e -> x e <> PP.softline <> y e)
+Doc x </> Doc y = Doc (\e -> x e <> PP.group (PP.line <> y e))
 
 infixl 5 $$
 
@@ -289,7 +293,10 @@ sep :: [Doc] -> Doc
 sep  = liftSep PP.sep
 
 fsep :: [Doc] -> Doc
-fsep  = liftSep PP.fillSep
+fsep  = liftSep fillSep
+  where
+    fillSep [] = mempty
+    fillSep (d0 : ds) = foldl (\a d -> a <> PP.group (PP.line <> d)) d0 ds
 
 hsep :: [Doc] -> Doc
 hsep  = liftSep PP.hsep
@@ -411,8 +418,8 @@ instance PP OrigName where
         Qualified m -> ppQual (TopModule m) (pp (ogName og))
         NotInScope  -> ppQual (ogModule og)
                        case ogFromParam og of
-                         Just x  -> pp x <.> "::" <.> pp (ogName og)
-                         Nothing -> pp (ogName og)
+                         Just x | not (isAnonIfaceModIdnet x) -> pp x <.> "::" <.> pp (ogName og)
+                         _ -> pp (ogName og)
     where
     ppQual mo x =
       case mo of

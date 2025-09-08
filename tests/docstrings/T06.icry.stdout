@@ -1,0 +1,15 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T06
+Checking module T06
+  Docstrings on T06
+  Docstrings on T06::N1::N
+  Docstrings on T06::A::I::N
+  Docstrings on T06::A::I::N
+  Docstrings on T06::A::C_::lost
+    let x = lost
+  Docstrings on submodule T06::N1
+  Docstrings on submodule T06::A
+  Docstrings on submodule T06::A::C_
+  Docstrings on submodule T06::I
+Successes: 1, No fences: 8, Failures: 0

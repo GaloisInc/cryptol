@@ -8,28 +8,37 @@ module Cryptol.TypeCheck.FFI
   ( toFFIFunType
   ) where
 
-import           Data.Bifunctor
-import           Data.Containers.ListUtils
-import           Data.Either
+import  Data.Bifunctor
+import  Data.Containers.ListUtils
+import  Data.Either
 
-import           Cryptol.TypeCheck.FFI.Error
-import           Cryptol.TypeCheck.FFI.FFIType
-import           Cryptol.TypeCheck.SimpType
-import           Cryptol.TypeCheck.Type
-import           Cryptol.Utils.RecordMap
-import           Cryptol.Utils.Types
+import Cryptol.Utils.Panic(panic)
+import Cryptol.Parser.AST(ForeignMode(..))
+import Cryptol.TypeCheck.FFI.Error
+import Cryptol.TypeCheck.FFI.FFIType
+import Cryptol.TypeCheck.SimpType
+import Cryptol.TypeCheck.Type
+import Cryptol.TypeCheck.AST(FFI(..))
+import Cryptol.TypeCheck.Subst
+import Cryptol.Utils.RecordMap
+import Cryptol.Utils.Types
+
 
 -- | Convert a 'Schema' to a 'FFIFunType', along with any 'Prop's that must be
 -- satisfied for the 'FFIFunType' to be valid.
-toFFIFunType :: Schema -> Either FFITypeError ([Prop], FFIFunType)
-toFFIFunType (Forall params _ t) =
-  -- Remove all type synonyms and simplify the type before processing it
-  case go $ tRebuild' False t of
-    Just (Right (props, fft)) -> Right
-      -- Remove duplicate constraints
-      (nubOrd $ map (fin . TVar . TVBound) params ++ props, fft)
-    Just (Left errs) -> Left $ FFITypeError t $ FFIBadComponentTypes errs
-    Nothing -> Left $ FFITypeError t FFINotFunction
+toFFIFunType :: ForeignMode -> Schema -> Either FFITypeError ([Prop], FFI)
+toFFIFunType how (Forall params _ t) =
+
+  case how of
+    ForeignAbstract -> checkForeignAbstract params t
+    ForeignC ->
+       -- Remove all type synonyms and simplify the type before processing it
+       case go $ tRebuild' False t of
+         Just (Right (props, fft)) -> Right
+           -- Remove duplicate constraints
+           (nubOrd $ map (fin . TVar . TVBound) params ++ props, CallC fft)
+         Just (Left errs) -> Left $ FFITypeError t $ FFIBadComponentTypes errs
+         Nothing -> Left $ FFITypeError t FFINotFunction
   where go (TCon (TC TCFun) [argType, retType]) = Just
           case toFFIType argType of
             Right (ps, ffiArgType) ->
@@ -110,3 +119,90 @@ toFFIBasicType t =
 
 fin :: Type -> Prop
 fin t = TCon (PC PFin) [t]
+
+
+-- XXX: eliminate stuff we know will not work at runtime
+checkForeignAbstract :: [TParam] -> Type -> Either FFITypeError ([Prop], FFI)
+checkForeignAbstract params t =
+  do fromArgs <- validForeignAbstractTypes args
+     fromRes <- validForeignAbstractType res
+     pure ( fromRes ++ fromArgs
+          , CallAbstract
+              FFIFunType { ffiTParams = params
+                         , ffiArgTypes = args
+                         , ffiRetType = res }
+          )
+  where
+  (args,res) = go t
+  go ty =
+    case tIsFun ty of
+      Just (a,r) ->
+        let (bs,r1) = go r
+        in (a:bs,r1)
+      Nothing -> ([],ty)
+
+
+
+validForeignAbstractTypes ::
+ Traversable t => t Type -> Either FFITypeError [Prop]
+validForeignAbstractTypes ts = concat <$> traverse validForeignAbstractType ts
+
+validForeignAbstractType :: Type -> Either FFITypeError [Prop]
+validForeignAbstractType t =
+  let nope = Left . FFITypeError t
+  in
+  case t of
+    TCon c ts ->
+      case c of
+        PC {} -> bad "PC"
+        TF {} -> bad "TF"
+        TError {} -> bad "TError"
+        TC tc ->
+         case tc of
+           TCNum {} -> bad "TCNum"
+           TCInf {} -> bad "TCInf"
+           TCBit    -> pure []   
+           TCInteger -> pure [] 
+           TCFloat ->
+             case ts of
+               [e',p'] ->
+                 case (tIsNum e', tIsNum p') of
+                   (Just e, Just p)
+                     | (e, p) == float32ExpPrec -> pure []
+                     | (e, p) == float64ExpPrec -> pure []
+                   _ -> nope FFIBadFloatSize
+               _ -> bad "TCFloat"
+           TCIntMod -> pure []
+           TCRational -> pure []    
+           TCArray -> nope FFIBadType
+           TCSeq ->
+             case ts of
+               [len,el] ->
+                  do ps <- validForeignAbstractType el
+                     let prop = pFin len
+                     case tIsError prop of
+                       Just err -> pure (err : ps)
+                       Nothing -> pure (prop : ps)
+               _ -> bad "TCSeq"
+           TCFun -> nope FFIBadType
+           TCTuple {} -> validForeignAbstractTypes ts
+           
+    TVar {} -> nope FFIBadType
+    TUser _ _ t1 -> validForeignAbstractType t1
+    TRec rs -> validForeignAbstractTypes rs
+    TNominal nm ts ->
+      let su = listParamSubst (ntParams nm `zip` ts) in
+      validForeignAbstractNominalType t su (ntDef nm)
+  where
+  bad msg = panic "validOfreignAbstactType" [msg]
+
+validForeignAbstractNominalType ::
+  Type -> Subst -> NominalTypeDef -> Either FFITypeError[Prop]
+validForeignAbstractNominalType ty su def =
+  case def of
+    Struct sc -> concat <$> traverse validT (recordElements (ntFields sc))
+    Enum cs -> concat <$> traverse validCon cs
+    Abstract -> Left (FFITypeError ty FFIBadType)
+  where
+  validT t = validForeignAbstractType (apSubst su t)
+  validCon c = concat <$> traverse validT (ecFields c)

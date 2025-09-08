@@ -14,25 +14,26 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+
 module Cryptol.ModuleSystem.Env where
 
 #ifndef RELOCATABLE
 import Paths_cryptol (getDataDir)
 #endif
 
-import Cryptol.Backend.FFI (ForeignSrc, unloadForeignSrc, getForeignSrcPath)
+import Cryptol.Eval.FFI.ForeignSrc(ForeignSrc, unloadForeignSrc, getForeignSrcPath)
 import Cryptol.Eval (EvalEnv)
 import qualified Cryptol.IR.FreeVars as T
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
-import Cryptol.ModuleSystem.Name (Name,NameInfo(..),Supply,emptySupply,nameInfo)
+import Cryptol.ModuleSystem.Name (Name,NameInfo(..),Supply,emptySupply,nameInfo,nameTopModuleMaybe)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.Interface as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.Utils.Ident as I
-import Cryptol.Utils.PP (PP(..),text,parens,NameDisp)
+import Cryptol.Utils.PP (pp, PP(..),text,parens,NameDisp)
 
 import Data.ByteString(ByteString)
 import Control.Monad (guard,mplus)
@@ -57,7 +58,6 @@ import Prelude ()
 import Prelude.Compat
 
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.PP(pp)
 
 -- Module Environment ----------------------------------------------------------
 
@@ -84,7 +84,7 @@ data ModuleEnv = ModuleEnv
 
 
 
-  , meFocusedModule     :: Maybe ModName
+  , meFocusedModule     :: Maybe (ImpName Name)
     -- ^ The "current" module.  Used to decide how to print names, for example.
 
   , meSearchPath        :: [FilePath]
@@ -182,8 +182,8 @@ initialModuleEnv = do
     , meNameSeeds         = T.nameSeeds
     , meEvalEnv           = mempty
     , meFocusedModule     = Nothing
-      -- we search these in order, taking the first match
     , meSearchPath        = searchPath
+      -- ^ we search these in order, taking the first match
     , meDynEnv            = mempty
     , meMonoBinds         = True
     , meCoreLint          = NoCoreLint
@@ -192,7 +192,9 @@ initialModuleEnv = do
     }
 
 -- | Try to focus a loaded module in the module environment.
-focusModule :: ModName -> ModuleEnv -> Maybe ModuleEnv
+--   FIXME: This function is dead code.
+--          (And confusingly, there is another function of same name.)
+focusModule :: ImpName Name -> ModuleEnv -> Maybe ModuleEnv
 focusModule n me = do
   guard (isLoaded n (meLoadedModules me))
   return me { meFocusedModule = Just n }
@@ -272,41 +274,81 @@ instance Monoid ModContext where
                       , mctxNameDisp = R.toNameDisp mempty
                       }
 
+findEnv :: Name -> Iface -> T.ModuleG a -> Maybe (R.NamingEnv, Set Name)
+findEnv n iface m
+  | Just sm <- Map.lookup n (T.mSubmodules m) =
+      Just (T.smInScope sm, ifsPublic (T.smIface sm))
+  | Just fn <- Map.lookup n (T.mFunctors m) =
+      case Map.lookup n (ifFunctors (ifDefines iface)) of
+        Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
+        Just d -> Just (T.mInScope fn, ifsPublic (ifNames d))
+  | otherwise = asum (fmap (findEnv n iface) (Map.elems (T.mFunctors m)))
 
+modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
+modContextOf (ImpNested name) me =
+  do -- find the top module:
+     mname <- nameTopModuleMaybe name
+     lm <- lookupModule mname me
 
-modContextOf :: ModName -> ModuleEnv -> Maybe ModContext
-modContextOf mname me =
-  do lm <- lookupModule mname me
-     let localIface  = lmInterface lm
-         localNames  = lmNamingEnv lm
-
-         -- XXX: do we want only public ones here?
+     (localNames, exported) <- findEnv name (lmInterface lm) (lmModule lm)
+     let -- XXX: do we want only public ones here?
          loadedDecls = map (ifDefines . lmInterface)
                      $ getLoadedModules (meLoadedModules me)
-
-         params = ifParams localIface
      pure ModContext
-       { mctxParams   = if Map.null params then NoParams
-                                           else FunctorParams params
-       , mctxExported = ifsPublic (ifNames localIface)
-       , mctxDecls    = mconcat (ifDefines localIface : loadedDecls)
+       { mctxParams   = NoParams
+       , mctxExported = exported
+       , mctxDecls    = mconcat (ifDefines (lmInterface lm) : loadedDecls)
        , mctxNames    = localNames
        , mctxNameDisp = R.toNameDisp localNames
        }
+  -- TODO: support focusing inside a submodule signature to support browsing?
+
+modContextOf (ImpTop mname) me =
+  do lm <- lookupModule mname me
+     pure (lmModContext me lm)
   `mplus`
   do lm <- lookupSignature mname me
-     let localNames  = lmNamingEnv lm
-         -- XXX: do we want only public ones here?
-         loadedDecls = map (ifDefines . lmInterface)
-                     $ getLoadedModules (meLoadedModules me)
-     pure ModContext
-       { mctxParams   = InterfaceParams (lmData lm)
-       , mctxExported = Set.empty
-       , mctxDecls    = mconcat loadedDecls
-       , mctxNames    = localNames
-       , mctxNameDisp = R.toNameDisp localNames
-       }
+     pure (lmSignatureContext me lm)
 
+-- | Find all normal modules named `Main`
+mainContexts :: ModuleEnv -> [ModContext]
+mainContexts me = lmModContext me <$> lookupMainModules me
+
+
+lmModContext :: ModuleEnv -> LoadedModule -> ModContext
+lmModContext me lm =
+  let localIface  = lmInterface lm
+      localNames  = lmNamingEnv lm
+
+      -- XXX: do we want only public ones here?
+      loadedDecls = map (ifDefines . lmInterface)
+                  $ getLoadedModules (meLoadedModules me)
+
+      params = ifParams localIface
+  in
+    ModContext
+      { mctxParams   = if Map.null params then NoParams
+                                          else FunctorParams params
+      , mctxExported = ifsPublic (ifNames localIface)
+      , mctxDecls    = mconcat (ifDefines localIface : loadedDecls)
+      , mctxNames    = localNames
+      , mctxNameDisp = R.toNameDisp localNames
+      }
+
+lmSignatureContext :: ModuleEnv -> LoadedSignature -> ModContext
+lmSignatureContext me lm =
+  let localNames  = lmNamingEnv lm
+      -- XXX: do we want only public ones here?
+      loadedDecls = map (ifDefines . lmInterface)
+                  $ getLoadedModules (meLoadedModules me)
+  in
+    ModContext
+      { mctxParams   = InterfaceParams (lmData lm)
+      , mctxExported = Set.empty
+      , mctxDecls    = mconcat loadedDecls
+      , mctxNames    = localNames
+      , mctxNameDisp = R.toNameDisp localNames
+      }
 
 
 dynModContext :: ModuleEnv -> ModContext
@@ -317,19 +359,31 @@ dynModContext me = mempty { mctxNames    = dynNames
   where dynNames = deNames (meDynEnv me)
 
 
-
-
--- | Given the state of the environment, compute information about what's
--- in scope on the REPL.  This includes what's in the focused module, plus any
--- additional definitions from the REPL (e.g., let bound names, and @it@).
+-- | focusedEnv me - Given 'me', the state of the environment, compute
+-- information about what's in scope on the REPL.  This includes
+-- what's in the focused module (`meFocusedModule me`), plus any
+-- additional definitions from the REPL (e.g., let bound names, and
+-- @it@).
 focusedEnv :: ModuleEnv -> ModContext
-focusedEnv me =
-  case meFocusedModule me of
+focusedEnv me = focusedEnv' (meFocusedModule me) me
+
+-- | focusedEnv' mfm me - Given 'me' (the state of the environment),
+-- compute information about what's in scope on the REPL.  It also
+-- includes additional definitions from the REPL (e.g., let bound
+-- names, and @it@).
+-- 
+-- In contrast to `focusedEnv`,
+--   - it does not include (`meFocusedModule me`)
+--   - it optionally includes 'mfm' 
+--
+focusedEnv' :: Maybe (ImpName Name) -> ModuleEnv -> ModContext
+focusedEnv' mFocusedModule me =
+  case mFocusedModule of
     Nothing -> dynModContext me
     Just fm -> case modContextOf fm me of
                  Just c -> dynModContext me <> c
-                 Nothing -> panic "focusedEnv"
-                              [ "Focused modules not loaded: " ++ show (pp fm) ]
+                 Nothing -> panic "focusedEnv'"
+                              ["Focused module not loaded: " ++ show (pp fm)]
 
 
 -- Loaded Modules --------------------------------------------------------------
@@ -337,7 +391,7 @@ focusedEnv me =
 -- | The location of a module
 data ModulePath = InFile FilePath
                 | InMem String ByteString -- ^ Label, content
-    deriving (Show, Generic, NFData)
+    deriving (Show, Read, Generic, NFData)
 
 -- | In-memory things are compared by label.
 instance Eq ModulePath where
@@ -400,14 +454,40 @@ getLoadedEntities lm =
                  [ (lmName x, ALoadedFunctor x) | x <- lmLoadedParamModules lm ] ++
                  [ (lmName x, ALoadedInterface x) | x <- lmLoadedSignatures lm ]
 
+withLoadedEntity :: LoadedEntity -> (forall a. LoadedModuleG a -> b) -> b
+withLoadedEntity ent k =
+  case ent of
+    ALoadedModule lm -> k lm
+    ALoadedFunctor lm -> k lm
+    ALoadedInterface lm -> k lm
+
 getLoadedModules :: LoadedModules -> [LoadedModule]
 getLoadedModules x = lmLoadedParamModules x ++ lmLoadedModules x
 
+getLoadedField :: Ord a =>
+  (forall b. LoadedModuleG b -> a) -> LoadedModules -> Set a
+getLoadedField f lm = Set.fromList
+                    $ map f (lmLoadedModules lm)
+                   ++ map f (lmLoadedParamModules lm)
+                   ++ map f (lmLoadedSignatures lm)
+
+getLoadedFieldMap :: Ord k =>
+  (forall b. LoadedModuleG b -> (k,v)) -> LoadedModules -> Map k v
+getLoadedFieldMap f lm =
+  Map.fromList
+      $ map f (lmLoadedModules lm)
+     ++ map f (lmLoadedParamModules lm)
+     ++ map f (lmLoadedSignatures lm)
+                   
+
 getLoadedNames :: LoadedModules -> Set ModName
-getLoadedNames lm = Set.fromList
-                  $ map lmName (lmLoadedModules lm)
-                 ++ map lmName (lmLoadedParamModules lm)
-                 ++ map lmName (lmLoadedSignatures lm)
+getLoadedNames = getLoadedField lmName
+
+getLoadedIds :: LoadedModules -> Set String
+getLoadedIds = getLoadedField lmModuleId
+
+getLoadedFiles :: LoadedModules -> Map ModulePath FileInfo
+getLoadedFiles = getLoadedFieldMap \lm -> (lmFilePath lm, lmFileInfo lm)
 
 instance Semigroup LoadedModules where
   l <> r = LoadedModules
@@ -443,6 +523,9 @@ data LoadedModuleG a = LoadedModule
 
   , lmFileInfo          :: !FileInfo
 
+  , lmRenamedModule     :: Maybe (Module Name)
+    -- ^ The renamed AST, if we chose to save it
+
   , lmData              :: a
   } deriving (Show, Generic, NFData)
 
@@ -469,16 +552,49 @@ type LoadedSignature = LoadedModuleG T.ModParamNames
 
 
 -- | Has this module been loaded already.
-isLoaded :: ModName -> LoadedModules -> Bool
-isLoaded mn lm = mn `Set.member` getLoadedNames lm
+isLoaded :: ImpName Name -> LoadedModules -> Bool
+isLoaded (ImpTop mn) lm = mn `Set.member` getLoadedNames lm
+isLoaded (ImpNested nn) lm = any (check . lmModule) (getLoadedModules lm)
+  where
+    check :: T.ModuleG a -> Bool
+    check m =
+      Map.member nn (T.mSubmodules m) ||
+      Map.member nn (T.mSignatures m) ||
+      Map.member nn (T.mSubmodules m) ||
+      any check (T.mFunctors m)
+
+isLoadedStrict :: ImpName Name -> String -> LoadedModules -> Bool
+isLoadedStrict mn modId lm =
+  isLoaded mn lm && modId `Set.member` getLoadedIds lm
 
 -- | Is this a loaded parameterized module.
-isLoadedParamMod :: ModName -> LoadedModules -> Bool
-isLoadedParamMod mn ln = any ((mn ==) . lmName) (lmLoadedParamModules ln)
+isLoadedParamMod :: ImpName Name -> LoadedModules -> Bool
+isLoadedParamMod (ImpTop mn) lm = any ((mn ==) . lmName) (lmLoadedParamModules lm)
+isLoadedParamMod (ImpNested n) lm =
+  any (check1 . lmModule) (lmLoadedModules lm) ||
+  any (check2 . lmModule) (lmLoadedParamModules lm)
+  where
+    -- We haven't crossed into a parameterized functor yet
+    check1 m = Map.member n (T.mFunctors m)
+            || any check2 (T.mFunctors m)
+
+    -- We're inside a parameterized module and are finished as soon as we have containment
+    check2 :: T.ModuleG a -> Bool
+    check2 m =
+      Map.member n (T.mSubmodules m) ||
+      Map.member n (T.mSignatures m) ||
+      Map.member n (T.mFunctors m) ||
+      any check2 (T.mFunctors m)
 
 -- | Is this a loaded interface module.
-isLoadedInterface :: ModName -> LoadedModules -> Bool
-isLoadedInterface mn ln = any ((mn ==) . lmName) (lmLoadedSignatures ln)
+isLoadedInterface :: ImpName Name -> LoadedModules -> Bool
+isLoadedInterface (ImpTop mn) ln = any ((mn ==) . lmName) (lmLoadedSignatures ln)
+isLoadedInterface (ImpNested nn) ln = any (check . lmModule) (getLoadedModules ln)
+  where
+    check :: T.ModuleG a -> Bool
+    check m =
+      Map.member nn (T.mSignatures m) ||
+      any check (T.mFunctors m)
 
 -- | Return the set of type parameters (@'Set' 'T.TParam'@) and definitions
 -- (@'Set' 'Name'@) from the supplied 'LoadedModules' value that another
@@ -500,8 +616,8 @@ loadedParamModDeps lm a = (badTs, bad)
 
         -- XXX: Changes if focusing on nested modules
         GlobalName _ I.OrigName { ogModule = I.TopModule m }
-          | isLoadedParamMod m lm -> Set.insert nm bs
-          | isLoadedInterface m lm -> Set.insert nm bs
+          | isLoadedParamMod (ImpTop m) lm -> Set.insert nm bs
+          | isLoadedInterface (ImpTop m) lm -> Set.insert nm bs
 
         _ -> bs
 
@@ -516,22 +632,37 @@ lookupTCEntity m env =
 
 -- | Try to find a previously loaded module
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
-lookupModule mn me = search lmLoadedModules `mplus` search lmLoadedParamModules
+lookupModule mn = lookupModuleWith ((mn ==) . lmName)
+
+-- | Find all loaded `Main` modules
+lookupMainModules :: ModuleEnv -> [LoadedModule]
+lookupMainModules me =
+  [ lm | lm <- lmLoadedModules (meLoadedModules me),
+         "Main" == I.modNameToText (lmName lm) ]
+  
+lookupModuleWith :: (LoadedModule -> Bool) -> ModuleEnv -> Maybe LoadedModule
+lookupModuleWith p me =
+  search lmLoadedModules `mplus` search lmLoadedParamModules
   where
-  search how = List.find ((mn ==) . lmName) (how (meLoadedModules me))
+  search how = List.find p (how (meLoadedModules me))
 
 lookupSignature :: ModName -> ModuleEnv -> Maybe LoadedSignature
-lookupSignature mn me =
-  List.find ((mn ==) . lmName) (lmLoadedSignatures (meLoadedModules me))
+lookupSignature mn = lookupSignatureWith ((mn ==) . lmName)
+
+lookupSignatureWith ::
+  (LoadedSignature -> Bool) -> ModuleEnv -> Maybe LoadedSignature
+lookupSignatureWith p me = List.find p (lmLoadedSignatures (meLoadedModules me))
+
+
 
 addLoadedSignature ::
   ModulePath -> String ->
   FileInfo ->
   R.NamingEnv ->
-  ModName -> T.ModParamNames ->
+  ModName -> Maybe (Module T.Name) -> T.ModParamNames ->
   LoadedModules -> LoadedModules
-addLoadedSignature path ident fi nameEnv nm si lm
-  | isLoaded nm lm = lm
+addLoadedSignature path ident fi nameEnv nm rm si lm
+  | isLoadedStrict (ImpTop nm) ident lm = lm
   | otherwise = lm { lmLoadedSignatures = loaded : lmLoadedSignatures lm }
   where
   loaded = LoadedModule
@@ -541,6 +672,7 @@ addLoadedSignature path ident fi nameEnv nm si lm
             , lmNamingEnv   = nameEnv
             , lmData        = si
             , lmFileInfo    = fi
+            , lmRenamedModule = rm
             }
 
 -- | Add a freshly loaded module.  If it was previously loaded, then
@@ -551,9 +683,10 @@ addLoadedModule ::
   FileInfo ->
   R.NamingEnv ->
   Maybe ForeignSrc ->
+  Maybe (Module T.Name) ->
   T.Module -> LoadedModules -> LoadedModules
-addLoadedModule path ident fi nameEnv fsrc tm lm
-  | isLoaded (T.mName tm) lm  = lm
+addLoadedModule path ident fi nameEnv fsrc rm tm lm
+  | isLoadedStrict (ImpTop (T.mName tm)) ident lm = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
   | otherwise                = lm { lmLoadedModules =
@@ -564,6 +697,7 @@ addLoadedModule path ident fi nameEnv fsrc tm lm
     , lmFilePath        = path
     , lmModuleId        = ident
     , lmNamingEnv       = nameEnv
+    , lmRenamedModule   = rm
     , lmData            = LoadedModuleData
                              { lmdInterface = T.genIface tm
                              , lmdModule    = tm
@@ -588,15 +722,16 @@ removeLoadedModule rm lm =
 
 data FileInfo = FileInfo
   { fiFingerprint :: Fingerprint
-  , fiIncludeDeps :: Set FilePath
+  , fiIncludeDeps :: Map FilePath Fingerprint
   , fiImportDeps  :: Set ModName
   , fiForeignDeps :: Map FilePath Bool
+    -- ^ The bool indicates if the library for the foreign import exists.
   } deriving (Show,Generic,NFData)
 
 
 fileInfo ::
   Fingerprint ->
-  Set FilePath ->
+  Map FilePath Fingerprint ->
   Set ModName ->
   Maybe ForeignSrc ->
   FileInfo
@@ -610,6 +745,8 @@ fileInfo fp incDeps impDeps fsrc =
                          fpath <- getForeignSrcPath src
                          pure $ Map.singleton fpath True
     }
+
+
 
 
 -- Dynamic Environments --------------------------------------------------------
@@ -662,3 +799,4 @@ deIfaceDecls DEnv { deDecls = dgs, deTySyns = tySyns } =
       | decl <- concatMap T.groupDecls dgs
       , let ifd = T.mkIfaceDecl decl
       ]
+

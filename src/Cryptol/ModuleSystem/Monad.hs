@@ -16,8 +16,8 @@ module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval (EvalEnv,EvalOpts(..))
 
-import           Cryptol.Backend.FFI (ForeignSrc)
-import           Cryptol.Backend.FFI.Error
+import           Cryptol.Eval.FFI.ForeignSrc (ForeignSrc)
+import           Cryptol.Eval.FFI.Error
 import qualified Cryptol.Backend.Monad           as E
 
 import           Cryptol.ModuleSystem.Env
@@ -26,6 +26,7 @@ import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
 import           Cryptol.ModuleSystem.Renamer (RenamerError(),RenamerWarning())
 import           Cryptol.ModuleSystem.NamingEnv(NamingEnv)
+import           Cryptol.ModuleSystem.Fingerprint(Fingerprint)
 import qualified Cryptol.Parser     as Parser
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Utils.Panic (panic)
@@ -40,6 +41,7 @@ import           Cryptol.Parser.Position (Range, Located)
 import           Cryptol.Utils.Ident (interactiveName, noModuleName)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Logger(Logger)
+import qualified Cryptol.Project.Config as Proj
 
 import qualified Control.Monad.Fail as Fail
 import Control.Monad.IO.Class
@@ -84,21 +86,21 @@ importedModule :: ImportSource -> P.ModName
 importedModule is =
   case is of
     FromModule n          -> n
-    FromImport li         -> P.iModule (P.thing li)
+    FromImport li         -> P.thing (P.iModule (P.thing li))
     FromModuleInstance l  -> P.thing l
     FromSigImport l       -> P.thing l
 
 
 data ModuleError
-  = ModuleNotFound P.ModName [FilePath]
+  = ModuleNotFound ImportSource P.ModName [FilePath]
     -- ^ Unable to find the module given, tried looking in these paths
   | CantFindFile FilePath
     -- ^ Unable to open a file
-  | BadUtf8 ModulePath UnicodeException
+  | BadUtf8 ModulePath Fingerprint UnicodeException
     -- ^ Bad UTF-8 encoding in while decoding this file
   | OtherIOError FilePath IOException
     -- ^ Some other IO error occurred while reading this file
-  | ModuleParseError ModulePath Parser.ParseError
+  | ModuleParseError ModulePath Fingerprint Parser.ParseError
     -- ^ Generated this parse error when parsing the file for module m
   | RecursiveModules [ImportSource]
     -- ^ Recursive module group discovered
@@ -120,21 +122,21 @@ data ModuleError
     -- ^ Two modules loaded from different files have the same module name
   | FFILoadErrors P.ModName [FFILoadError]
     -- ^ Errors loading foreign function implementations
-
+  | ConfigLoadError Proj.ConfigLoadError
   | ErrorInFile ModulePath ModuleError
     -- ^ This is just a tag on the error, indicating the file containing it.
     -- It is convenient when we had to look for the module, and we'd like
-    -- to communicate the location of pthe problematic module to the handler.
+    -- to communicate the location of the problematic module to the handler.
 
     deriving (Show)
 
 instance NFData ModuleError where
   rnf e = case e of
-    ModuleNotFound src path              -> src `deepseq` path `deepseq` ()
+    ModuleNotFound is src path           -> is `deepseq` src `deepseq` path `deepseq` ()
     CantFindFile path                    -> path `deepseq` ()
-    BadUtf8 path ue                      -> rnf (path, ue)
+    BadUtf8 path fp ue                   -> rnf (path, fp, ue)
     OtherIOError path exn                -> path `deepseq` exn `seq` ()
-    ModuleParseError source err          -> source `deepseq` err `deepseq` ()
+    ModuleParseError source fp err       -> rnf (source, fp, err)
     RecursiveModules mods                -> mods `deepseq` ()
     RenamerErrors src errs               -> src `deepseq` errs `deepseq` ()
     NoPatErrors src errs                 -> src `deepseq` errs `deepseq` ()
@@ -148,13 +150,18 @@ instance NFData ModuleError where
     OtherFailure x                       -> x `deepseq` ()
     FFILoadErrors x errs                 -> x `deepseq` errs `deepseq` ()
     ErrorInFile x y                      -> x `deepseq` y `deepseq` ()
+    ConfigLoadError x                    -> x `seq` ()
 
 instance PP ModuleError where
   ppPrec prec e = case e of
 
-    ModuleNotFound src path ->
+    ModuleNotFound isrc src path ->
       text "[error]" <+>
       text "Could not find module" <+> pp src
+      $$
+        case isrc of
+          FromModule {} -> mempty
+          _ -> "arising from" <+> pp isrc
       $$
       hang (text "Searched paths:")
          4 (vcat (map text path))
@@ -165,7 +172,7 @@ instance PP ModuleError where
       text "[error]" <+>
       text "can't find file:" <+> text path
 
-    BadUtf8 path _ue ->
+    BadUtf8 path _fp _ue ->
       text "[error]" <+>
       text "bad utf-8 encoding:" <+> pp path
 
@@ -174,7 +181,7 @@ instance PP ModuleError where
             text "IO error while loading file:" <+> text path <.> colon)
          4 (text (show exn))
 
-    ModuleParseError _source err -> Parser.ppError err
+    ModuleParseError _source _fp err -> Parser.ppError err
 
     RecursiveModules mods ->
       hang (text "[error] module imports form a cycle:")
@@ -208,24 +215,26 @@ instance PP ModuleError where
       hang (text "[error] Failed to load foreign implementations for module"
             <+> pp x <.> colon)
          4 (vcat $ map pp errs)
+      
+    ConfigLoadError err -> pp err
 
     ErrorInFile _ x -> ppPrec prec x
 
-moduleNotFound :: P.ModName -> [FilePath] -> ModuleM a
-moduleNotFound name paths = ModuleT (raise (ModuleNotFound name paths))
+moduleNotFound :: ImportSource -> P.ModName -> [FilePath] -> ModuleM a
+moduleNotFound isrc name paths = ModuleT (raise (ModuleNotFound isrc name paths))
 
 cantFindFile :: FilePath -> ModuleM a
 cantFindFile path = ModuleT (raise (CantFindFile path))
 
-badUtf8 :: ModulePath -> UnicodeException -> ModuleM a
-badUtf8 path ue = ModuleT (raise (BadUtf8 path ue))
+badUtf8 :: ModulePath -> Fingerprint -> UnicodeException -> ModuleM a
+badUtf8 path fp ue = ModuleT (raise (BadUtf8 path fp ue))
 
 otherIOError :: FilePath -> IOException -> ModuleM a
 otherIOError path exn = ModuleT (raise (OtherIOError path exn))
 
-moduleParseError :: ModulePath -> Parser.ParseError -> ModuleM a
-moduleParseError path err =
-  ModuleT (raise (ModuleParseError path err))
+moduleParseError :: ModulePath -> Fingerprint -> Parser.ParseError -> ModuleM a
+moduleParseError path fp err =
+  ModuleT (raise (ModuleParseError path fp err))
 
 recursiveModules :: [ImportSource] -> ModuleM a
 recursiveModules loaded = ModuleT (raise (RecursiveModules loaded))
@@ -274,6 +283,9 @@ errorInFile file (ModuleT m) = ModuleT (m `handle` h)
                         ErrorInFile {} -> e
                         _              -> ErrorInFile file e
 
+tryModule :: ModuleM a -> ModuleM (Either ModuleError a)
+tryModule (ModuleT m) = ModuleT (handle (Right <$> m) (pure . Left))
+
 -- Warnings --------------------------------------------------------------------
 
 data ModuleWarning
@@ -306,6 +318,7 @@ data RO m =
   RO { roLoading    :: [ImportSource]
      , roEvalOpts   :: m EvalOpts
      , roCallStacks :: Bool
+     , roSaveRenamed :: Bool
      , roFileReader :: FilePath -> m ByteString
      , roTCSolver   :: SMT.Solver
      }
@@ -315,6 +328,7 @@ emptyRO minp =
   RO { roLoading = []
      , roEvalOpts   = minpEvalOpts minp
      , roCallStacks = minpCallStacks minp
+     , roSaveRenamed = minpSaveRenamed minp
      , roFileReader = minpByteReader minp
      , roTCSolver   = minpTCSolver minp
      }
@@ -366,6 +380,7 @@ instance MonadIO m => MonadIO (ModuleT m) where
 data ModuleInput m =
   ModuleInput
   { minpCallStacks :: Bool
+  , minpSaveRenamed :: Bool
   , minpEvalOpts   :: m EvalOpts
   , minpByteReader :: FilePath -> m ByteString
   , minpModuleEnv  :: ModuleEnv
@@ -433,7 +448,12 @@ getLoadedMaybe mn = ModuleT $
 isLoaded :: P.ModName -> ModuleM Bool
 isLoaded mn =
   do env <- ModuleT get
-     pure (MEnv.isLoaded mn (meLoadedModules env))
+     pure (MEnv.isLoaded (T.ImpTop mn) (meLoadedModules env))
+
+isLoadedStrict :: P.ModName -> ModulePath -> ModuleM Bool
+isLoadedStrict mn mpath =
+  do env <- ModuleT get
+     pure (MEnv.isLoadedStrict (T.ImpTop mn) (modulePathLabel mpath) (meLoadedModules env))
 
 loadingImport :: Located P.Import -> ModuleM a -> ModuleM a
 loadingImport  = loading . FromImport
@@ -537,8 +557,9 @@ loadedModule ::
   NamingEnv ->
   Maybe ForeignSrc ->
   T.TCTopEntity ->
+  Maybe (P.Module T.Name) ->
   ModuleM ()
-loadedModule path fi nameEnv fsrc m = ModuleT $ do
+loadedModule path fi nameEnv fsrc m renMod = ModuleT $ do
   env <- get
   ident <- case path of
              InFile p  -> unModuleT $ io (canonicalizePath p)
@@ -546,8 +567,8 @@ loadedModule path fi nameEnv fsrc m = ModuleT $ do
 
   let newLM =
         case m of
-          T.TCTopModule mo -> addLoadedModule path ident fi nameEnv fsrc mo
-          T.TCTopSignature x s -> addLoadedSignature path ident fi nameEnv x s
+          T.TCTopModule mo -> addLoadedModule path ident fi nameEnv fsrc renMod mo
+          T.TCTopSignature x s -> addLoadedSignature path ident fi nameEnv x renMod s
 
   set $! env { meLoadedModules = newLM (meLoadedModules env) }
 
@@ -574,16 +595,22 @@ getEvalOpts =
   do act <- getEvalOptsAction
      liftIO act
 
+getSaveRenamed :: ModuleM Bool
+getSaveRenamed = ModuleT (roSaveRenamed <$> ask)
+
 getNominalTypes :: ModuleM (Map T.Name T.NominalType)
 getNominalTypes = ModuleT (loadedNominalTypes <$> get)
 
-getFocusedModule :: ModuleM (Maybe P.ModName)
+getFocusedModule :: ModuleM (Maybe (P.ImpName T.Name))
 getFocusedModule  = ModuleT (meFocusedModule `fmap` get)
 
-setFocusedModule :: P.ModName -> ModuleM ()
-setFocusedModule n = ModuleT $ do
+setFocusedModule :: P.ImpName T.Name -> ModuleM ()
+setFocusedModule = setMaybeFocusedModule . Just
+
+setMaybeFocusedModule :: Maybe (P.ImpName T.Name) -> ModuleM ()
+setMaybeFocusedModule mb = ModuleT $ do
   me <- get
-  set $! me { meFocusedModule = Just n }
+  set $! me { meFocusedModule = mb }
 
 getSearchPath :: ModuleM [FilePath]
 getSearchPath  = ModuleT (meSearchPath `fmap` get)
