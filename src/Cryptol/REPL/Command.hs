@@ -780,7 +780,7 @@ rethrowErrorCall m = REPL (\r -> unREPL m r `X.catches` hs)
 -- | Attempts to prove the given term is safe for all inputs
 safeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
 safeCmd "" _pos _fnm = 
-  do  rPutStrLn $ findCmdHelp ":safe"
+  do  rPutStrLn $ invalidCommandArgument ":safe"
       return emptyCommandResult {crSuccess = False}
 safeCmd str pos fnm = do
   proverName <- getKnownUser "prover"
@@ -1108,7 +1108,7 @@ mkSolverResult thing rng result earg =
 
 specializeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
 specializeCmd "" _pos _fnm = 
-  do  rPutStrLn $ findCmdHelp ":debug_specialize"
+  do  rPutStrLn $ invalidCommandArgument ":debug_specialize"
       return emptyCommandResult {crSuccess = False}
 specializeCmd str pos fnm = do
   parseExpr <- replParseExpr str pos fnm
@@ -1125,7 +1125,7 @@ specializeCmd str pos fnm = do
 
 refEvalCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
 refEvalCmd "" _pos _fnm = 
-  do  rPutStrLn $ findCmdHelp ":eval"
+  do  rPutStrLn $ invalidCommandArgument ":eval"
       return emptyCommandResult {crSuccess = False}
 refEvalCmd str pos fnm = do
   parseExpr <- replParseExpr str pos fnm
@@ -1140,7 +1140,7 @@ refEvalCmd str pos fnm = do
 
 astOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
 astOfCmd "" _pos _fnm = 
-  do  rPutStrLn $ findCmdHelp ":ast"
+  do  rPutStrLn $ invalidCommandArgument ":ast"
       return emptyCommandResult {crSuccess = False}
 astOfCmd str pos fnm = do
  expr <- replParseExpr str pos fnm
@@ -1156,7 +1156,7 @@ extractCoqCmd = do
 
 typeOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
 typeOfCmd "" _pos _fnm = 
-  do  rPutStrLn $ findCmdHelp ":type"
+  do  rPutStrLn $ invalidCommandArgument ":type"
       return emptyCommandResult {crSuccess = False}
 
 typeOfCmd str pos fnm = do
@@ -1176,7 +1176,7 @@ typeOfCmd str pos fnm = do
 
 timeCmd :: String -> (Int, Int) -> Maybe FilePath -> REPL CommandResult
 timeCmd "" _pos _fnm = 
-  do  rPutStrLn $ findCmdHelp ":time"
+  do  rPutStrLn $ invalidCommandArgument ":time"
       return emptyCommandResult {crSuccess = False}
 
 timeCmd str pos fnm = do
@@ -1949,11 +1949,12 @@ findNbCommand :: Bool -> String -> [CommandDescr]
 findNbCommand True  str = lookupTrieExact str nbCommands
 findNbCommand False str = lookupTrie      str nbCommands
 
--- | Look up a command, then return its help message as a helpful error message.
-findCmdHelp :: String -> String
-findCmdHelp cmd = unlines ["ERROR", "Command Description: " ++ cHelp descmd]
-  where 
-    [descmd] = findCommandExact cmd
+-- | Construct a helpful error message for commad parse errors where
+-- a cryptol command is not given expression arg when its expecting one.
+invalidCommandArgument :: String -> String
+invalidCommandArgument cmd = concat ["ERROR: Command `", cmd 
+                                    , "` needs an EXPR argument. See `:help " 
+                                    , cmd, "` for more details."] 
 
 -- | Parse a line as a command.
 parseCommand :: (String -> [CommandDescr]) -> String -> Maybe Command
