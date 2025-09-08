@@ -19,9 +19,12 @@ import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.TypeCheck.PP(NameMap,ppWithNames)
 import Cryptol.Utils.PP hiding (int)
 
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Maybe (catMaybes)
+import           Control.Monad(guard)
 
 
 -- | Only meaningful for numeric types
@@ -77,6 +80,7 @@ updateInterval (x,int) varInts =
     Nothing   -> NewIntervals (Map.insert x int varInts)
 
 
+-- XXX: Do we really need the 3 iteraton limit here?
 computePropIntervals :: Map TVar Interval -> [Prop] -> IntervalUpdate
 computePropIntervals ints ps0 = go (3 :: Int) False ints ps0
   where
@@ -105,28 +109,34 @@ computePropIntervals ints ps0 = go (3 :: Int) False ints ps0
 
 -- | What we learn about variables from a single prop.
 propInterval :: Map TVar Interval -> Prop -> [(TVar,Interval)]
-propInterval varInts prop = catMaybes
+propInterval varInts prop = concat $ catMaybes
   [ do ty <- pIsFin prop
-       x  <- tIsVar ty
-       return (x,iAnyFin)
+       findFin ty
 
   , do (l,r) <- pIsEqual prop
        x     <- tIsVar l
-       return (x,typeInterval varInts r)
+       return [(x,typeInterval varInts r)]
 
   , do (l,r) <- pIsEqual prop
        x     <- tIsVar r
-       return (x,typeInterval varInts l)
+       return [(x,typeInterval varInts l)]
 
   , do (l,r) <- pIsGeq prop
        x     <- tIsVar l
        let int = typeInterval varInts r
-       return (x,int { iUpper = Just Inf })
+       return [(x,int { iUpper = Just Inf })]
 
+    -- l >= r
   , do (l,r) <- pIsGeq prop
-       x     <- tIsVar r
        let int = typeInterval varInts l
-       return (x,int { iLower = Nat 0 })
+       x     <- tIsVar r
+       return [(x,int { iLower = Nat 0 })]
+
+    -- l >= r, and fin l
+  , do (l,r) <- pIsGeq prop
+       let int = typeInterval varInts l
+       guard (iIsFin int)
+       findFin r
 
     -- k >= width x
   , do (l,r) <- pIsGeq prop
@@ -138,18 +148,52 @@ propInterval varInts prop = catMaybes
                                  | otherwise -> Nothing
                   upper                      -> upper
 
-       return (x, Interval { iLower = Nat 0, iUpper = ub })
+       return [(x, Interval { iLower = Nat 0, iUpper = ub })]
 
     , do (e,_) <- pIsValidFloat prop
-         x <- tIsVar e
-         pure (x, iAnyFin)
+         findFin e
 
     , do (_,p) <- pIsValidFloat prop
-         x <- tIsVar p
-         pure (x, iAnyFin)
+         findFin p
 
   ]
+  where
+  findFin ty = pure [ (x,iAnyFin) | x <- Set.toList (knownFin varInts ty Set.empty) ]
 
+
+-- | If we know that a type is finite compute what variables must be finite
+knownFin :: Map TVar Interval -> Type -> Set TVar -> Set TVar
+knownFin ctxt ty k =
+  case tNoUser ty of
+    TVar x -> Set.insert x k
+    TCon (TF tf) xs ->
+      let allFin = foldr (knownFin ctxt) k xs in
+      case (tf,xs) of
+        (TCAdd,_)     -> allFin
+        (TCSub,_)     -> allFin
+        (TCMul,[x,y])
+          | iIsFin yi || iLower xi > Nat 0 -> knownFin ctxt y xvs
+          | otherwise -> xvs
+          where
+          xi = typeInterval ctxt x
+          yi = typeInterval ctxt y
+          xvs = if iIsFin xi || iLower yi > Nat 0 then knownFin ctxt x k else k
+        (TCDiv,[x,_]) -> knownFin ctxt x k
+        (TCMod,[x,_]) -> knownFin ctxt x k
+        (TCExp,[x,y])
+          | iIsFin yi || iLower xi > Nat 1 -> knownFin ctxt y xvs
+          where
+            xi = typeInterval ctxt x
+            yi = typeInterval ctxt y
+            xvs = if iIsFin xi || iLower yi > Nat 0 then knownFin ctxt x k else k
+        (TCWidth,_)   -> allFin
+        (TCMin,_)     -> k 
+        (TCMax,_)     -> allFin
+        (TCCeilDiv,_)     -> allFin
+        (TCCeilMod,[_,y]) -> knownFin ctxt y k
+        (TCLenFromThenTo,_) -> allFin
+        _ -> k
+    _ -> k
 
 --------------------------------------------------------------------------------
 
