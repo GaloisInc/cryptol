@@ -18,7 +18,7 @@ jobs:
   build-branch-docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
         with:
           submodules: false
           fetch-depth: 0
@@ -88,7 +88,7 @@ jobs:
       TGTBASE: docs/ci_build_out
       REFREPO: docs/ci_build_out/master
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
         with:
           submodules: false
           fetch-depth: 0

@@ -36,7 +36,7 @@ jobs:
       release: ${{ steps.config.outputs.release }}
       retention-days: ${{ steps.config.outputs.retention-days }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
@@ -96,17 +96,17 @@ jobs:
       VERSION: ${{ needs.config.outputs.version }}
       RELEASE: ${{ needs.config.outputs.release }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
         with:
           submodules: true
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v6
         with:
           # Ensure pyproject.toml and python/mypy.ini are kept in sync with the Python version here.
           python-version: '3.12'
 
-      - uses: abatilo/actions-poetry@v2.0.0
+      - uses: abatilo/actions-poetry@v3
         with:
           poetry-version: 1.4.2
 
@@ -124,7 +124,7 @@ jobs:
           cabal user-config update -a "extra-include-dirs: \"\""
           cabal user-config update -a "extra-lib-dirs: \"\""
 
-      - uses: actions/cache/restore@v3
+      - uses: actions/cache/restore@v4
         name: Restore cache store cache
         with:
           path: |
@@ -263,7 +263,7 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
-      - uses: actions/cache/save@v3
+      - uses: actions/cache/save@v4
         name: Save cache store cache
         if: always()
         with:
@@ -301,7 +301,7 @@ jobs:
           #  os: windows-2022
           #  continue-on-error: true  # TODO: get Python client to work on Windows
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
         with:
           submodules: true
           ref: ${{ github.event.pull_request.head.sha }}
@@ -341,22 +341,22 @@ jobs:
         if: matrix.suite == 'test-lib' && runner.os == 'Windows'
 
       - if: matrix.suite == 'rpc'
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v6
         with:
           # Ensure cryptol-remote-api/python/{pyproject.toml,mypy.ini} are kept in sync with the Python version here.
           python-version: '3.12'
 
       - if: matrix.suite == 'rpc'
-        uses: abatilo/actions-poetry@v2.1.2
+        uses: abatilo/actions-poetry@v3
         with:
           poetry-version: 1.4.2
 
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v4
         with:
           name: "${{ matrix.os }}-dist-bin"
           path: dist/bin
 
-      - uses: actions/download-artifact@v4.1.7
+      - uses: actions/download-artifact@v4
         with:
           name: "${{ matrix.os }}-bin"
           path: bin
@@ -442,7 +442,7 @@ jobs:
             image: ghcr.io/galoisinc/cryptol-remote-api
             cache: ghcr.io/galoisinc/cache-cryptol-remote-api
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
@@ -454,12 +454,12 @@ jobs:
         id: prefix
         run: echo "::set-output name=prefix::portable-"
 
-      - uses: rlespinasse/github-slug-action@v3.x
+      - uses: rlespinasse/github-slug-action@v5
 
       - id: common-tag
         run: echo "::set-output name=common-tag::${{ steps.prefix.outputs.prefix }}$GITHUB_REF_SLUG"
 
-      - uses: docker/setup-buildx-action@v1
+      - uses: docker/setup-buildx-action@v3
 
       - uses: crazy-max/ghaction-docker-meta@v1
         name: Labels
@@ -467,13 +467,13 @@ jobs:
         with:
           images: ${{ matrix.image }}
 
-      - uses: docker/login-action@v1
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.CR_PAT }}
 
-      - uses: docker/build-push-action@v2
+      - uses: docker/build-push-action@v6
         with:
           tags: ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
           labels: ${{ steps.labels.outputs.labels }}
@@ -486,7 +486,7 @@ jobs:
             type=registry,ref=${{ matrix.cache }}:cache-${{ steps.common-tag.outputs.common-tag }}
 
       - name: Cache image build
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v6
         continue-on-error: true  # Tolerate cache upload failures - this should be handled better
         with:
           tags: ${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
@@ -497,13 +497,13 @@ jobs:
           cache-to: type=registry,ref=${{ matrix.cache }}:cache-${{ steps.common-tag.outputs.common-tag }},mode=max
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v6
         with:
           # Ensure cryptol-remote-api/python/{pyproject.toml,mypy.ini} are kept in sync with the Python version here.
           python-version: '3.12'
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        uses: abatilo/actions-poetry@v2.1.2
+        uses: abatilo/actions-poetry@v3
         with:
           poetry-version: 1.4.2
 
@@ -516,7 +516,7 @@ jobs:
         run: ./cryptol-remote-api/test_docker.sh https ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
 
       - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v6
         name: Build test-cryptol-remote-api
         with:
           tags: test-cryptol-remote-api:latest
