@@ -1,4 +1,3 @@
-ld: warning: -U option is redundant when using -undefined dynamic_lookup
 Loading module Cryptol
 Loading module Cryptol
 {n, a, b, c} n == min n n
