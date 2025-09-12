@@ -20,7 +20,7 @@ c2 : {n} (n>=2) => N n [n] -> [n]
 c2 e =
   case e of
     X a -> a
-    Y b -> zero # b
+    Y b -> zero`{[2]} # b
     Z a -> a
 
 c3 e = case e of A -> 1 : [8]; B -> 2; C -> 3
