@@ -151,41 +151,38 @@ visibleNames (NamingEnv env) = check <$> env
 -- | qualify pfx env - Qualify all symbols in `env :: NamingEnv` with
 --   the 'pfx' prefix.
 -- 
---   Preconditions:
---     'pfx' is `ModName s ...` where s has a single chunk (no "::"s)
---       (this unstated from old times)
---     or 'pfx' is `ModMain _`
---
---   Names in 'env' can be qualified names referencing submodule elements.
+--   NOTE
+--    - pfx can have multiple chunks (as Cryptol allows in qualified imports).
+--    - Names in 'env' can be qualified names referencing submodule elements.
 --
 --   We don't qualify fresh names, because they should not be directly
 --   visible to the end users (i.e., they shouldn't really be exported)
 --
 --   NOTE re the calls to `qualify`:
---     - used in modParamNamingEnv for module parameters, all names here are
+--     - used in modParamNamingEnv for module parameters, in this use all names are
 --       `Unqual`
 --     - used by interpImportEnv used by tryImport:
 --       - here also, all names are `Unqual`.
 --     - used by interpImportEnv and called from saw-script code:
 --       - here, some names are inside submodules and thus qualified, thus
---         the need for the `consChunk` machinery.
+--         the need for the `appendChunk` machinery.
 --     
 qualify :: ModName -> NamingEnv -> NamingEnv
 qualify pfx (NamingEnv env) = NamingEnv (Map.mapKeys toQual <$> env)
   where
-  toQual (Qual mn n) = Qual (consChunk pfx' mn) n
+  toQual (Qual mn n) = Qual (prependChunks pfx' mn) n
   toQual (UnQual n)  = Qual pfx n
   toQual n@NewName{} = n
 
-  -- | consChunk - insert module reference "chunk" to start of ModName
-  consChunk :: Text -> ModName -> ModName
-  consChunk n modNm = packModName (n : modNameChunksText modNm)
+  -- | prependChunks - add ChunksText to start of ModName
+  prependChunks :: [Text] -> ModName -> ModName
+  prependChunks ts modNm = packModName (ts ++ modNameChunksText modNm)
 
-  -- | the prefix as Text (chunk)
-  pfx' :: Text
+  -- | pfx' = pfx as ChunksText
+  pfx' :: [Text]
   pfx' = case modNameChunksText pfx of
-           [x] -> x
-           _   -> panic "qualify" ["pfx must have one chunk: " ++ show pfx]
+           [] -> panic "qualify" ["pfx must have at least one chunk: " ++ show pfx]
+           xs -> xs
   
 filterPNames :: (PName -> Bool) -> NamingEnv -> NamingEnv
 filterPNames p (NamingEnv env) = NamingEnv (Map.mapMaybe checkNS env)
