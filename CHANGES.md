@@ -27,6 +27,9 @@
 
 ## Bug fixes
 
+* Fix #1696, which corrected an incorrect simplification rule, leading to
+  panics.
+  
 * Allow changing the `tcSolver` setting to non-Z3 solvers (e.g., CVC5) without
   crashing. ([#1874](https://github.com/GaloisInc/cryptol/issues/1874))
 

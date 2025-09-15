@@ -46,8 +46,8 @@ cryIsEqual ctxt t1 t2 =
     <|> tryEqAddInf ctxt t1 t2
     <|> tryAddConst (=#=) t1 t2
     <|> tryCancelVar ctxt (=#=) t1 t2
-    <|> tryLinearSolution t1 t2
-    <|> tryLinearSolution t2 t1
+    <|> tryLinearSolution ctxt t1 t2
+    <|> tryLinearSolution ctxt t2 t1
     <|> tryEqExp t1 t2
 
 -- | Try to solve @t1 /= t2@
@@ -458,14 +458,15 @@ tryAddConst rel l r =
 -- | Check for situations where a unification variable is involved in
 --   a sum of terms not containing additional unification variables,
 --   and replace it with a solution and an inequality.
---   @s1 = ?a + s2 ~~> (?a = s1 - s2, s1 >= s2)@
-tryLinearSolution :: Type -> Type -> Match Solved
-tryLinearSolution s1 t =
+--   @s1 = ?a + s2 ~~> (?a = s1 - s2, s1 >= s2, fin s2)@
+tryLinearSolution :: Ctxt -> Type -> Type -> Match Solved
+tryLinearSolution ctxt s1 t =
   do (a,xs) <- matchLinearUnifier t
-     guard (noFreeVariables s1)
+     guard (noFreeVariables s1) 
 
      -- NB: matchLinearUnifier only matches if xs is nonempty
      let s2 = foldr1 Simp.tAdd xs
+     guard (iIsFin (typeInterval (intervals ctxt) s2))
      return (SolvedIf [ TVar a =#= (Simp.tSub s1 s2), s1 >== s2 ])
 
 
