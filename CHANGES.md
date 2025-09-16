@@ -2,7 +2,7 @@
 
 ## Language changes
 
-* When running validation commands (`:check`, `:prove`, `:exhaust`, etc)
+* When running validation commands (`:check`, `:prove`, `:exhaust`, etc.)
   without an explicit argument, we now run only the properties in the
   currently *focused module*.  This is a change in behavior, because previously
   we used to run all properties in the currently opened *file*.  This change
