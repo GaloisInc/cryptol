@@ -520,7 +520,7 @@ qcCmd qcMode "" _pos _fnm =
      let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
         then do
-          rPutStrLn "There are no properties in scope."
+          rPutStrLn "There are no properties in this module."
           pure emptyCommandResult { crSuccess = False }
         else do
           let evalProp result (x,d) =
@@ -843,7 +843,7 @@ cmdProveSat isSat "" _pos _fnm =
      let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
         then do
-          rPutStrLn "There are no properties in scope."
+          rPutStrLn "There are no properties in this module."
           pure emptyCommandResult { crSuccess = False }
         else do
           let check acc (x,d) = do
