@@ -21,10 +21,11 @@ import qualified Data.Map.Strict as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Foldable(foldl')
-
+import           Data.Text (Text)
+                  
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.Ident(allNamespaces)
+import Cryptol.Utils.Ident(allNamespaces,packModName,modNameChunksText)
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.ModuleSystem.Name
@@ -146,16 +147,43 @@ visibleNames :: NamingEnv -> Map Namespace (Set Name)
 visibleNames (NamingEnv env) = check <$> env
   where check mp = Set.fromList [ a | One a <- Map.elems mp ]
 
--- | Qualify all symbols in a 'NamingEnv' with the given prefix.
+
+-- | qualify pfx env - Qualify all symbols in `env :: NamingEnv` with
+--   the 'pfx' prefix.
+-- 
+--   NOTE
+--    - pfx can have multiple chunks (as Cryptol allows in qualified imports).
+--    - Names in 'env' can be qualified names referencing submodule elements.
+--
+--   We don't qualify fresh names, because they should not be directly
+--   visible to the end users (i.e., they shouldn't really be exported)
+--
+--   NOTE re the calls to `qualify`:
+--     - used in modParamNamingEnv for module parameters, in this use all names are
+--       `Unqual`
+--     - used by interpImportEnv used by tryImport:
+--       - here also, all names are `Unqual`.
+--     - used by interpImportEnv and called from saw-script code:
+--       - here, some names are inside submodules and thus qualified, thus
+--         the need for the `appendChunk` machinery.
+--     
 qualify :: ModName -> NamingEnv -> NamingEnv
 qualify pfx (NamingEnv env) = NamingEnv (Map.mapKeys toQual <$> env)
   where
-  -- We don't qualify fresh names, because they should not be directly
-  -- visible to the end users (i.e., they shouldn't really be exported)
-  toQual (Qual _ n)  = Qual pfx n
+  toQual (Qual mn n) = Qual (prependChunks pfx' mn) n
   toQual (UnQual n)  = Qual pfx n
   toQual n@NewName{} = n
 
+  -- | prependChunks - add ChunksText to start of ModName
+  prependChunks :: [Text] -> ModName -> ModName
+  prependChunks ts modNm = packModName (ts ++ modNameChunksText modNm)
+
+  -- | pfx' = pfx as ChunksText
+  pfx' :: [Text]
+  pfx' = case modNameChunksText pfx of
+           [] -> panic "qualify" ["pfx must have at least one chunk: " ++ show pfx]
+           xs -> xs
+  
 filterPNames :: (PName -> Bool) -> NamingEnv -> NamingEnv
 filterPNames p (NamingEnv env) = NamingEnv (Map.mapMaybe checkNS env)
   where
@@ -278,7 +306,8 @@ interpImportEnv imp public = qualified
 
   where
 
-  -- optionally qualify names based on the import
+  -- optionally qualify names in NamingEnv if the import is "qualified",
+  --   i.e., if `isJust (iAs imp)`
   qualified | Just pfx <- iAs imp = qualify pfx restricted
             | otherwise           =             restricted
 
