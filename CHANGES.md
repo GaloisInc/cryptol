@@ -36,7 +36,7 @@
 
 ## Bug fixes
 
-* Fix a discrepency between the behavior of `check-docstrings` when run
+* Fix a discrepency between the behavior of `:check-docstrings` when run
   on the REPL vs. when run with a project.
   ([#1903](https://github.com/GaloisInc/cryptol/issues/1903))
 
