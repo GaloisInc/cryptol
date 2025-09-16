@@ -671,10 +671,11 @@ getPropertyNames =
                     [ (nm,d)
                     | d <- T.groupDecls =<< T.mDecls (M.lmdModule (M.lmData lm))
                     , let nm = T.dName d
-                    , consider nm
                     , T.PragmaProperty `elem` T.dPragmas d
+                    , consider nm
                     ]
         where
+        consider :: M.Name -> Bool
         (modName,consider) =
           case focusMod of
              P.ImpTop mn -> (mn, const True)
