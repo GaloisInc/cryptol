@@ -24,7 +24,7 @@ import Options.Applicative
       value )
 
 import CryptolServer.Check ( check, checkDescr )
-import CryptolServer.CheckDocstrings ( checkDocstrings, checkDocstringsDescr )
+import CryptolServer.CheckDocstrings ( checkDocstringsAPI, checkDocstringsDescr )
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr)
 import Cryptol.Eval (EvalOpts(..), defaultPPOpts)
@@ -214,7 +214,7 @@ cryptolEvalMethods =
   , command
      "check docstrings"
      checkDocstringsDescr
-     checkDocstrings
+     checkDocstringsAPI
   , notification
      "interrupt"
      interruptServerDescr

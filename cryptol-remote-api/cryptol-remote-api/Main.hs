@@ -20,7 +20,7 @@ import CryptolServer
     ( command, notification, initialState, extendSearchPath, ServerState )
 import CryptolServer.Call ( call, callDescr )
 import CryptolServer.Check ( check, checkDescr )
-import CryptolServer.CheckDocstrings ( checkDocstrings, checkDocstringsDescr )
+import CryptolServer.CheckDocstrings ( checkDocstringsAPI, checkDocstringsDescr )
 import CryptolServer.ClearState
     ( clearState, clearStateDescr, clearAllStates, clearAllStatesDescr )
 import CryptolServer.Data.Expression ( Expression )
@@ -176,7 +176,7 @@ cryptolMethods =
   , command
      "check docstrings"
      checkDocstringsDescr
-     checkDocstrings
+     checkDocstringsAPI
   , command
      "load project"
      loadProjectDescr

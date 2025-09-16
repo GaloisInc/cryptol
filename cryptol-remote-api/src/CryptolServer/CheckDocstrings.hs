@@ -4,7 +4,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE InstanceSigs #-}
 module CryptolServer.CheckDocstrings
-  ( checkDocstrings
+  ( checkDocstringsAPI
   , checkDocstringsDescr
   , CheckDocstringsParams(..)
   , CheckDocstringsResult(..)
@@ -39,8 +39,8 @@ checkDocstringsDescr =
   Doc.Paragraph
     [ Doc.Text "Check docstrings" ]
 
-checkDocstrings :: CheckDocstringsParams -> CryptolCommand CheckDocstringsResult
-checkDocstrings (CheckDocstringsParams cache) = do
+checkDocstringsAPI :: CheckDocstringsParams -> CryptolCommand CheckDocstringsResult
+checkDocstringsAPI (CheckDocstringsParams cache) = do
   env <- getModuleEnv
   ln <- case M.meFocusedModule env of
           Just (ImpTop n) -> pure n
