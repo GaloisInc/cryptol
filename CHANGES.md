@@ -2,6 +2,15 @@
 
 ## Language changes
 
+* When running validation commands (`:check`, `:prove`, `:exhaust`, etc.)
+  without an explicit argument, we now run only the properties in the
+  currently *focused module*.  This is a change in behavior, because previously
+  we used to run all properties in the currently opened *file*.  This change
+  is only noticable when working with nested modules.  The new behavior works
+  better when these commands are used from docstrings (e.g., with the
+  new behavior, writing `:check` on a submodule, will only check the properties
+  in that submodule, as expected).  
+
 * When running the `:check-docstrings` command, `Bit` properties (e.g. `property
   p = True`) will be checked with `:exhaust`, unless their docstrings contain
   code blocks understood by `:check-docstrings`.
@@ -26,6 +35,10 @@
   call out to an external solver. Use `:set prover = w4-rme` to enable it.
 
 ## Bug fixes
+
+* Fix a discrepency between the behavior of `:check-docstrings` when run
+  on the REPL vs. when run with a project.
+  ([#1903](https://github.com/GaloisInc/cryptol/issues/1903))
 
 * Fix #1696, which corrected an incorrect simplification rule, leading to
   panics.

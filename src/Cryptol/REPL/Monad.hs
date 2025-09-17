@@ -649,29 +649,45 @@ getTypeNames  =
      return (map (show . pp) (Map.keys (M.namespaceMap M.NSType fNames)))
 
 -- | Return a list of property names, sorted by position in the file.
--- Only properties defined in the current module are returned, including
--- private properties in the current module. Imported properties are not
--- returned.
+-- Only properties defined in the currently focused module are returned,
+-- (including private properties).  Other properties that are in scope
+-- are not returned.
 getPropertyNames :: REPL ([(M.Name, T.Decl)], NameDisp)
 getPropertyNames =
  do fe <- getFocusedEnv
     let nd = M.mctxNameDisp fe
-    mblm <- fmap (lName =<<) getLoadedMod
-    case mblm of
+    mbFocused <- M.meFocusedModule <$> getModuleEnv
+    case mbFocused of
       Nothing -> pure ([], nd)
-      Just mn ->
-       do mb <- M.lookupModule mn <$> getModuleEnv
+      Just focusMod ->
+        do 
+          mb <- M.lookupModule modName <$> getModuleEnv
           case mb of
             Nothing -> pure ([], nd)
             Just lm -> pure (ps, nd)
               where
                 ps =
                   sortBy (comparing (from . M.nameLoc . fst))
-                    [ (T.dName d,d)
+                    [ (nm,d)
                     | d <- T.groupDecls =<< T.mDecls (M.lmdModule (M.lmData lm))
+                    , let nm = T.dName d
                     , T.PragmaProperty `elem` T.dPragmas d
+                    , consider nm
                     ]
-
+        where
+        consider :: M.Name -> Bool
+        (modName,consider) =
+          case focusMod of
+             P.ImpTop mn -> (mn, const True)
+             P.ImpNested m ->
+              ( M.nameTopModule m,
+                \d ->
+                  case I.modPathCommon mp (M.nameModPath d) of
+                    Just (_, [], _ : _) -> True
+                    _ -> False
+              )
+              where mp = M.nameModPath m
+              
 
 getModNames :: REPL [I.ModName]
 getModNames =
