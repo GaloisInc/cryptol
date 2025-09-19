@@ -22,7 +22,7 @@ import Cryptol.ModuleSystem.Interface
 
 data BrowseHow = BrowseExported | BrowseInScope
 
-browseModContext :: BrowseHow -> ModContext -> PP.Doc Void
+browseModContext :: BrowseHow -> ModContext -> PPDoc
 browseModContext how mc =
   runDoc (env disp) (vcat sections)
   where

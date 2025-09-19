@@ -70,6 +70,7 @@ import           Cryptol.Utils.Ident (preludeReferenceName, prelPrim, identText)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Logger(logPutStrLn)
 import           Cryptol.Utils.RecordMap
+import           Cryptol.Utils.PP
 
 
 import Prelude ()
@@ -220,7 +221,7 @@ allSatSMTResults (SBV.AllSatResult (_, _, _, rs)) = rs
 thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
 
-proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
+proverError :: Doc -> M.ModuleCmd (Maybe String, ProverResult)
 proverError msg minp =
   return (Right ((Nothing, ProverError msg), M.minpModuleEnv minp), [])
 
@@ -379,7 +380,7 @@ runProver timeoutSecs proverConfig pc@ProverCommand{..} lPutStrLn x =
 prepareQuery ::
   Eval.EvalOpts ->
   ProverCommand ->
-  M.ModuleT IO (Either String ([FinType], SBV.Symbolic SBV.SVal))
+  M.ModuleT IO (Either Doc ([FinType], SBV.Symbolic SBV.SVal))
 prepareQuery evo ProverCommand{..} =
   do ds <- do (_mp, ent) <- M.loadModuleFrom True (M.FromModule preludeReferenceName)
               let m = tcTopEntityToModule ent
@@ -493,7 +494,7 @@ processResults ProverCommand{..} ts results =
        [] -> return $ ThmResult (unFinType <$> ts)
 
        -- otherwise something is wrong
-       resultsHead:_ -> return $ ProverError res
+       resultsHead:_ -> return $ ProverError (text res)
 #if MIN_VERSION_sbv(10,0,0)
               where res | isSat = show $ SBV.AllSatResult False False False results
                     -- sbv-10.0.0 removes the `allSatHasPrefixExistentials` field
@@ -544,7 +545,7 @@ satProve proverCfg timeoutSecs pc =
 --
 --   This method returns either an error message or the text of
 --   the SMT input file corresponding to the given prover command.
-satProveOffline :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Either String String)
+satProveOffline :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Either Doc String)
 satProveOffline _proverCfg pc@ProverCommand {..} =
   protectStack (\msg minp -> return (Right (Left msg, M.minpModuleEnv minp), [])) $
   \minp -> M.runModuleM minp $
@@ -566,14 +567,14 @@ satProveOffline _proverCfg pc@ProverCommand {..} =
           Left msg -> return (Left msg)
           Right (_ts, q) -> Right <$> M.io (generateSMTBenchmark q)
 
-protectStack :: (String -> M.ModuleCmd a)
+protectStack :: (Doc -> M.ModuleCmd a)
              -> M.ModuleCmd a
              -> M.ModuleCmd a
 protectStack mkErr cmd modEnv =
   X.catchJust isOverflow (cmd modEnv) handler
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing
-        msg = "Symbolic evaluation failed to terminate."
+        msg = text "Symbolic evaluation failed to terminate."
         handler () = mkErr msg modEnv
 
 -- | Given concrete values from the solver and a collection of finite types,

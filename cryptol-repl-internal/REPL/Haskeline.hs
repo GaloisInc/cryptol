@@ -23,7 +23,7 @@ import           Cryptol.Utils.Logger(stdoutLogger)
 import           Cryptol.Utils.Ident(modNameToText, interactiveName)
 
 import qualified Control.Exception as X
-import           Control.Monad (guard, join)
+import           Control.Monad (guard, join, unless)
 import qualified Control.Monad.Trans.Class as MTL
 #if !MIN_VERSION_haskeline(0,8,0)
 import           Control.Monad.Trans.Control
@@ -153,7 +153,9 @@ repl cryrc projectConfig loadProjectMode replMode callStacks stopOnError begin =
           InteractiveBatch _ -> True
 
   replAction =
-    do status <- loadCryRC cryrc
+    do colorOk <- canDisplayColor
+       unless colorOk (setDocAnnotStyle NoAnnot)
+       status <- loadCryRC cryrc
        if crSuccess status then do
           begin
           case projectConfig of

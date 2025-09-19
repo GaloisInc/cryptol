@@ -9,6 +9,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# Language OverloadedStrings #-}
 {-# LANGUAGE DeriveTraversable #-}
 module Cryptol.Eval.Type where
 
@@ -18,12 +19,12 @@ import Data.List(sortOn)
 import Cryptol.Backend.Monad (evalPanic)
 import Cryptol.ModuleSystem.Name(nameIdent)
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.PP(pp)
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.RecordMap
 import Cryptol.Utils.Types
+import Cryptol.Utils.PP
 
 import Data.Maybe(fromMaybe)
 import qualified Data.IntMap.Strict as IntMap
@@ -243,3 +244,41 @@ evalTF f vs
 
   where mb = fromMaybe (evalPanic "evalTF" ["type cannot be demoted", show (pp ty)])
         ty = TCon (TF f) (map tNat' vs)
+
+instance PP TValue where
+  ppPrec = ppPrecWithAnnot []
+
+  ppPrecWithAnnot ns n tv =
+    annot $
+    case tv of
+      TVBit -> "Bit"
+      TVInteger -> "Integer"
+      TVFloat e p -> wrapAfter 1 ("Float" <+> integer e <+> integer p)
+      TVIntMod m -> wrapAfter 1 ("Z" <+> integer m)
+      TVRational -> "Rational"
+      TVArray a b -> wrapAfter 1 ("Array" <+> pp2 0 a <+> pp2 1 b) 
+      TVSeq m v ->
+        case v of
+          TVBit -> brackets (integer m)
+          _     -> wrapAfter 2 (brackets (integer m) <.> pp2 0 v)
+      TVStream v -> wrapAfter 2 ("[inf]" <.> pp2 0 v)
+      TVTuple ts -> parens (commaSep (zipWith pp0 [0..] ts))
+      TVRec mp -> braces (commaSep [ pp x <.> ":" <+> pp0 i y | (i,(x,y)) <- [0..] `zip` displayFields mp ])
+      TVFun a b -> wrapAfter 0 (fsep [ pp1 0 a, "->", pp0 1 b ])
+      TVNominal nt args _ ->
+        let nm = pp (ntName nt) in
+        case args of
+          [] -> nm
+          _ -> wrapAfter 1 (fsep (nm : zipWith (either ppNat . pp2) [0..] args))
+    where
+    annot d = foldr annotate d [ a | ([], a) <- ns ]
+    goSub i = [ (as, ann) | (a : as, ann) <- ns, a == i ]
+
+    wrapAfter m = if n > m then parens else id
+    pp0 i = ppPrecWithAnnot (goSub i) 0
+    pp1 i = ppPrecWithAnnot (goSub i) 1
+    pp2 i = ppPrecWithAnnot (goSub i) 2
+    ppNat na =
+      case na of
+        Inf -> "inf"
+        Nat m -> integer m

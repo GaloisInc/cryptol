@@ -16,6 +16,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Cryptol.Symbolic
  ( ProverCommand(..)
@@ -44,13 +45,14 @@ module Cryptol.Symbolic
  ) where
 
 
-import Control.Monad (foldM)
+import Control.Monad (foldM,zipWithM)
 import qualified Data.IntMap.Strict as IntMap
 import Data.IORef(IORef)
 import Data.List (genericReplicate)
 import Data.Ratio
 import Data.Vector(Vector)
 import qualified Data.Vector as Vector
+import Data.Bifunctor
 import qualified LibBF as FP
 
 
@@ -120,27 +122,34 @@ data ProverResult = AllSatResult [SatResult] -- LAZY
                   | ThmResult    [TValue]
                   | CounterExample CounterExampleType SatResult
                   | EmptyResult
-                  | ProverError  String
+                  | ProverError  Doc
 
-predArgTypes :: QueryType -> Schema -> Either String [FinType]
+predArgTypes :: QueryType -> Schema -> Either Doc [FinType]
 predArgTypes qtype schema@(Forall ts ps ty)
   | null ts && null ps =
-      case go <$> (evalType mempty ty) of
-        Right (Just fts) -> Right fts
-        _ | SafetyQuery <- qtype -> Left $ "Expected finite result type:\n" ++ show (pp schema)
-          | otherwise -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
-  | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
+    case evalType mempty ty of
+      Left _ -> Left "Predicate needs to be of kind *"
+      Right tval ->
+        case go tval of
+          Right fts -> Right fts
+          Left (msg,path)
+            | SafetyQuery <- qtype -> Left ("Expected finite result type:" $$ indent 2 (pp schema))
+            | otherwise -> Left ("Not a valid predicate type:" $$ indent 2 (ppPrecWithAnnot [(path,AnnError)] 0 tval) $$ text msg)
+  | otherwise = Left ("Not a monomorphic type:" $$ indent 2 (pp schema))
   where
-    go :: TValue -> Maybe [FinType]
-    go TVBit             = Just []
-    go (TVFun ty1 ty2)   = (:) <$> finType ty1 <*> go ty2
-    go tv
-      | Just _ <- finType tv
-      , SafetyQuery <- qtype
-      = Just []
-
-      | otherwise
-      = Nothing
+    go :: TValue -> Either (String,[Int]) [FinType]
+    go TVBit             = Right []
+    go (TVFun ty1 ty2)   = (:) <$> arg (finType ty1) <*> res (go ty2)
+      where
+      arg = first (\(msg,path) -> ("Unsupported " ++ msg ++ " argument", 0 : path))
+      res = first (second (1 :))
+    go tv =
+      case finType tv of
+        Left (msg,err) -> Left ("Unsupported result type: " ++ msg, err)
+        Right _ ->
+          case qtype of
+            SafetyQuery -> Right []
+            _ -> Left ("Predicates need a boolean result", [])
 
 data FinType
     = FTBit
@@ -157,26 +166,43 @@ data FinNominalType =
     FStruct (RecordMap Ident FinType)
   | FEnum (Vector (ConInfo FinType))
 
-finType :: TValue -> Maybe FinType
+
+-- | Convert a type value to a finite type.  On error, we return a
+-- description of what's wrong and a path
+-- to the offending subterm on the `Left`.
+finType :: TValue -> Either (String,[Int]) FinType
 finType ty =
   case ty of
-    TVBit               -> Just FTBit
-    TVInteger           -> Just FTInteger
-    TVIntMod n          -> Just (FTIntMod n)
-    TVRational          -> Just FTRational
-    TVFloat e p         -> Just (FTFloat e p)
-    TVSeq n t           -> FTSeq n <$> finType t
-    TVTuple ts          -> FTTuple <$> traverse finType ts
-    TVRec fields        -> FTRecord <$> traverse finType fields
-    TVNominal u ts nv   -> FTNominal u ts <$>
+    TVBit               -> Right FTBit
+    TVInteger           -> Right FTInteger
+    TVIntMod n          -> Right (FTIntMod n)
+    TVRational          -> Right FTRational
+    TVFloat e p         -> Right (FTFloat e p)
+    TVSeq n t           -> FTSeq n <$> doSub 0 (finType t)
+    TVTuple ts          -> FTTuple <$> zipWithM doSub [ 0 .. ] (map finType ts)
+    TVRec fields        -> FTRecord <$> doFields fields
+      where 
+    TVNominal u ts nv   -> setHere $ FTNominal u ts <$>
       case nv of
         TVStruct body -> FStruct <$> traverse finType body
         TVEnum cs     -> FEnum   <$> traverse (traverse finType) cs
-        TVAbstract    -> Nothing
+        TVAbstract    -> Left ("abstract nominal type", [])
 
-    TVArray{}           -> Nothing
-    TVStream{}          -> Nothing
-    TVFun{}             -> Nothing
+    TVArray{}           -> Left ("array", [])
+    TVStream{}          -> Left ("infinite stream", [])
+    TVFun{}             -> Left ("function", [])
+
+  where
+  setHere sub =
+    case sub of
+      Left (msg,_) -> Left (msg,[])
+      Right a -> Right a
+
+  doSub x = first (fmap (x:))
+
+  doFields      = fmap recordFromFields . zipWithM doSub [0..] . map doField . displayFields
+  doField (l,t) = (\a -> (l,a)) <$> finType t
+
 
 finTypeToType :: FinType -> Type
 finTypeToType fty =
