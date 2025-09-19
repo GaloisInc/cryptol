@@ -803,7 +803,7 @@ safeCmd str pos fnm = do
             panic "REPL.Command" [ "got EmptyResult for online prover query" ]
 
           ProverError msg ->
-            do rPutStrLn msg
+            do rPrintDoc msg
                pure emptyCommandResult { crSuccess = False }
 
           ThmResult _ts ->
@@ -893,7 +893,7 @@ proveSatExpr isSat rng exprDoc texpr schema = do
           EmptyResult         ->
             panic "REPL.Command" [ "got EmptyResult for online prover query" ]
 
-          ProverError msg -> False <$ rPutStrLn msg
+          ProverError msg -> False <$ rPrintDoc msg
 
           ThmResult ts -> do
             rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
@@ -1044,7 +1044,7 @@ offlineProveSat proverName qtype expr schema mfile = do
     Left sbvCfg ->
       do result <- liftModuleCmd $ SBV.satProveOffline sbvCfg cmd
          case result of
-           Left msg -> False <$ rPutStrLn msg
+           Left msg -> False <$ rPrintDoc msg
            Right smtlib -> do
              io $ displayMsg
              case mfile of
@@ -1067,7 +1067,7 @@ offlineProveSat proverName qtype expr schema mfile = do
                                  hGetContents h >>= put
 
          case result of
-           Just msg -> rPutStrLn msg
+           Just msg -> rPrintDoc msg
            Nothing -> return ()
          pure True
 

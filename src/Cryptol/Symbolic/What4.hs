@@ -74,6 +74,7 @@ import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Logger(logPutStrLn,logPutStr,Logger)
 import           Cryptol.Utils.Ident (preludeReferenceName, prelPrim, identText)
+import            Cryptol.Utils.PP
 
 import qualified What4.Config as W4
 import qualified What4.Interface as W4
@@ -104,16 +105,16 @@ import Prelude.Compat
 
 data W4Exception
   = W4Ex X.SomeException
-  | W4PortfolioFailure [ (Either X.SomeException (Maybe String, String)) ]
+  | W4PortfolioFailure [ (Either X.SomeException (Maybe String, Doc)) ]
 
 instance Show W4Exception where
   show (W4Ex e) = X.displayException e
   show (W4PortfolioFailure exs) =
-       unlines ("All solveres in the portfolio failed!":map f exs)
+       show (vcat (text "All solveres in the portfolio failed!":map f exs))
     where
-    f (Left e) = X.displayException e
+    f (Left e) = text (X.displayException e)
     f (Right (Nothing, msg)) = msg
-    f (Right (Just nm, msg)) = nm ++ ": " ++ msg
+    f (Right (Just nm, msg)) = text nm <.> text ":" <+> msg
 
 instance X.Exception W4Exception
 
@@ -125,7 +126,7 @@ rethrowW4Exception m = X.catchJust f m (X.throwIO . W4Ex)
     | Just ( _ :: Eval.Unsupported) <- X.fromException e = Nothing
     | otherwise = Just e
 
-protectStack :: (String -> M.ModuleCmd a)
+protectStack :: (Doc -> M.ModuleCmd a)
              -> M.ModuleCmd a
              -> M.ModuleCmd a
 protectStack mkErr cmd modEnv =
@@ -133,7 +134,7 @@ protectStack mkErr cmd modEnv =
   X.catchJust isOverflow (cmd modEnv) handler
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing
-        msg = "Symbolic evaluation failed to terminate."
+        msg = text "Symbolic evaluation failed to terminate."
         handler () = mkErr msg modEnv
 
 
@@ -318,7 +319,7 @@ setupProver nm =
          void (W4.shutdownSolverProcess proc)
          return Nothing
 
-proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
+proverError :: Doc -> M.ModuleCmd (Maybe String, ProverResult)
 proverError msg minp =
   return (Right ((Nothing, ProverError msg), M.minpModuleEnv minp), [])
 
@@ -354,7 +355,7 @@ prepareQuery ::
   W4.IsSymExprBuilder sym =>
   What4 sym ->
   ProverCommand ->
-  M.ModuleT IO (Either String
+  M.ModuleT IO (Either Doc
                        ([FinType],[VarShape (What4 sym)],W4.Pred sym, W4.Pred sym)
                )
 prepareQuery sym ProverCommand { .. } = do
@@ -497,7 +498,7 @@ satProveOffline ::
   Bool {- ^ warn on uninterpreted functions -} ->
   ProverCommand ->
   ((Handle -> IO ()) -> IO ()) ->
-  M.ModuleCmd (Maybe String)
+  M.ModuleCmd (Maybe Doc)
 
 satProveOffline hashConsing warnUninterp ProverCommand{ .. } outputContinuation =
 
@@ -570,7 +571,7 @@ multiSATQuery sym (W4ProverConfig (AnOnlineAdapter nm fs _opts _ (_ :: Proxy s))
         do W4.assume (W4.solverConn proc) query
            res <- W4.checkAndGetModel proc "query"
            case res of
-             W4.Unknown -> return (Just nm, ProverError "Solver returned UNKNOWN")
+             W4.Unknown -> return (Just nm, ProverError (text "Solver returned UNKNOWN"))
              W4.Unsat _ -> return (Just nm, ThmResult (map unFinType ts))
              W4.Sat evalFn ->
                do xs <- mapM (varShapeToConcrete evalFn) args
@@ -726,7 +727,7 @@ singleQuery sym (W4Portfolio ps) pc primMap logData ts args msafe query =
 singleQuery sym (W4ProverConfig (AnAdapter adpt)) _pc primMap logData ts args msafe query =
   do pres <- W4.solver_adapter_check_sat adpt (w4 sym) logData [query] $ \res ->
          case res of
-           W4.Unknown -> return (ProverError "Solver returned UNKNOWN")
+           W4.Unknown -> return (ProverError (text "Solver returned UNKNOWN"))
            W4.Unsat _ -> return (ThmResult (map unFinType ts))
            W4.Sat (evalFn,_) ->
              do xs <- mapM (varShapeToConcrete evalFn) args
@@ -750,7 +751,7 @@ singleQuery sym (W4ProverConfig (AnOnlineAdapter nm fs _opts _ (_ :: Proxy s)))
         do W4.assume (W4.solverConn proc) query
            res <- W4.checkAndGetModel proc "query"
            case res of
-             W4.Unknown -> return (Just nm, ProverError "Solver returned UNKNOWN")
+             W4.Unknown -> return (Just nm, ProverError (text "Solver returned UNKNOWN"))
              W4.Unsat _ -> return (Just nm, ThmResult (map unFinType ts))
              W4.Sat evalFn ->
                do xs <- mapM (varShapeToConcrete evalFn) args

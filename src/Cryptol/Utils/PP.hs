@@ -19,12 +19,13 @@ import           Control.DeepSeq
 import           Control.Monad (mplus)
 import           Data.Maybe (fromMaybe)
 import           Data.String (IsString(..))
+import           Data.Monoid(Endo(..))
 import qualified Data.Text as T
-import           Data.Void (Void)
 import           GHC.Generics (Generic)
 import qualified Prettyprinter as PP
 import qualified Prettyprinter.Util as PP
-import qualified Prettyprinter.Render.String as PP
+-- import qualified Prettyprinter.Render.String as PP
+import qualified Prettyprinter.Render.Util.StackMachine as PP
 
 -- | How to pretty print things when evaluating
 data PPOpts = PPOpts
@@ -134,6 +135,8 @@ updPPCfg f d = withPPCfg (\cfg -> fixPPCfg (f cfg) d)
 debugShowUniques :: Doc -> Doc
 debugShowUniques = updPPCfg \cfg -> cfg { ppcfgShowNameUniques = True }
 
+setAnnotStyle :: AnnotStyle -> Doc -> Doc
+setAnnotStyle s = updPPCfg \cfg -> cfg { ppcfgAnnotStyle = s }
 
 
 
@@ -142,15 +145,26 @@ debugShowUniques = updPPCfg \cfg -> cfg { ppcfgShowNameUniques = True }
 data PPCfg = PPCfg
   { ppcfgNameDisp     :: NameDisp
   , ppcfgShowNameUniques :: Bool
+  , ppcfgAnnotStyle :: AnnotStyle
   }
 
 defaultPPCfg :: PPCfg
 defaultPPCfg = PPCfg
   { ppcfgNameDisp = mempty
   , ppcfgShowNameUniques = False
+  , ppcfgAnnotStyle = AnsiAnnot
   }
 
-newtype Doc = Doc (PPCfg -> PP.Doc Void) deriving (Generic, NFData)
+-- | A type for annotations we can use during pretty printing
+data PPAnnot = AnnError
+
+-- | How to render annotations
+data AnnotStyle = NoAnnot | AnsiAnnot | MarkdownAnnot
+
+-- The underlyng `Doc` type we (i.e., without the addition configuration)
+type PPDoc = PP.Doc (AnnotStyle, PPAnnot)
+
+newtype Doc = Doc (PPCfg -> PPDoc) deriving (Generic, NFData)
 
 instance Semigroup Doc where
   (<>) = liftPP2 (<>)
@@ -159,14 +173,39 @@ instance Monoid Doc where
   mempty = liftPP mempty
   mappend = (<>)
 
-runDocWith :: PPCfg -> Doc -> PP.Doc Void
+runDocWith :: PPCfg -> Doc -> PPDoc
 runDocWith names (Doc f) = f names
 
-runDoc :: NameDisp -> Doc -> PP.Doc Void
+runDoc :: NameDisp -> Doc -> PPDoc
 runDoc disp = runDocWith defaultPPCfg { ppcfgNameDisp = disp }
 
+renderString :: PP.SimpleDocStream (AnnotStyle, PPAnnot) -> String
+renderString = (`appEndo` "") . PP.renderSimplyDecorated one start end
+  where
+  emit x = Endo (x ++)
+  nothing = Endo id
+  one = emit . T.unpack
+  start (style,ann)  =
+    case style of
+      NoAnnot -> nothing
+      AnsiAnnot ->
+        case ann of
+          AnnError -> emit "\o33[4;31m"
+      MarkdownAnnot ->
+        case ann of
+          AnnError -> emit "**"
+  end (style,ann) =
+    case style of
+      NoAnnot -> nothing
+      AnsiAnnot ->
+        case ann of
+          AnnError -> emit "\o33[0m"
+      MarkdownAnnot ->
+        case ann of
+          AnnError -> emit "**"
+
 instance Show Doc where
-  show d = PP.renderString (PP.layoutPretty opts (runDocWith defaultPPCfg d))
+  show d = renderString (PP.layoutPretty opts (runDocWith defaultPPCfg d))
     where opts = PP.defaultLayoutOptions
                     { PP.layoutPageWidth = PP.AvailablePerLine 100 0.666 }
 
@@ -174,7 +213,7 @@ instance IsString Doc where
   fromString = text
 
 renderOneLine :: Doc -> String
-renderOneLine d = PP.renderString (PP.layoutPretty opts (runDocWith defaultPPCfg d))
+renderOneLine d = renderString (PP.layoutPretty opts (runDocWith defaultPPCfg d))
   where
     opts = PP.LayoutOptions
       { PP.layoutPageWidth = PP.Unbounded
@@ -182,6 +221,12 @@ renderOneLine d = PP.renderString (PP.layoutPretty opts (runDocWith defaultPPCfg
 
 class PP a where
   ppPrec :: Int -> a -> Doc
+
+  -- | Pretty print somehithing annotating subterms as needed.
+  -- The `[Int]` is supposed to indicate a path through the term in some
+  -- type specific way.
+  ppPrecWithAnnot :: [([Int], PPAnnot)] -> Int -> a -> Doc
+  ppPrecWithAnnot _ = ppPrec
 
 class PP a => PPName a where
   -- | Fixity information for infix operators
@@ -258,22 +303,26 @@ ordSuffix n0 =
 
 -- Wrapped Combinators ---------------------------------------------------------
 
-liftPP :: PP.Doc Void -> Doc
+
+liftPP :: PPDoc -> Doc
 liftPP d = Doc (const d)
 
-liftPP1 :: (PP.Doc Void -> PP.Doc Void) -> Doc -> Doc
-liftPP1 f (Doc d) = Doc (\env -> f (d env))
+liftPP1 :: (PPDoc -> PPDoc) -> Doc -> Doc
+liftPP1 f (Doc d) = Doc (f . d)
 
-liftPP2 :: (PP.Doc Void -> PP.Doc Void -> PP.Doc Void) -> (Doc -> Doc -> Doc)
+liftPP2 :: (PPDoc -> PPDoc -> PPDoc) -> (Doc -> Doc -> Doc)
 liftPP2 f (Doc a) (Doc b) = Doc (\e -> f (a e) (b e))
 
-liftSep :: ([PP.Doc Void] -> PP.Doc Void) -> ([Doc] -> Doc)
+liftSep :: ([PPDoc] -> PPDoc) -> ([Doc] -> Doc)
 liftSep f ds = Doc (\e -> f [ d e | Doc d <- ds ])
 
 reflow :: T.Text -> Doc
 reflow x = liftPP (PP.reflow x)
 
 infixl 6 <.>, <+>, </>
+
+annotate :: PPAnnot -> Doc -> Doc
+annotate a d = withPPCfg \cfg -> liftPP1 (PP.annotate (ppcfgAnnotStyle cfg, a)) d 
 
 (<.>) :: Doc -> Doc -> Doc
 (<.>)  = liftPP2 (PP.<>)
