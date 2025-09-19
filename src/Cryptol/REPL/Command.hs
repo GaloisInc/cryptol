@@ -106,7 +106,7 @@ import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
-import           Cryptol.TypeCheck.PP (dump)
+import           Cryptol.TypeCheck.PP (dump, emptyNameMap, ppWithNames)
 import qualified Cryptol.Utils.Benchmark as Bench
 import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Panic(panic)
@@ -1166,10 +1166,28 @@ typeOfCmd str pos fnm = do
 
   -- XXX need more warnings from the module system
   whenDebug (rPutStrLn (dump def))
+
+  --- Get module type parameters 
+  modCtxtParam <- M.mctxParams <$> getFocusedEnv
+  let modCtxtParamNames = M.modContextParamNames modCtxtParam
+      modTParam = Map.elems (T.mpnTypes modCtxtParamNames)
+      tParams = fmap T.mtpParam modTParam
+
+  --- Get schema type parameters 
+  let vars = T.sVars sig
+      cfg = defaultPPCfg
+      --- Load the schema type param into a new empty NameMap
+      nsSchema = T.addTNames cfg vars emptyNameMap
+      --- Load the module type param into the previous NameMap
+      nsAll = T.addTNames cfg tParams nsSchema
+      --- Pretty print the new NameMap which includes the type parameters
+      --- at the module and schema levels
+      ppAll = ppWithNames nsAll sig
+
   fDisp <- M.mctxNameDisp <$> getFocusedEnv
   -- type annotation ':' has precedence 2
   let output = show $ runDoc fDisp $ group $ hang
-                 (ppPrec 2 expr <+> text ":") 2 (pp sig)
+                 (ppPrec 2 expr <+> text ":") 2 ppAll
 
   rPutStrLn output
   pure emptyCommandResult { crType = Just output }
