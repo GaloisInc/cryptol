@@ -30,7 +30,7 @@ import qualified System.Random.TF as TF
 import qualified Cryptol.Symbolic.SBV as SBV
 import Cryptol.REPL.Monad (mkUserEnv, userOptions)
 import Cryptol.Project.Cache(CacheId)
-import Cryptol.Utils.PP (pp)
+import Cryptol.Utils.PP (pp, AnnotStyle(..))
 import Data.Proxy (Proxy(Proxy))
 import Data.Typeable (typeRep)
 
@@ -73,6 +73,7 @@ checkDocstringsAPI (CheckDocstringsParams cache) = do
               , REPL.eTCSolver         = Just solver
               , REPL.eTCSolverRestarts = 0
               , REPL.eRandomGen        = rng
+              , REPL.eDocAnnotStyle    = NoAnnot
               }
             let work =
                   do (rs,cid) <- checkDocStrings m (Just cache)
