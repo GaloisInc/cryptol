@@ -110,7 +110,7 @@ data W4Exception
 instance Show W4Exception where
   show (W4Ex e) = X.displayException e
   show (W4PortfolioFailure exs) =
-       show (vcat (text "All solveres in the portfolio failed!":map f exs))
+       show (vcat (text "All solvers in the portfolio failed!":map f exs))
     where
     f (Left e) = text (X.displayException e)
     f (Right (Nothing, msg)) = msg
