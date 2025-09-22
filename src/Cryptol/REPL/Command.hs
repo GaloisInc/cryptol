@@ -1179,21 +1179,17 @@ typeOfCmd str pos fnm = do
   whenDebug (rPutStrLn (dump def))
 
   --- Get module type parameters 
-  modCtxtParam <- M.mctxParams <$> getFocusedEnv
-  let modCtxtParamNames = M.modContextParamNames modCtxtParam
-      modTParam = Map.elems (T.mpnTypes modCtxtParamNames)
-      tParams = fmap T.mtpParam modTParam
+  modCtxtNameDisp <-  M.mctxNameDisp <$> getFocusedEnv 
 
   --- Get schema type parameters 
   let vars = T.sVars sig
-      cfg = defaultPPCfg
-      --- Load the schema type param into a new empty NameMap
-      nsSchema = T.addTNames cfg vars emptyNameMap
-      --- Load the module type param into the previous NameMap
-      nsAll = T.addTNames cfg tParams nsSchema
-      --- Pretty print the new NameMap which includes the type parameters
-      --- at the module and schema levels
-      ppAll = ppWithNames nsAll sig
+      --- Load the name display pulled from the module context
+      --- into the pretty printer configuration
+      cfg = defaultPPCfg {ppcfgNameDisp=modCtxtNameDisp}
+      --- Load the schema and module type param into a new empty NameMap
+      ns = T.addTNames cfg vars emptyNameMap
+      --- Create a pretty printed string 
+      ppAll = ppWithNames ns sig
 
   fDisp <- M.mctxNameDisp <$> getFocusedEnv
   -- type annotation ':' has precedence 2
