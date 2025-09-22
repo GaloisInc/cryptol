@@ -24,7 +24,6 @@ import qualified Data.Text as T
 import           GHC.Generics (Generic)
 import qualified Prettyprinter as PP
 import qualified Prettyprinter.Util as PP
--- import qualified Prettyprinter.Render.String as PP
 import qualified Prettyprinter.Render.Util.StackMachine as PP
 
 -- | How to pretty print things when evaluating
@@ -161,8 +160,9 @@ data PPAnnot = AnnError
 -- | How to render annotations
 data AnnotStyle = NoAnnot | AnsiAnnot | MarkdownAnnot
 
--- The underlyng `Doc` type we (i.e., without the addition configuration)
+-- The underlyng `Doc` type we (i.e., without the additional configuration)
 type PPDoc = PP.Doc (AnnotStyle, PPAnnot)
+
 
 newtype Doc = Doc (PPCfg -> PPDoc) deriving (Generic, NFData)
 
@@ -190,6 +190,7 @@ renderString = (`appEndo` "") . PP.renderSimplyDecorated one start end
       NoAnnot -> nothing
       AnsiAnnot ->
         case ann of
+          -- red, underlined
           AnnError -> emit "\o33[4;31m"
       MarkdownAnnot ->
         case ann of
@@ -199,6 +200,7 @@ renderString = (`appEndo` "") . PP.renderSimplyDecorated one start end
       NoAnnot -> nothing
       AnsiAnnot ->
         case ann of
+          -- reset attributes
           AnnError -> emit "\o33[0m"
       MarkdownAnnot ->
         case ann of
@@ -221,9 +223,9 @@ renderOneLine d = renderString (PP.layoutPretty opts (runDocWith defaultPPCfg d)
 
 class PP a where
   ppPrec :: Int -> a -> Doc
-
-  -- | Pretty print somehithing annotating subterms as needed.
-  -- The `[Int]` is supposed to indicate a path through the term in some
+  -- | Pretty print something, annotating subterms as needed.
+  -- | Pretty print something, annotating subterms as needed.
+  -- The @[Int]@ is supposed to indicate a path through the term in some
   -- type specific way.
   ppPrecWithAnnot :: [([Int], PPAnnot)] -> Int -> a -> Doc
   ppPrecWithAnnot _ = ppPrec
