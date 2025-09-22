@@ -29,6 +29,7 @@ module Cryptol.REPL.Monad (
   , rPutStrLn
   , rPutStr
   , rPrint
+  , rPrintDoc
 
     -- ** Errors
   , REPLException(..)
@@ -84,6 +85,8 @@ module Cryptol.REPL.Monad (
   , getLogger
   , setLogger
   , setPutStr
+  , getDocAnnotStyle
+  , setDocAnnotStyle
 
     -- ** Smoke Test
   , smokeTest
@@ -177,6 +180,9 @@ data RW = RW
   , eIsBatch     :: Bool
     -- ^ Are we in batch mode.
 
+  , eDocAnnotStyle :: AnnotStyle
+    -- ^ How to pretty print `Doc`s (e.g., use ANSI or not)
+
   , eModuleEnv   :: M.ModuleEnv
     -- ^ The current environment of all things loaded.
 
@@ -233,6 +239,7 @@ defaultRW isBatch callStacks l = do
     , eTCSolver    = Nothing
     , eTCSolverRestarts = 0
     , eRandomGen = rng
+    , eDocAnnotStyle = AnsiAnnot
     }
 
 -- | Build up the prompt for the REPL.
@@ -630,6 +637,23 @@ rPutStrLn str = rPutStr $ str ++ "\n"
 -- | Use the configured output action to print something using its Show instance
 rPrint :: Show a => a -> REPL ()
 rPrint x = rPutStrLn (show x)
+
+-- | How should we render `Doc`s
+getDocAnnotStyle :: REPL AnnotStyle
+getDocAnnotStyle = eDocAnnotStyle <$> getRW
+
+-- | Specify how to render `Doc`s
+setDocAnnotStyle :: AnnotStyle -> REPL ()
+setDocAnnotStyle a = modifyRW_ (\rw -> rw { eDocAnnotStyle = a })
+
+-- | Print a `Doc` to the logger.  This differs to just using `rPrint`
+-- in that it will consult the annotation style setting to determine how
+-- to render the `Doc`.
+rPrintDoc :: Doc -> REPL ()
+rPrintDoc doc =
+  do
+    s <- getDocAnnotStyle
+    rPrint (setAnnotStyle s doc)
 
 getFocusedEnv :: REPL M.ModContext
 getFocusedEnv  = M.focusedEnv <$> getModuleEnv

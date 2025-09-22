@@ -24,6 +24,7 @@ import Data.Scientific (floatingOrInteger)
 import Data.Text (Text)
 import qualified Data.Text as T
 
+import Cryptol.Utils.PP hiding(int)
 import Cryptol.Eval.Concrete (Value)
 import Cryptol.Eval.Type (TValue, tValTy)
 import Cryptol.ModuleSystem (checkExpr)
@@ -104,6 +105,9 @@ getProverConfig proverName =
             ++ (show $ W4.proverNames ++ SBV.proverNames)
 
 
+showDoc :: Doc -> String
+showDoc = show . setAnnotStyle NoAnnot
+
 offlineProveSat ::
   -- | Prover name.
   String ->
@@ -117,7 +121,7 @@ offlineProveSat proverName cmd hConsing = do
       result <- liftModuleCmd $ SBV.satProveOffline sbvCfg cmd
       case result of
         Left msg -> do
-          raise $ proverError $ "error setting up " ++ proverName ++ ": " ++ msg
+          raise $ proverError $ "error setting up " ++ proverName ++ ": " ++ showDoc msg
         Right smtlib -> pure $ OfflineSMTQuery $ T.pack smtlib
     Right _w4Cfg -> do
       smtlibRef <- liftIO $ newIORef ("" :: Text)
@@ -129,7 +133,7 @@ offlineProveSat proverName cmd hConsing = do
             contents <- TIO.hGetContents h
             writeIORef smtlibRef contents
       case result of
-        Just errMsg -> raise $ proverError $ "encountered an error using " ++ proverName ++ " to generate a query: " ++ errMsg
+        Just errMsg -> raise $ proverError $ "encountered an error using " ++ proverName ++ " to generate a query: " ++ showDoc errMsg
         Nothing -> do
           smtlib <- liftIO $ readIORef smtlibRef
           pure $ OfflineSMTQuery smtlib
@@ -156,7 +160,7 @@ onlineProveSat proverName cmd hConsing timeout = do
         _stats <- liftIO (readIORef (pcProverStats cmd))
         pure res
   case res of
-    ProverError msg -> raise (proverError msg)
+    ProverError msg -> raise (proverError (showDoc msg))
     EmptyResult -> raise $ proverError "got empty result for online prover!"
     CounterExample cexType es -> Invalid cexType <$> convertSatResult es
     ThmResult _ts -> pure Unsatisfiable
