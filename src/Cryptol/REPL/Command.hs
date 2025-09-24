@@ -1178,16 +1178,16 @@ typeOfCmd str pos fnm = do
   -- XXX need more warnings from the module system
   whenDebug (rPutStrLn (dump def))
 
-  --- Get module type parameters 
-  modCtxtNameDisp <-  M.mctxNameDisp <$> getFocusedEnv 
+  --- Get module context parameters
+  modCtxtParams <-  M.mctxParams <$> getFocusedEnv 
+  --- Get the map that maps variable names to module type parameters
+  let modParamMap = T.mpnTypes (M.modContextParamNames modCtxtParams)
+  --- Get a list of type parameters from all module type parameterss in the Map
+      modTParams = map T.mtpParam (Map.elems modParamMap)
 
-  --- Get schema type parameters 
-  let vars = T.sVars sig
-      --- Load the name display pulled from the module context
-      --- into the pretty printer configuration
-      cfg = defaultPPCfg {ppcfgNameDisp=modCtxtNameDisp}
-      --- Load the schema and module type param into a new empty NameMap
-      ns = T.addTNames cfg vars emptyNameMap
+      cfg = defaultPPCfg
+      --- Load module type param into a new empty NameMap
+      ns = T.addTNames cfg modTParams emptyNameMap
       --- Create a pretty printed string 
       ppAll = ppWithNames ns sig
 
