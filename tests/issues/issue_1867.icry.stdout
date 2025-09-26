@@ -1,0 +1,6 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading interface module Param__parameter
+Loading module Param
+foo : {m} [m][n] -> [m][n]
+bar : {m} [m][n] -> [m][n]

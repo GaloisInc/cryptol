@@ -106,7 +106,7 @@ import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
-import           Cryptol.TypeCheck.PP (dump)
+import           Cryptol.TypeCheck.PP (dump, emptyNameMap, ppWithNames)
 import qualified Cryptol.Utils.Benchmark as Bench
 import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Panic(panic)
@@ -779,9 +779,11 @@ rethrowErrorCall m = REPL (\r -> unREPL m r `X.catches` hs)
 
 -- | Attempts to prove the given term is safe for all inputs
 safeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+--- Throw error when no argument is passed to a command expecting one
 safeCmd "" _pos _fnm = 
   do  rPutStrLn $ invalidCommandArgument ":safe"
       return emptyCommandResult {crSuccess = False}
+
 safeCmd str pos fnm = do
   proverName <- getKnownUser "prover"
   fileName   <- getKnownUser "smtFile"
@@ -1106,10 +1108,13 @@ mkSolverResult thing rng result earg =
       let argName = M.packIdent ("arg" ++ show n)
        in ((argName,t),(argName,e))
 
+
 specializeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+--- Throw error when no argument is passed to a command expecting one
 specializeCmd "" _pos _fnm = 
   do  rPutStrLn $ invalidCommandArgument ":debug_specialize"
       return emptyCommandResult {crSuccess = False}
+
 specializeCmd str pos fnm = do
   parseExpr <- replParseExpr str pos fnm
   (_, expr, schema) <- replCheckExpr parseExpr
@@ -1124,9 +1129,11 @@ specializeCmd str pos fnm = do
   pure emptyCommandResult { crValue = Just value }
 
 refEvalCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+--- Throw error when no argument is passed to a command expecting one
 refEvalCmd "" _pos _fnm = 
   do  rPutStrLn $ invalidCommandArgument ":eval"
       return emptyCommandResult {crSuccess = False}
+
 refEvalCmd str pos fnm = do
   parseExpr <- replParseExpr str pos fnm
   (_, expr, schema) <- replCheckExpr parseExpr
@@ -1139,9 +1146,11 @@ refEvalCmd str pos fnm = do
   pure emptyCommandResult { crValue = Just value }
 
 astOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+--- Throw error when no argument is passed to a command expecting one
 astOfCmd "" _pos _fnm = 
   do  rPutStrLn $ invalidCommandArgument ":ast"
       return emptyCommandResult {crSuccess = False}
+
 astOfCmd str pos fnm = do
  expr <- replParseExpr str pos fnm
  (re,_,_) <- replCheckExpr (P.noPos expr)
@@ -1154,7 +1163,9 @@ extractCoqCmd = do
   rPrint $ T.showParseable $ concatMap T.mDecls $ M.loadedModules me
   pure emptyCommandResult
 
+
 typeOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+--- Throw error when no argument is passed to a command expecting one
 typeOfCmd "" _pos _fnm = 
   do  rPutStrLn $ invalidCommandArgument ":type"
       return emptyCommandResult {crSuccess = False}
@@ -1166,15 +1177,30 @@ typeOfCmd str pos fnm = do
 
   -- XXX need more warnings from the module system
   whenDebug (rPutStrLn (dump def))
+
+  --- Get module context parameters
+  modCtxtParams <-  M.mctxParams <$> getFocusedEnv 
+  --- Get the map that maps variable names to module type parameters
+  let modParamMap = T.mpnTypes (M.modContextParamNames modCtxtParams)
+  --- Get a list of type parameters from all module type parameterss in the Map
+      modTParams = map T.mtpParam (Map.elems modParamMap)
+
+      cfg = defaultPPCfg
+      --- Load module type param into a new empty NameMap
+      ns = T.addTNames cfg modTParams emptyNameMap
+      --- Create a pretty printed string 
+      ppAll = ppWithNames ns sig
+
   fDisp <- M.mctxNameDisp <$> getFocusedEnv
   -- type annotation ':' has precedence 2
   let output = show $ runDoc fDisp $ group $ hang
-                 (ppPrec 2 expr <+> text ":") 2 (pp sig)
+                 (ppPrec 2 expr <+> text ":") 2 ppAll
 
   rPutStrLn output
   pure emptyCommandResult { crType = Just output }
 
 timeCmd :: String -> (Int, Int) -> Maybe FilePath -> REPL CommandResult
+--- Throw error when no argument is passed to a command expecting one
 timeCmd "" _pos _fnm = 
   do  rPutStrLn $ invalidCommandArgument ":time"
       return emptyCommandResult {crSuccess = False}

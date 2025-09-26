@@ -1,0 +1,10 @@
+module Param where
+
+parameter
+  type n : #
+  myparam : [n]
+
+foo : {m} [m][n] -> [m][n]
+foo = map ((&&) myparam)
+
+bar = map ((&&) myparam)
