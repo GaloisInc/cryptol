@@ -353,7 +353,7 @@
 ## Bug fixes
 
 * Fix an issue where `:t` did not take into account module level type
-parameters when pretty printing type signature.
+parameters when pretty printing type signature (closes issue #1867).
 
 * The What4 backend now properly supports Boolector 3.2.2 or later.
 
