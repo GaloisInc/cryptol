@@ -1,0 +1,3 @@
+:load issue_1867.cry
+:t foo
+:t bar
