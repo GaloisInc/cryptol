@@ -246,7 +246,7 @@ nameToDefPName n =
     GlobalName _ og -> PName.origNameToDefPName og
     LocalName _ _ txt -> PName.mkUnqual txt
 
--- | Primtiives must be in a top level module, at least for now.
+-- | Primtives must be in a top level module, at least for now.
 asPrim :: Name -> Maybe PrimIdent
 asPrim n =
   case nInfo n of

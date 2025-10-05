@@ -157,7 +157,7 @@ newtype Program name = Program [TopDecl name]
 {- | A module for the pre-typechecker phasese. The two parameters are:
 
   * @mname@ the type of module names. This is because top-level and nested
-    modules use differnt types to identify a module.
+    modules use different types to identify a module.
 
   * @name@ the type of identifiers used by declarations.
     In the parser this starts off as `PName` and after resolving names

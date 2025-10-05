@@ -251,7 +251,7 @@ data ModContext = ModContext
   }
 
 -- This instance is a bit bogus.  It is mostly used to add the dynamic
--- environemnt to an existing module, and it makes sense for that use case.
+-- environment to an existing module, and it makes sense for that use case.
 instance Semigroup ModContext where
   x <> y = ModContext { mctxParams   = jnPs (mctxParams x) (mctxParams y)
                       , mctxExported = mctxExported x <> mctxExported y
@@ -305,7 +305,6 @@ modContextOf (ImpNested name) me =
        , mctxNameDisp = R.toNameDisp localNames
        }
   -- TODO: support focusing inside a submodule signature to support browsing?
-
 modContextOf (ImpTop mname) me =
   do lm <- lookupModule mname me
      pure (lmModContext me lm)
@@ -518,7 +517,7 @@ data LoadedModuleG a = LoadedModule
 
   , lmModuleId          :: String
     -- ^ An identifier used to identify the source of the bytes for the module.
-    -- For files we just use the cononical path, for in memory things we
+    -- For files we just use the canonical path, for in-memory things we
     -- use their label.
 
   , lmNamingEnv         :: !R.NamingEnv
@@ -711,7 +710,7 @@ addLoadedModule path ident fi nameEnv fsrc rm tm lm
 
 -- | Remove a previously loaded module.
 -- Note that this removes exactly the modules specified by the predicate.
--- One should be carfule to preserve the invariant on 'LoadedModules'.
+-- One should be careful to preserve the invariant on 'LoadedModules'.
 removeLoadedModule ::
   (forall a. LoadedModuleG a -> Bool) -> LoadedModules -> LoadedModules
 removeLoadedModule rm lm =

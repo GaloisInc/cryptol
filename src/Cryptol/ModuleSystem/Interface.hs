@@ -211,7 +211,7 @@ ifaceDeclsPrimMap IfaceDecls { .. } =
   types     = map entry (Map.keys ifTySyns)
 
 
--- | Given an interface computing a map from original names to actual names,
+-- | Given an interface, compute a map from original names to actual names,
 -- grouped by namespace.
 ifaceOrigNameMap :: IfaceG name -> Map Namespace (Map OrigName Name)
 ifaceOrigNameMap ifa = Map.unionsWith Map.union (here : nested)

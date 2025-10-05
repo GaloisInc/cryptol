@@ -74,7 +74,7 @@ namingEnvNames (NamingEnv xs) =
 
 -- | Get a naming environment for the given names.  The `PName`s correspond
 -- to the definition sites of the corresponding `Name`s, so typically they
--- will be unqualified.  The exception is for names that comre from parameters,
+-- will be unqualified.  The exception is for names that come from parameters,
 -- which are qualified with the relevant parameter.
 namingEnvFromNames :: Set Name -> NamingEnv
 namingEnvFromNames xs = NamingEnv (foldl' add mempty xs)

@@ -288,7 +288,7 @@ Implicit Imports
 ~~~~~~~~~~~~~~~~
 
 For convenience, we add an implicit qualified submodule import for
-each locally defined submodules.
+each locally defined submodule.
 
 .. code-block:: cryptol
   :caption: Making use of the implicit import for a submodule.
