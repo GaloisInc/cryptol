@@ -215,7 +215,7 @@ loadedNonParamModules = map lmModule . lmLoadedModules . meLoadedModules
 -- Note that this includes parameterized modules.
 loadedNominalTypes :: ModuleEnv -> Map Name T.NominalType
 loadedNominalTypes menv = Map.unions
-   [ ifNominalTypes (ifDefines i) <> ifNominalTypes (ifDefines i)
+   [ ifNominalTypes (ifDefines i)
    | i <- map lmInterface (getLoadedModules (meLoadedModules menv))
    ]
 
