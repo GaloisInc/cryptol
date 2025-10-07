@@ -371,10 +371,10 @@ focusedEnv me = focusedEnv' (meFocusedModule me) me
 -- compute information about what's in scope on the REPL.  It also
 -- includes additional definitions from the REPL (e.g., let bound
 -- names, and @it@).
--- 
+--
 -- In contrast to `focusedEnv`,
 --   - it does not include (`meFocusedModule me`)
---   - it optionally includes 'mfm' 
+--   - it optionally includes 'mfm'
 --
 focusedEnv' :: Maybe (ImpName Name) -> ModuleEnv -> ModContext
 focusedEnv' mFocusedModule me =
@@ -478,7 +478,7 @@ getLoadedFieldMap f lm =
       $ map f (lmLoadedModules lm)
      ++ map f (lmLoadedParamModules lm)
      ++ map f (lmLoadedSignatures lm)
-                   
+
 
 getLoadedNames :: LoadedModules -> Set ModName
 getLoadedNames = getLoadedField lmName
@@ -639,7 +639,7 @@ lookupMainModules :: ModuleEnv -> [LoadedModule]
 lookupMainModules me =
   [ lm | lm <- lmLoadedModules (meLoadedModules me),
          "Main" == I.modNameToText (lmName lm) ]
-  
+
 lookupModuleWith :: (LoadedModule -> Bool) -> ModuleEnv -> Maybe LoadedModule
 lookupModuleWith p me =
   search lmLoadedModules `mplus` search lmLoadedParamModules
