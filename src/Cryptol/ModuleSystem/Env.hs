@@ -210,6 +210,9 @@ loadedModules = map lmModule . getLoadedModules . meLoadedModules
 loadedNonParamModules :: ModuleEnv -> [T.Module]
 loadedNonParamModules = map lmModule . lmLoadedModules . meLoadedModules
 
+-- | Get a 'Map' of all the loaded nominal types, where the keys of the 'Map'
+-- are the 'Name's of each nominal type.
+-- Note that this includes parameterized modules.
 loadedNominalTypes :: ModuleEnv -> Map Name T.NominalType
 loadedNominalTypes menv = Map.unions
    [ ifNominalTypes (ifDefines i) <> ifNominalTypes (ifDefines i)
