@@ -562,7 +562,6 @@ isLoaded (ImpNested nn) lm = any (check . lmModule) (getLoadedModules lm)
     check m =
       Map.member nn (T.mSubmodules m) ||
       Map.member nn (T.mSignatures m) ||
-      Map.member nn (T.mSubmodules m) ||
       any check (T.mFunctors m)
 
 isLoadedStrict :: ImpName Name -> String -> LoadedModules -> Bool
