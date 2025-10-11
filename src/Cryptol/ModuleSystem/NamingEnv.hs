@@ -77,13 +77,18 @@ namingEnvNames (NamingEnv xs) =
 -- will be unqualified.  The exception is for names that come from parameters,
 -- which are qualified with the relevant parameter.
 namingEnvFromNames :: Set Name -> NamingEnv
-namingEnvFromNames xs = NamingEnv (foldl' add mempty xs)
+namingEnvFromNames = namingEnvFromNames' nameToDefPName
+
+-- | Create a naming environment from a @Set Name@, given a mapping from
+--   @Name -> PName@.
+namingEnvFromNames' :: (Name -> PName) -> Set Name -> NamingEnv
+namingEnvFromNames' nameToPName xs =
+  NamingEnv (foldl' add mempty xs)
   where
   add mp x = let ns = nameNamespace x
              in Map.insertWith (Map.unionWith (<>))
-                               ns (Map.singleton (nameToDefPName x) (One x))
+                               ns (Map.singleton (nameToPName x) (One x))
                                mp
-
 
 -- | Get the names in a given namespace
 namespaceMap :: Namespace -> NamingEnv -> Map PName Names
@@ -298,28 +303,30 @@ unqualifiedEnv IfaceDecls { .. } =
                     | n <- Map.keys ifSignatures ]
 
 
--- | Adapt the things exported by something to the specific import/open.
+-- | Adapt the things exported by a module to the specific import/open.
 interpImportEnv :: ImportG name  {- ^ The import declaration -} ->
                    NamingEnv     {- ^ All public things coming in -} ->
                    NamingEnv
-interpImportEnv imp public = qualified
+interpImportEnv imp = interpImportEnv' (iAs imp) (iSpec imp)
 
+-- | A more general version of `interpImportEnv`
+interpImportEnv' :: Maybe ModName    {- ^ prefix with this qualifier -} ->
+                    Maybe ImportSpec {- ^ restrict per ImportSpec    -} ->                        NamingEnv        {- ^ All public things coming in -} ->
+                    NamingEnv
+interpImportEnv' iAs' iSpec' public = qualified
   where
 
   -- optionally qualify names in NamingEnv if the import is "qualified",
-  --   i.e., if `isJust (iAs imp)`
-  qualified | Just pfx <- iAs imp = qualify pfx restricted
-            | otherwise           =             restricted
+  --   i.e., if `isJust iAs'`
+  qualified | Just pfx <- iAs' = qualify pfx restricted
+            | otherwise        =             restricted
 
   -- restrict or hide imported symbols
   restricted
-    | Just (Hiding ns) <- iSpec imp =
+    | Just (Hiding ns) <- iSpec' =
        filterPNames (\qn -> not (getIdent qn `elem` ns)) public
 
-    | Just (Only ns) <- iSpec imp =
+    | Just (Only ns) <- iSpec' =
        filterPNames (\qn -> getIdent qn `elem` ns) public
 
     | otherwise = public
-
-
-
