@@ -284,7 +284,7 @@ exprModName = packModName ["<expr>"]
 
 
 --------------------------------------------------------------------------------
--- | Identifies an entitiy
+-- | Identifies an entity
 data OrigName = OrigName
   { ogNamespace :: Namespace
   , ogModule    :: ModPath

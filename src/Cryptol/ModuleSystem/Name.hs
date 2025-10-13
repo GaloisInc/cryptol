@@ -31,6 +31,7 @@ module Cryptol.ModuleSystem.Name (
   , nameFixity
   , nameNamespace
   , nameToDefPName
+  , nameToPNameWithQualifiers
   , asPrim
   , asOrigName
   , nameModPath
@@ -246,7 +247,26 @@ nameToDefPName n =
     GlobalName _ og -> PName.origNameToDefPName og
     LocalName _ _ txt -> PName.mkUnqual txt
 
--- | Primtiives must be in a top level module, at least for now.
+-- | Compute a `PName` from `Name`, this preserves all qualifiers in the name,
+-- whereas `nameToDefPName` does not.
+nameToPNameWithQualifiers :: Name -> PName
+nameToPNameWithQualifiers n =
+  case nameInfo n of
+    GlobalName _ og   -> origNameToPName og
+    LocalName _ _ txt -> PName.mkUnqual txt
+
+  where
+  origNameToPName :: OrigName -> PName
+  origNameToPName og =
+    case modPathSplit (ogModule og) of
+      (_top,[] ) -> PName.UnQual ident
+      (_top,ids) -> PName.Qual (packModName (map identText ids)) ident
+
+    where
+    ident = ogName og
+
+
+-- | Primtives must be in a top level module, at least for now.
 asPrim :: Name -> Maybe PrimIdent
 asPrim n =
   case nInfo n of
