@@ -311,7 +311,8 @@ interpImportEnv imp = interpImportEnv' (iAs imp) (iSpec imp)
 
 -- | A more general version of `interpImportEnv`
 interpImportEnv' :: Maybe ModName    {- ^ prefix with this qualifier -} ->
-                    Maybe ImportSpec {- ^ restrict per ImportSpec    -} ->                        NamingEnv        {- ^ All public things coming in -} ->
+                    Maybe ImportSpec {- ^ restrict per ImportSpec    -} ->
+                    NamingEnv        {- ^ All public things coming in -} ->
                     NamingEnv
 interpImportEnv' iAs' iSpec' public = qualified
   where
