@@ -288,9 +288,12 @@ eError prims t str =
 eString :: PrimMap -> String -> Expr
 eString prims str = EList (map (eChar prims) str) tChar
 
+eNumber :: PrimMap -> Integer -> Type -> Expr
+eNumber prims v t = EProofApp (ETApp (ETApp (ePrim prims (prelPrim "number")) (tNum v)) t)
+   
 eChar :: PrimMap -> Char -> Expr
-eChar prims c = ETApp (ETApp (ePrim prims (prelPrim "number")) (tNum v)) (tWord (tNum w))
-  where v = fromEnum c
+eChar prims c = eNumber prims v (tWord (tNum w))
+  where v = toInteger (fromEnum c)
         w = 8 :: Int
 
 -- | Construct a prop guard expression simplifying trivial cases.

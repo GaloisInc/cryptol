@@ -23,6 +23,7 @@ module Cryptol.Symbolic
  , QueryType(..)
  , SatNum(..)
  , ProverResult(..)
+ , SatResult
  , ProverStats
  , CounterExampleType(..)
    -- * FinType

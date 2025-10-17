@@ -207,6 +207,8 @@ library
 
                        Cryptol.IR.FreeVars,
                        Cryptol.IR.TraverseNames,
+                       Cryptol.IR.Make,
+                       Cryptol.IR.Prove,
 
                        Cryptol.Backend,
                        Cryptol.Backend.Arch,
