@@ -1,4 +1,4 @@
-module Cryptol.IR.Make
+module Cryptol.IR.Builder
   ( 
     -- * Using built-ins
     makePrim,
