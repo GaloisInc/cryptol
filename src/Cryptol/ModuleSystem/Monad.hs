@@ -433,6 +433,40 @@ getTCSolver = ModuleT (roTCSolver <$> ask)
 setModuleEnv :: Monad m => ModuleEnv -> ModuleT m ()
 setModuleEnv = ModuleT . set
 
+getModuleInput :: ModuleM (ModuleInput IO)
+getModuleInput =
+  do
+    cs <- getCallStacks
+    evo <- getEvalOptsAction
+    reader <- getByteReader
+    env <- getModuleEnv
+    solver <- getTCSolver
+    ren <- getSaveRenamed
+    pure
+      ModuleInput {
+        minpCallStacks  = cs,
+        minpEvalOpts    = evo,
+        minpByteReader  = reader,
+        minpModuleEnv   = env,
+        minpTCSolver    = solver,
+        minpSaveRenamed = ren
+      }
+
+doModuleCmd :: (ModuleInput IO -> IO (Either ModuleError (a, ModuleEnv), [ModuleWarning])) -> ModuleM a
+doModuleCmd cmd =
+  do
+    inp <- getModuleInput
+    (res,ws) <- io (cmd inp)
+    warn ws
+    case res of
+      Left err -> ModuleT (raise err)
+      Right (a,env) ->
+        do
+          setModuleEnv env
+          pure a
+     
+
+
 modifyModuleEnv :: Monad m => (ModuleEnv -> ModuleEnv) -> ModuleT m ()
 modifyModuleEnv f = ModuleT $ do
   env <- get
