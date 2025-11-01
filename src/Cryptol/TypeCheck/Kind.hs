@@ -27,18 +27,24 @@ import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Error
-import           Cryptol.TypeCheck.Subst(listSubst,apSubst)
+import           Cryptol.TypeCheck.Subst(listSubst,apSubst,isEmptySubst)
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.SimpType(tRebuild)
 import           Cryptol.TypeCheck.SimpleSolver(simplify)
-import           Cryptol.TypeCheck.Solve (simplifyAllConstraints)
+import           Cryptol.TypeCheck.Solve ( buildSolverCtxt
+                                         , quickSolver
+                                         , simplifyAllConstraints
+                                         )
 import           Cryptol.Utils.Panic (panic)
 import           Cryptol.Utils.PP(pp,commaSep)
 import           Cryptol.Utils.RecordMap
 
+import           Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
+import           Data.Foldable(foldlM)
 import           Data.List(sortBy,groupBy)
-import           Data.Maybe(fromMaybe)
+import           Data.Maybe(fromMaybe,isJust)
 import           Data.Function(on)
 import           Data.Text (Text)
 import           Control.Monad(unless,mplus,forM,when)
@@ -135,8 +141,8 @@ checkPropSyn (P.PropSyn x _ as ps) mbD =
 
 -- | Check a newtype declaration.
 checkNewtype :: P.Newtype Name -> Maybe Text -> InferM NominalType
-checkNewtype (P.Newtype x as con fs) mbD =
-  do ((as1,fs1),gs) <- collectGoals $
+checkNewtype (P.Newtype x as con fs derivs) mbDoc =
+  do ((as1,fs1),bodyGs) <- collectGoals $
        inRange (srcRange x) $
        do r <- withTParams NoWildCards nominalParam as $
                flip traverseRecordMap fs $ \_n (rng,f) ->
@@ -144,16 +150,31 @@ checkNewtype (P.Newtype x as con fs) mbD =
           simplifyAllConstraints
           return r
 
+     let name = thing x
+         constraints = map goal bodyGs
+     derivConds <-
+       checkDeriving name newtypeDerivable derivs constraints
+         [(TRec fs1, NewtypeUnderlyingRecord)]
+
      return NominalType
                     { ntName   = thing x
                     , ntKind   = KType
                     , ntParams = as1
-                    , ntConstraints = map goal gs
+                    , ntConstraints = constraints
                     , ntDef = Struct
                                 StructCon { ntConName = con, ntFields = fs1 }
+                    , ntDeriving = derivConds
                     , ntFixity = Nothing
-                    , ntDoc = mbD
+                    , ntDoc = mbDoc
                     }
+
+-- | A description of newtype declarations, and the supported classes for
+-- deriving on newtypes.
+newtypeDerivable :: (String, [PC])
+newtypeDerivable =
+  ( "newtype"
+  , [PEq, PCmp, PSignedCmp, PZero, PLogic, PRing]
+  )
 
 checkEnum :: P.EnumDecl Name -> Maybe Text -> InferM NominalType
 checkEnum ed mbD =
@@ -175,15 +196,120 @@ checkEnum ed mbD =
                           }
           simplifyAllConstraints
           pure r
+
+     let name = thing x
+         constraints = map goal gs
+     derivConds <-
+       checkDeriving name enumDerivable (P.eDeriving ed) constraints $
+         concatMap
+           (\con -> zipWith (\t i -> (t, EnumCtorField (ecName con) i t))
+                            (ecFields con)
+                            [0..])
+           cons1
+
      pure NominalType
                   { ntName = thing x
                   , ntParams = as1
                   , ntKind = KType
-                  , ntConstraints = map goal gs
+                  , ntConstraints = constraints
                   , ntDef = Enum cons1
+                  , ntDeriving = derivConds
                   , ntFixity = Nothing
                   , ntDoc = mbD
                   }
+
+-- | A description of enum declarations, and the supported classes for deriving
+-- on enums.
+enumDerivable :: (String, [PC])
+enumDerivable =
+  ( "enum"
+  , [PEq, PCmp, PSignedCmp]
+  )
+
+-- | Check a deriving clause, returning the derived classes and any conditions
+-- that must be satisfied for the instances to hold.
+checkDeriving ::
+     Name
+     -- ^ the type being declared
+  -> (String, [PC])
+     -- ^ description of the type being declared, and the allowed typeclasses
+     -- for deriving on this sort of declaration
+  -> [Located Name]
+     -- ^ list of names in the @deriving@ clause
+  -> [Prop]
+     -- ^ constraints generated from the type declaration's body
+  -> [(Type, DerivingConstraintSource)]
+     -- ^ field types within the type declaration, and where they come from
+  -> InferM (Map PC [Prop])
+     -- ^ map from derived typeclasses to their conditions
+checkDeriving declName (declDesc, allowed) derivs constraints fieldTypes = do
+  -- Check that the names in the deriving clause are allowed and contain no
+  -- duplicates.
+  let addDerivRange derivRangeMap deriv = do
+        let derivName = thing deriv
+            derivRange = srcRange deriv
+        case builtInType derivName of
+          Just (PC pc)
+            | pc `elem` allowed -> do
+              let (existing, derivRangeMap') =
+                    Map.insertLookupWithKey (\_ _ old -> old)
+                                            pc
+                                            derivRange
+                                            derivRangeMap
+              when (isJust existing) $
+                inRange derivRange $
+                  recordWarning $ DuplicateDeriving pc
+              pure derivRangeMap'
+          _ -> do
+            recordErrorLoc (Just derivRange) $
+              ClassNotDerivable derivName declDesc allowed
+            pure derivRangeMap
+  derivRangeMap <- foldlM addDerivRange mempty derivs
+  -- We can use the functor constraints and the constraints generated from the
+  -- body of the type declaration as assumptions for the solver.
+  paramConstraints <- getParamConstraints
+  let ctxt = buildSolverCtxt (constraints ++ map thing paramConstraints)
+  -- For each derived class, generate its conditions.
+  let generateConds pc derivRange = do
+        -- Ensure superclasses are explicitly derived.
+        let missingSuperclasses =
+              Set.difference (typeSuperclassSet pc) (Map.keysSet derivRangeMap)
+        unless (null missingSuperclasses) $
+          recordErrorLoc (Just derivRange) $
+            DerivingMissingSuperclasses pc (Set.toList missingSuperclasses)
+        -- All fields in the type declaration must be instances of each class.
+        let goals =
+              map (\(ty, which) ->
+                    Goal { goal = TCon (PC pc) [ty]
+                         , goalSource = CtDeriving declName pc which
+                         , goalRange = derivRange
+                         })
+                  fieldTypes
+        case quickSolver ctxt goals of
+          Right (su, conds)
+            -- Since we are not doing type inference, su should be empty.
+            | isEmptySubst su ->
+              -- conds contains the goals that the solver was unable to solve,
+              -- but unable to rule out either (e.g. goals involving a type
+              -- parameter, which can only be solved when this nominal type is
+              -- actually used). These are the conditions that we want to save
+              -- in the 'NominalType', so they can be checked at the use site of
+              -- the class methods.
+              pure $ Just $ map goal conds
+            | otherwise ->
+              panic "checkDeriving"
+                [ "Solver substitution not empty"
+                , "ctxt: " ++ show ctxt
+                , "goals: " ++ show goals
+                , "su: " ++ show su
+                , "conds: " ++ show conds
+                ]
+          Left err -> do
+            -- If there were unsolvable (impossible) goals, that means some
+            -- fields were not instances of this class. Report the error here.
+            recordErrorLoc (Just derivRange) err
+            pure Nothing
+  Map.traverseMaybeWithKey generateConds derivRangeMap
 
 checkPrimType :: P.PrimType Name -> Maybe Text -> InferM NominalType
 checkPrimType p mbD =
@@ -205,6 +331,7 @@ checkPrimType p mbD =
             , ntConstraints = cs'
             , ntDoc = mbD
             , ntDef = Abstract
+            , ntDeriving = mempty
             }
   where
   splitK k =

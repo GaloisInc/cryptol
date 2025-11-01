@@ -46,9 +46,9 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.TypeMap
 import qualified Cryptol.TypeCheck.SimpType as Simp
-import qualified Cryptol.TypeCheck.SimpleSolver as Simp
+import {-# SOURCE #-} qualified Cryptol.TypeCheck.SimpleSolver as Simp
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Misc (anyJust, anyJust2)
+import Cryptol.Utils.Misc (anyJust, anyJust2, anyJust3)
 
 -- | A 'Subst' value represents a substitution that maps each 'TVar'
 -- to a 'Type'.
@@ -295,9 +295,11 @@ applySubstToVar su x =
 
 applySubstToNominalType :: Subst -> NominalType -> Maybe NominalType
 applySubstToNominalType su nt =
- do (cs,def)  <- anyJust2 (anyJust (apSubstMaybe su)) apSubstDef
-                          (ntConstraints nt, ntDef nt)
-    pure nt { ntConstraints = cs, ntDef = def }
+ do (cs,def,der) <- anyJust3 (anyJust (apSubstMaybe su))
+                             apSubstDef
+                             (anyJust (anyJust (apSubstMaybe su)))
+                             (ntConstraints nt, ntDef nt, ntDeriving nt)
+    pure nt { ntConstraints = cs, ntDef = def, ntDeriving = der }
   where
   apSubstDef d =
     case d of

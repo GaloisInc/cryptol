@@ -11,7 +11,11 @@
 
 {-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.Class
-  ( solveZeroInst
+  ( solveDerivedInst
+    -- * Built-in instances
+    --
+    -- $builtInInstances
+  , solveZeroInst
   , solveLogicInst
   , solveRingInst
   , solveFieldInst
@@ -26,11 +30,13 @@ module Cryptol.TypeCheck.Solver.Class
   , solveValidFloat
   ) where
 
+import qualified Data.Map as Map
 import qualified LibBF as FP
 
 import Cryptol.TypeCheck.Type hiding (tSub)
 import Cryptol.TypeCheck.SimpType (tAdd,tSub,tWidth,tMax)
 import Cryptol.TypeCheck.Solver.Types
+import Cryptol.TypeCheck.Subst
 import Cryptol.Utils.RecordMap
 
 {- | This places constraints on the floating point numbers that
@@ -64,6 +70,24 @@ knownSupportedFloat et pt
 
 
 
+
+-- | Solve a constraint on a nominal type by looking up its derived instance.
+solveDerivedInst :: PC          -- ^ the typeclass (of kind @* -> Prop@)
+                 -> NominalType -- ^ the type constructor
+                 -> [Type]      -- ^ type arguments to the 'NominalType'
+                 -> Solved
+solveDerivedInst pc nt targs =
+  case Map.lookup pc (ntDeriving nt) of
+    Just conds ->
+      -- The conditions saved in the type may refer to the type parameters, so
+      -- we need to instantiate them with the type arguments.
+      SolvedIf $ apSubst (listParamSubst (zip (ntParams nt) targs)) conds
+    Nothing -> Unsolvable
+
+-- $builtInInstances
+-- The functions below only solve for built-in instances. To solve for derived
+-- instances, check first if the type is 'TNominal' and use 'solveDerivedInst'
+-- in that case.
 
 -- | Solve a Zero constraint by instance, if possible.
 solveZeroInst :: Type -> Solved
@@ -101,9 +125,6 @@ solveZeroInst ty = case tNoUser ty of
   -- (Zero a, Zero b) => Zero { x1 : a, x2 : b }
   TRec fs -> SolvedIf [ pZero ety | ety <- recordElements fs ]
 
-  -- Zero <nominal> -> fails
-  TNominal {} -> Unsolvable
-
   _ -> Unsolved
 
 -- | Solve a Logic constraint by instance, if possible.
@@ -139,9 +160,6 @@ solveLogicInst ty = case tNoUser ty of
 
   -- (Logic a, Logic b) => Logic { x1 : a, x2 : b }
   TRec fs -> SolvedIf [ pLogic ety | ety <- recordElements fs ]
-
-  -- Logic <nominal> -> fails
-  TNominal {} -> Unsolvable
 
   _ -> Unsolved
 
@@ -179,9 +197,6 @@ solveRingInst ty = case tNoUser ty of
 
   -- (Ring a, Ring b) => Ring { x1 : a, x2 : b }
   TRec fs -> SolvedIf [ pRing ety | ety <- recordElements fs ]
-
-  -- Ring <nominal> -> fails
-  TNominal {} -> Unsolvable
 
   _ -> Unsolved
 
@@ -350,9 +365,6 @@ solveEqInst ty = case tNoUser ty of
   -- (Eq a, Eq b) => Eq { x:a, y:b }
   TRec fs -> SolvedIf [ pEq e | e <- recordElements fs ]
 
-  -- Eq <nominal> -> fails
-  TNominal {} -> Unsolvable
-
   _ -> Unsolved
 
 
@@ -389,9 +401,6 @@ solveCmpInst ty = case tNoUser ty of
 
   -- (Cmp a, Cmp b) => Cmp { x:a, y:b }
   TRec fs -> SolvedIf [ pCmp e | e <- recordElements fs ]
-
-  -- Cmp <nominal> -> fails
-  TNominal{} -> Unsolvable
 
   _ -> Unsolved
 
@@ -444,9 +453,6 @@ solveSignedCmpInst ty = case tNoUser ty of
 
   -- (SignedCmp a, SignedCmp b) => SignedCmp { x:a, y:b }
   TRec fs -> SolvedIf [ pSignedCmp e | e <- recordElements fs ]
-
-  -- SignedCmp <nominal> -> fails
-  TNominal{} -> Unsolvable
 
   _ -> Unsolved
 

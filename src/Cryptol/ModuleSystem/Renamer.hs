@@ -876,12 +876,14 @@ instance Rename Newtype where
        depsOf (NamedThing nameC) (addDep (thing nameT))
 
        depsOf (NamedThing (thing nameT)) $
-         do ps'   <- traverse rename (nParams n)
-            body' <- traverse (traverse rename) (nBody n)
+         do ps'       <- traverse rename (nParams n)
+            body'     <- traverse (traverse rename) (nBody n)
+            deriving' <- traverse (rnLocated (renameType NameUse)) (nDeriving n)
             return Newtype { nName   = nameT
                            , nConName = nameC
                            , nParams = ps'
-                           , nBody   = body' }
+                           , nBody   = body'
+                           , nDeriving = deriving' }
 
 instance Rename EnumDecl where
   rename n =
@@ -898,9 +900,11 @@ instance Rename EnumDecl where
                      do ts' <- traverse rename (ecFields (tlValue tlEc))
                         let con = EnumCon { ecName = c, ecFields = ts' }
                         pure tlEc { tlValue = con }
+            deriving' <- traverse (rnLocated (renameType NameUse)) (eDeriving n)
             pure EnumDecl { eName = nameT
                           , eParams = ps'
                           , eCons = cons
+                          , eDeriving = deriving'
                           }
 
 -- | Try to resolve a name.

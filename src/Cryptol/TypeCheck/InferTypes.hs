@@ -231,7 +231,23 @@ data ConstraintSource
   | CtPropGuardsExhaustive Name -- ^ Checking that a use of prop guards is exhastive
   | CtFFI Name            -- ^ Constraints on a foreign declaration required
                           --   by the FFI (e.g. sequences must be finite)
+  | CtDeriving            -- ^ Required conditions for deriving
+      Name                     -- ^ The type that the deriving clause is
+                               --   attached to
+      PC                       -- ^ The class we are deriving
+      DerivingConstraintSource -- ^ Which part of the type declaration caused
+                               --   this constraint
     deriving (Show, Generic, NFData)
+
+-- | Where a condition for deriving arises from
+data DerivingConstraintSource
+  = NewtypeUnderlyingRecord -- ^ From the underlying record, when deriving for a
+                            --   newtype
+  | EnumCtorField           -- ^ From a constructor field of an enum
+      Name -- ^ Name of the constructor
+      Int  -- ^ Index of the constructor field, starting from 0
+      Type -- ^ Type of the constructor field
+  deriving (Show, Generic, NFData)
 
 selSrc :: Selector -> TypeSource
 selSrc l = case l of
@@ -260,6 +276,13 @@ instance TVars ConstraintSource where
       CtModuleInstance _ -> src
       CtPropGuardsExhaustive _ -> src
       CtFFI _          -> src
+      CtDeriving t p w -> CtDeriving t p $! apSubst su w
+
+instance TVars DerivingConstraintSource where
+  apSubst su src =
+    case src of
+      NewtypeUnderlyingRecord -> src
+      EnumCtorField c i t     -> EnumCtorField c i $! apSubst su t
 
 
 instance FVS Goal where
@@ -371,6 +394,17 @@ instance PP ConstraintSource where
       CtModuleInstance r -> "module instantiation at" <+> pp r
       CtPropGuardsExhaustive n -> "exhaustion check for prop guards used in defining" <+> pp n
       CtFFI f         -> "declaration of foreign function" <+> pp f
+      CtDeriving t pc which -> pp which $$
+                               "when deriving instance" <+> parens (pp pc <+> pp t)
+
+instance PP DerivingConstraintSource where
+  ppPrec _ src =
+    case src of
+      NewtypeUnderlyingRecord -> "the underlying record of the newtype"
+      EnumCtorField ctor i t ->
+        -- Count starting from 1 when displaying to user
+        "field" <+> int (i + 1) <+> "of constructor" <+> backticks (pp ctor) <+>
+        parens ("type" <+> backticks (pp t))
 
 ppUse :: Expr -> Doc
 ppUse expr =
