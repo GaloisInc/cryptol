@@ -479,7 +479,11 @@ instance RangedVars (Newtype Name) where
     where
     nm = nName nt
     con = DefNoCollapse (nConName nt) <$ nm
-    def mk = rangedVars (mk <$> nm, (con, map (uncurry Located) (recordElements (nBody nt))))
+    def mk = rangedVars
+               (mk <$> nm,
+                (con,
+                 (map (uncurry Located) (recordElements (nBody nt)),
+                  map (fmap Use) (nDeriving nt))))
 
 instance RangedVars (EnumDecl Name) where
   rangedVars ed =
@@ -487,7 +491,7 @@ instance RangedVars (EnumDecl Name) where
       Nothing -> def DefNoCollapse
       Just r  -> def (`Def` r)
     where
-    def mk = rangedVars (mk <$> eName ed, eCons ed)
+    def mk = rangedVars (mk <$> eName ed, (eCons ed, map (fmap Use) (eDeriving ed)))
 
 instance RangedVars (EnumCon Name) where
   rangedVars c = rangedVars (DefNoCollapse <$> ecName c, ecFields c)
