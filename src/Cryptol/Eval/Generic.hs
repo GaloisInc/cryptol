@@ -835,7 +835,12 @@ eqCombine :: Backend sym =>
   SEval sym (SBit sym) ->
   SEval sym (SBit sym) ->
   SEval sym (SBit sym)
-eqCombine sym eq k = join (bitAnd sym <$> eq <*> k)
+eqCombine sym eq k =
+  do e <- eq
+     -- lazy `and` operator
+     case bitAsLit sym e of
+       Just False -> pure e
+       _ -> bitAnd sym e =<< k
 
 {-# INLINE lexCombine #-}
 lexCombine :: Backend sym =>
@@ -846,8 +851,15 @@ lexCombine :: Backend sym =>
   SEval sym (SBit sym)
 lexCombine sym cmp eq k =
   do c <- cmp
-     e <- eq
-     bitOr sym c =<< bitAnd sym e =<< k
+     -- lazy `or` operator
+     case bitAsLit sym c of
+       Just True -> pure c
+       _ ->
+         do e <- eq
+            -- lazy `and` operator
+            case bitAsLit sym e of
+              Just False -> pure c
+              _          -> bitOr sym c =<< bitAnd sym e =<< k
 
 {-# INLINE eqV #-}
 eqV :: Backend sym => sym -> Binary sym
