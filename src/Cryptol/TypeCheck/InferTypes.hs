@@ -249,7 +249,7 @@ instance TVars ConstraintSource where
       CtComprehension -> src
       CtSplitPat      -> src
       CtTypeSig       -> src
-      CtInst e        -> CtInst (apSubst su e)
+      CtInst e        -> CtInst $! apSubst su e
       CtSelector      -> src
       CtExactType     -> src
       CtEnumeration   -> src
