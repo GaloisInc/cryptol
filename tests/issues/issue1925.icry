@@ -1,0 +1,15 @@
+let bad = error "not lazy"
+
+(False, bad) < (True, True)
+(False, bad) <= (True, True)
+(False, bad) >= (True, True)
+(False, bad) > (True, True)
+(False, bad) == (True, True)
+(False, bad) != (True, True)
+
+(True, bad) < (False, True)
+(True, bad) <= (False, True)
+(True, bad) >= (False, True)
+(True, bad) > (False, True)
+(True, bad) == (False, True)
+(True, bad) != (False, True)
