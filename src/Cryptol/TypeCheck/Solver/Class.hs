@@ -36,7 +36,7 @@ import qualified LibBF as FP
 import Cryptol.TypeCheck.Type hiding (tSub)
 import Cryptol.TypeCheck.SimpType (tAdd,tSub,tWidth,tMax)
 import Cryptol.TypeCheck.Solver.Types
-import Cryptol.TypeCheck.Subst
+import Cryptol.TypeCheck.Subst.Type (listParamSubst, apSubstNoSimp)
 import Cryptol.Utils.RecordMap
 
 {- | This places constraints on the floating point numbers that
@@ -81,10 +81,8 @@ solveDerivedInst pc nt targs =
     Just conds ->
       -- The conditions saved in the type may refer to the type parameters, so
       -- we need to instantiate them with the type arguments.
-      let conds' = apSubst (listParamSubst (zip (ntParams nt) targs)) conds
-      -- apSubst calls simplify so it may return TError. In that case the
-      -- constraint is unsolvable.
-      in  if any tHasErrors conds' then Unsolvable else SolvedIf conds'
+      let subst = listParamSubst $ zip (ntParams nt) targs
+      in  SolvedIf $ map (apSubstNoSimp subst) conds
     Nothing -> Unsolvable
 
 -- $builtInInstances
