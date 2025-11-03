@@ -81,7 +81,10 @@ solveDerivedInst pc nt targs =
     Just conds ->
       -- The conditions saved in the type may refer to the type parameters, so
       -- we need to instantiate them with the type arguments.
-      SolvedIf $ apSubst (listParamSubst (zip (ntParams nt) targs)) conds
+      let conds' = apSubst (listParamSubst (zip (ntParams nt) targs)) conds
+      -- apSubst calls simplify so it may return TError. In that case the
+      -- constraint is unsolvable.
+      in  if any tHasErrors conds' then Unsolvable else SolvedIf conds'
     Nothing -> Unsolvable
 
 -- $builtInInstances
