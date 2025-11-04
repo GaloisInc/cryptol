@@ -31,6 +31,8 @@ Equality
     - ``fin n``, ``Eq a``
   * - ``(a,b)``
     - ``Eq a``, ``Eq b``
+  * - ``{f1 : a, f2 : b}``
+    - ``Eq a``, ``Eq b``
 
 
 
@@ -65,6 +67,8 @@ Comparisons
     - ``fin n``, ``Cmp a``
   * - ``(a,b)``
     - ``Cmp a``, ``Cmp b``
+  * - ``{f1 : a, f2 : b}``
+    - ``Cmp a``, ``Cmp b``
 
 
 
@@ -90,6 +94,8 @@ Signed Comparisons
   * - ``[n] a``
     - ``fin n``, ``SignedCmp a``, ``a /= Bit``
   * - ``(a,b)``
+    - ``SignedCmp a``, ``SignedCmp b``
+  * - ``{f1 : a, f2 : b}``
     - ``SignedCmp a``, ``SignedCmp b``
 
 
@@ -121,6 +127,8 @@ Zero
     - ``Zero b``
   * - ``(a,b)``
     - ``Zero a``, ``Zero b``
+  * - ``{f1 : a, f2 : b}``
+    - ``Zero a``, ``Zero b``
 
 Logical Operations
 ------------------
@@ -144,6 +152,8 @@ Logical Operations
   * - ``a -> b``
     - ``Logic b``
   * - ``(a,b)``
+    - ``Logic a``, ``Logic b``
+  * - ``{f1 : a, f2 : b}``
     - ``Logic a``, ``Logic b``
 
 
@@ -180,6 +190,8 @@ Basic Arithmetic
   * - ``a -> b``
     - ``Ring b``
   * - ``(a,b)``
+    - ``Ring a``, ``Ring b``
+  * - ``{f1 : a, f2 : b}``
     - ``Ring a``, ``Ring b``
 
 
