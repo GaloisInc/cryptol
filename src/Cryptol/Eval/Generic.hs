@@ -756,6 +756,7 @@ toSignedIntegerV sym =
   (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (SRational Concrete -> SRational Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (SFloat Concrete -> SFloat Concrete -> SEval Concrete a -> SEval Concrete a) ->
+  (SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (TValue -> GenValue Concrete -> GenValue Concrete -> SEval Concrete a -> SEval Concrete a)
   #-}
 
@@ -769,8 +770,9 @@ cmpValue ::
   (Integer -> SInteger sym -> SInteger sym -> SEval sym a -> SEval sym a) ->
   (SRational sym -> SRational sym -> SEval sym a -> SEval sym a) ->
   (SFloat sym -> SFloat sym -> SEval sym a -> SEval sym a) ->
+  (SInteger sym -> SInteger sym -> SEval sym a -> SEval sym a) -> -- ^ how to compare enum tags
   (TValue -> GenValue sym -> GenValue sym -> SEval sym a -> SEval sym a)
-cmpValue sym merge fb fw fi fz fq ff = cmp
+cmpValue sym merge fb fw fi fz fq ff ftag = cmp
   where
     cmp ty v1 v2 k =
       case ty of
@@ -803,7 +805,7 @@ cmpValue sym merge fb fw fi fz fq ff = cmp
               let (tag1, cons1) = fromVEnum v1
                   (tag2, cons2) = fromVEnum v2
               -- first compare based on tag...
-              fi tag1 tag2
+              ftag tag1 tag2
                 -- if both tags are concrete...
                 case (integerAsLit sym tag1, integerAsLit sym tag2) of
                   (Just i, Just j)
@@ -884,7 +886,7 @@ bitGreaterThan sym x y = bitLessThan sym y x
 
 {-# INLINE valEq #-}
 valEq :: Backend sym => sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym)
-valEq sym ty v1 v2 = cmpValue sym (iteBit sym) fb fw fi fz fq ff ty v1 v2 (pure $ bitLit sym True)
+valEq sym ty v1 v2 = cmpValue sym (iteBit sym) fb fw fi fz fq ff ftag ty v1 v2 (pure $ bitLit sym True)
   where
   fb x y k   = eqCombine sym (bitEq  sym x y) k
   fw x y k   = eqCombine sym (wordEq sym x y) k
@@ -892,11 +894,12 @@ valEq sym ty v1 v2 = cmpValue sym (iteBit sym) fb fw fi fz fq ff ty v1 v2 (pure 
   fz m x y k = eqCombine sym (znEq sym m x y) k
   fq x y k   = eqCombine sym (rationalEq sym x y) k
   ff x y k   = eqCombine sym (fpEq sym x y) k
+  ftag       = fi
 
 {-# INLINE valLt #-}
 valLt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
-valLt sym ty v1 v2 final = cmpValue sym (iteBit sym) fb fw fi fz fq ff ty v1 v2 (pure final)
+valLt sym ty v1 v2 final = cmpValue sym (iteBit sym) fb fw fi fz fq ff ftag ty v1 v2 (pure final)
   where
   fb x y k   = lexCombine sym (bitLessThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordLessThan sym x y) (wordEq sym x y) k
@@ -904,11 +907,12 @@ valLt sym ty v1 v2 final = cmpValue sym (iteBit sym) fb fw fi fz fq ff ty v1 v2 
   fz _ _ _ _ = panic "valLt" ["Z_n is not in `Cmp`"]
   fq x y k   = lexCombine sym (rationalLessThan sym x y) (rationalEq sym x y) k
   ff x y k   = lexCombine sym (fpLessThan   sym x y) (fpEq   sym x y) k
+  ftag       = fi
 
 {-# INLINE valGt #-}
 valGt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
-valGt sym ty v1 v2 final = cmpValue sym (iteBit sym) fb fw fi fz fq ff ty v1 v2 (pure final)
+valGt sym ty v1 v2 final = cmpValue sym (iteBit sym) fb fw fi fz fq ff ftag ty v1 v2 (pure final)
   where
   fb x y k   = lexCombine sym (bitGreaterThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordGreaterThan sym x y) (wordEq sym x y) k
@@ -916,6 +920,7 @@ valGt sym ty v1 v2 final = cmpValue sym (iteBit sym) fb fw fi fz fq ff ty v1 v2 
   fz _ _ _ _ = panic "valGt" ["Z_n is not in `Cmp`"]
   fq x y k   = lexCombine sym (rationalGreaterThan sym x y) (rationalEq sym x y) k
   ff x y k   = lexCombine sym (fpGreaterThan   sym x y) (fpEq   sym x y) k
+  ftag       = fi
 
 {-# INLINE eqCombine #-}
 eqCombine :: Backend sym =>
@@ -976,7 +981,7 @@ greaterThanEqV sym ty v1 v2 = VBit <$> valGt sym ty v1 v2 (bitLit sym True)
 {-# INLINE signedLessThanV #-}
 signedLessThanV :: Backend sym => sym -> Binary sym
 signedLessThanV sym ty v1 v2 =
-  VBit <$> cmpValue sym (iteBit sym) fb fw fi fz fq ff ty v1 v2 (pure $ bitLit sym False)
+  VBit <$> cmpValue sym (iteBit sym) fb fw fi fz fq ff ftag ty v1 v2 (pure $ bitLit sym False)
   where
   fb _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on bit type"]
   fw x y k   = lexCombine sym (wordSignedLessThan sym x y) (wordEq sym x y) k
@@ -984,6 +989,7 @@ signedLessThanV sym ty v1 v2 =
   fz m _ _ _ = panic "signedLessThan" ["Attempted to perform signed comparison on Z_" ++ show m ++ " type"]
   fq _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Rational type"]
   ff _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Float"]
+  ftag x y k = lexCombine sym (intLessThan sym x y) (intEq sym x y) k
 
 
 
