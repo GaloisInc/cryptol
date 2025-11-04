@@ -1,0 +1,9 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at deriving-tc-duplicate.cry:1:54--1:56:
+  Duplicate Eq in deriving clause
+[warning] at deriving-tc-duplicate.cry:1:58--1:60:
+  Duplicate Eq in deriving clause
+[warning] at deriving-tc-duplicate.cry:1:62--1:65:
+  Duplicate Cmp in deriving clause

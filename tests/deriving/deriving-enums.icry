@@ -1,0 +1,8 @@
+:l deriving-enums.cry
+sort ts
+sortBy (<$) ts
+:set base=2
+[x == T1 1 0 | x <- ts]
+:set proverStats=off
+:prove
+:exhaust

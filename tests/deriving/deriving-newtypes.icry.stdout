@@ -1,0 +1,88 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+:prove sameZero
+	Q.E.D.
+:prove sameComplement
+	Q.E.D.
+:prove sameNegate
+	Q.E.D.
+:prove sameFromInteger
+	Q.E.D.
+:prove sameAnd
+	Q.E.D.
+:prove sameOr
+	Q.E.D.
+:prove sameXor
+	Q.E.D.
+:prove samePlus
+	Q.E.D.
+:prove sameMinus
+	Q.E.D.
+:prove sameTimes
+	Q.E.D.
+:prove sameEq
+	Q.E.D.
+:prove sameNeq
+	Q.E.D.
+:prove sameLt
+	Q.E.D.
+:prove sameGt
+	Q.E.D.
+:prove sameLeq
+	Q.E.D.
+:prove sameGeq
+	Q.E.D.
+:prove sameLtSigned
+	Q.E.D.
+property sameZero Using exhaustive testing.
+Testing... Passed 1 tests.
+Q.E.D.
+property sameComplement Using exhaustive testing.
+Testing... Passed 64 tests.
+Q.E.D.
+property sameNegate Using exhaustive testing.
+Testing... Passed 64 tests.
+Q.E.D.
+property sameFromInteger Using exhaustive testing.
+Testing... Passed 4 tests.
+Q.E.D.
+property sameAnd Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property sameOr Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property sameXor Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property samePlus Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property sameMinus Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property sameTimes Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property sameEq Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property sameNeq Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property sameLt Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property sameGt Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property sameLeq Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property sameGeq Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
+property sameLtSigned Using exhaustive testing.
+Testing... Passed 4096 tests.
+Q.E.D.
