@@ -1,8 +1,22 @@
 Overloaded Operations
 =====================
 
+Many built-in Cryptol operations are *overloaded*, which means that the same
+function can be used with many different types. The types that an overloaded
+operation can be used with are defined by *constraints*, and a type that
+satisfies a constraint is said to be an *instance* of that constraint.
+
+Cryptol has a number of :ref:`built-in instances <built-in-instances>`, and you
+can also :ref:`derive instances <derived-instances>` for :ref:`user-defined
+types <type-declarations>`.
+
+.. _built-in-instances:
+
+Built-in instances
+------------------
+
 Equality
---------
+~~~~~~~~
 
 .. code-block:: cryptol
 
@@ -37,7 +51,7 @@ Equality
 
 
 Comparisons
------------
+~~~~~~~~~~~
 
 .. code-block:: cryptol
 
@@ -75,7 +89,7 @@ Comparisons
 
 
 Signed Comparisons
-------------------
+~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cryptol
 
@@ -100,7 +114,7 @@ Signed Comparisons
 
 
 Zero
-----
+~~~~
 
 .. code-block:: cryptol
 
@@ -131,7 +145,7 @@ Zero
     - ``Zero a``, ``Zero b``
 
 Logical Operations
-------------------
+~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cryptol
 
@@ -159,7 +173,7 @@ Logical Operations
 
 
 Basic Arithmetic
-----------------
+~~~~~~~~~~~~~~~~
 
 .. code-block:: cryptol
 
@@ -197,7 +211,7 @@ Basic Arithmetic
 
 
 Integral Operations
--------------------
+~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cryptol
 
@@ -223,7 +237,7 @@ Integral Operations
 
 
 Division
---------
+~~~~~~~~
 
 .. code-block:: cryptol
 
@@ -246,7 +260,7 @@ Division
 
 
 Rounding
---------
+~~~~~~~~
 
 .. code-block:: cryptol
 
@@ -266,3 +280,71 @@ Rounding
     - ``ValidFloat e p``
 
 
+.. _derived-instances:
+
+Derived instances
+-----------------
+
+A :ref:`newtype <newtypes>` or :ref:`enum <enums>` declaration can optionally
+have a ``deriving`` clause attached to it to *derive* instances of the type for
+certain constraints. Like built-in instances, the derived instances may have
+certain conditions that need to be satisifed for them to be valid.
+
+Newtypes
+~~~~~~~~
+
+The following constraints can be derived for newtypes:
+
+  * ``Eq``
+  * ``Cmp``
+  * ``SignedCmp``
+  * ``Zero``
+  * ``Logic``
+  * ``Ring``
+
+The condition for a newtype to be an instance of any of the above constraints is
+that the underlying record type of the newtype is also an instance of that
+constraint. For instance, if you have
+
+.. code-block:: cryptol
+
+  newtype T a b = { f1 : a, f2 : b } deriving (Eq, Cmp)
+
+then ``Eq (T a b)`` will only hold if ``Eq ({f1 : a, f2 : b})`` holds, and ``Cmp
+(T a b)`` will only hold if ``Cmp ({f1 : a, f2 : b})`` holds.
+
+The behavior of the built-in overloaded operations on newtypes with derived
+instances is exactly the same as the behavior on their underlying record types,
+modulo the appropriate wrapping and unwrapping of the newtype constructor.
+
+Enums
+~~~~~
+
+The following constraints can be derived for enums:
+
+  * ``Eq``
+  * ``Cmp``
+  * ``SignedCmp``
+
+The condition for an enum to be an instance of any of the above constraints is
+that all the fields of all its constructors are instances of that constraint.
+For instance, if you have
+
+.. code-block:: cryptol
+
+  enum T a b = A a | B b deriving (Eq, Cmp)
+
+then ``Eq (T a b)`` will only hold if ``Eq a`` and ``Eq b`` hold, and ``Cmp (T a
+b)`` will only hold if ``Cmp a`` and ``Cmp b`` hold.
+
+Two enum values of the same type compare equal if they have the same constructor
+and the same field values for that constructor, and unequal otherwise.
+
+Two enum values of the same type are ordered first by their constructor, then
+for values with the same constructor, by lexicographic ordering on the fields of
+that constructor. The order of constructors is the order in which they are
+listed in the ``enum`` declaration; constructors listed earlier compare less
+than constructors listed later. In the above example of ``T a b``, any value
+with constructor ``A`` always compares less than any value with constructor
+``B``. For signed comparisons, fields are compared using signed comparisons but
+constructors themselves are still ordered in the same way.
