@@ -4,3 +4,4 @@ packages:
     language-server
     tests
     deps/argo/argo
+    https://hackage.haskell.org/package/what4-1.7.1.0/candidate/what4-1.7.1.0.tar.gz
