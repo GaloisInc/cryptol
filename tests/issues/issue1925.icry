@@ -13,3 +13,6 @@ let bad = error "not lazy"
 (True, bad) > (False, True)
 (True, bad) == (False, True)
 (True, bad) != (False, True)
+
+(-1, bad) <$ (1 : [8], 1 : [8])
+(1, bad) <$ (-1 : [8], 1 : [8])
