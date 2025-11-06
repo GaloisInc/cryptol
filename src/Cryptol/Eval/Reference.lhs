@@ -1235,7 +1235,7 @@ False]`, but to `error "foo"`.
 >     go ty =
 >       case ty of
 >         TVBit ->
->           evalPanic "arithNullary" ["Bit not in class Ring"]
+>           evalPanic "ringNullary" ["Bit not in class Ring"]
 >         TVInteger ->
 >           VInteger <$> i
 >         TVIntMod n ->
@@ -1245,7 +1245,7 @@ False]`, but to `error "foo"`.
 >         TVFloat e p ->
 >           VFloat . fpToBF e p <$> fl e p
 >         TVArray{} ->
->           evalPanic "arithNullary" ["Array not in class Ring"]
+>           evalPanic "ringNullary" ["Array not in class Ring"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w <$> i
 >           | otherwise -> pure $ VList (Nat w) (genericReplicate w (go a))
@@ -1260,7 +1260,7 @@ False]`, but to `error "foo"`.
 >         TVNominal _ _ ntv ->
 >           case ntv of
 >             TVStruct fs -> go (TVRec fs)
->             _ -> evalPanic "arithNullary" ["Enum/Abstract type not in `Ring`"]
+>             _ -> evalPanic "ringNullary" ["Enum/Abstract type not in `Ring`"]
 
 > ringUnary ::
 >   (Integer -> E Integer) ->
@@ -1273,11 +1273,11 @@ False]`, but to `error "foo"`.
 >     go ty val =
 >       case ty of
 >         TVBit ->
->           evalPanic "arithUnary" ["Bit not in class Ring"]
+>           evalPanic "ringUnary" ["Bit not in class Ring"]
 >         TVInteger ->
 >           VInteger <$> appOp1 iop (fromVInteger <$> val)
 >         TVArray{} ->
->           evalPanic "arithUnary" ["Array not in class Ring"]
+>           evalPanic "ringUnary" ["Array not in class Ring"]
 >         TVIntMod n ->
 >           VInteger <$> appOp1 (\i -> flip mod n <$> iop i) (fromVInteger <$> val)
 >         TVRational ->
@@ -1300,7 +1300,7 @@ False]`, but to `error "foo"`.
 >         TVNominal _ _ ntv ->
 >           case ntv of
 >             TVStruct fs -> go (TVRec fs) val
->             _ -> evalPanic "arithUnary" ["Enum/Abstract type not in `Ring`"]
+>             _ -> evalPanic "ringUnary" ["Enum/Abstract type not in `Ring`"]
 
 > ringBinary ::
 >   (Integer -> Integer -> E Integer) ->
@@ -1313,7 +1313,7 @@ False]`, but to `error "foo"`.
 >     go ty l r =
 >       case ty of
 >         TVBit ->
->           evalPanic "arithBinary" ["Bit not in class Ring"]
+>           evalPanic "ringBinary" ["Bit not in class Ring"]
 >         TVInteger ->
 >           VInteger <$> appOp2 iop (fromVInteger <$> l) (fromVInteger <$> r)
 >         TVIntMod n ->
@@ -1324,7 +1324,7 @@ False]`, but to `error "foo"`.
 >           VFloat . fpToBF e p <$>
 >             appOp2 (flop e p) (fromVFloat <$> l) (fromVFloat <$> r)
 >         TVArray{} ->
->           evalPanic "arithBinary" ["Array not in class Ring"]
+>           evalPanic "ringBinary" ["Array not in class Ring"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w <$> appOp2 iop (fromVWord =<< l) (fromVWord =<< r)
 >           | otherwise ->
@@ -1350,7 +1350,7 @@ False]`, but to `error "foo"`.
 >         TVNominal _ _ ntv ->
 >           case ntv of
 >             TVStruct fs -> go (TVRec fs) l r
->             _ -> evalPanic "arithBinary" ["Enum/Abstract type not in class `Ring`"]
+>             _ -> evalPanic "ringBinary" ["Enum/Abstract type not in class `Ring`"]
 
 
 Integral
@@ -1566,7 +1566,7 @@ bits to the *left* of that position are equal.
 >       case Vector.findIndex ((== con) . conIdent) conInfos of
 >         Just i -> i
 >         Nothing ->
->           evalPanic "lexCompare"
+>           evalPanic "lexEnum"
 >             ["Unknown enum constructor " ++ unpackIdent con]
 
 Signed comparisons may be applied to any type made up of non-empty
