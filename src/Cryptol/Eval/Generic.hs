@@ -801,64 +801,9 @@ cmpValue sym merge fb fw fi fz fq ff ftag = cmp
         TVNominal _ _ ntv ->
           case ntv of
             TVStruct fields -> cmpRecord fields
-            TVEnum conTypes -> do
-              let (tag1, cons1) = fromVEnum v1
-                  (tag2, cons2) = fromVEnum v2
-              -- first compare based on tag...
-              ftag tag1 tag2
-                -- if both tags are concrete...
-                case (integerAsLit sym tag1, integerAsLit sym tag2) of
-                  (Just i, Just j)
-                    -- ...then because the comparisons are lazy, this part
-                    -- should only be evaluated if tag1 == tag2
-                    | i == j -> do
-                      -- in the fully concrete case, just look up the fields for
-                      -- this constructor and compare them
-                      let i' = fromInteger i
-                      case (IMap.lookup i' cons1, IMap.lookup i' cons2) of
-                        (Just con1, Just con2) -> cmpFields i' con1 con2
-                        _ -> evalPanic "Cryptol.Eval.Generic.cmpValue"
-                               ["Missing constructor for tag", show i']
-                    | otherwise ->
-                      evalPanic "Cryptol.Eval.Generic.cmpValue"
-                        [ "Concrete enum tags not equal in equal case"
-                        , "Comparisons not lazy enough?" ]
-                  _ -> do
-                    -- in the symbolic case, here tag1 may or may not equal
-                    -- tag2, so we need to explicitly check this
-                    sameTag <- intEq sym tag1 tag2
-                    -- if tag1 == tag2, then compare by field, otherwise we are
-                    -- done comparing
-                    mergeEval sym merge sameTag doFields k
-                    where
-                      doFields =
-                        -- build up an if-then-else chain for each possible tag
-                        -- value
-                        IMap.foldrWithKey doFieldsForTag notFound $
-                          -- since at this point we know tag1 == tag2, we only
-                          -- need to consider the intersection of their possible
-                          -- constructors
-                          IMap.intersectionWith (,) cons1 cons2
-                      doFieldsForTag i (con1, con2) doRest = do
-                        -- if the tag is i, then compare fields for constructor
-                        -- i
-                        i' <- integerLit sym (toInteger i)
-                        -- we know tag1 == tag2, so we arbitrarily use tag1 here
-                        isThisTag <- intEq sym tag1 i'
-                        mergeEval sym merge isThisTag
-                          (cmpFields i con1 con2)
-                          doRest
-                      notFound = raiseError sym $ NoMatchingConstructor Nothing
-              where
-                cmpFields i con1 con2 =
-                  cmpValues
-                    (toList (conFields (conTypes Vector.! i)))
-                    (toList (conFields con1))
-                    (toList (conFields con2))
-                    k
-            TVAbstract ->
-              evalPanic "Cryptol.Eval.Generic.cmpValue"
-                ["Abstract types are not comparable"]
+            TVEnum conTypes -> cmpEnum conTypes
+            TVAbstract -> evalPanic "Cryptol.Eval.Generic.cmpValue"
+                                    [ "Abstract types are not comparable" ]
 
       where
         cmpRecord fields = cmpValues
@@ -866,6 +811,61 @@ cmpValue sym merge fb fw fi fz fq ff ftag = cmp
                              (recordElements (fromVRecord v1))
                              (recordElements (fromVRecord v2))
                              k
+
+        cmpEnum conTypes = do
+          let (tag1, cons1) = fromVEnum v1
+              (tag2, cons2) = fromVEnum v2
+          -- first compare based on tag...
+          ftag tag1 tag2
+            -- if both tags are concrete...
+            case (integerAsLit sym tag1, integerAsLit sym tag2) of
+              (Just i, Just j)
+                -- ...then because the comparisons are lazy, this part should
+                -- only be evaluated if tag1 == tag2
+                | i == j -> do
+                  -- in the fully concrete case, just look up the fields for
+                  -- this constructor and compare them
+                  let i' = fromInteger i
+                  case (IMap.lookup i' cons1, IMap.lookup i' cons2) of
+                    (Just con1, Just con2) -> cmpFields i' con1 con2
+                    _ -> evalPanic "Cryptol.Eval.Generic.cmpValue"
+                           ["Missing constructor for tag", show i']
+                | otherwise ->
+                  evalPanic "Cryptol.Eval.Generic.cmpValue"
+                    [ "Concrete enum tags not equal in equal case"
+                    , "Comparisons not lazy enough?" ]
+              _ -> do
+                -- in the symbolic case, here tag1 may or may not equal tag2, so
+                -- we need to explicitly check this
+                sameTag <- intEq sym tag1 tag2
+                -- if tag1 == tag2, then compare by field, otherwise we are done
+                -- comparing
+                mergeEval sym merge sameTag doFields k
+                where
+                  doFields =
+                    -- build up an if-then-else chain for each possible tag
+                    -- value
+                    IMap.foldrWithKey doFieldsForTag notFound $
+                      -- since at this point we know tag1 == tag2, we only need
+                      -- to consider the intersection of their possible
+                      -- constructors
+                      IMap.intersectionWith (,) cons1 cons2
+                  doFieldsForTag i (con1, con2) doRest = do
+                    -- if the tag is i, then compare fields for constructor i
+                    i' <- integerLit sym (toInteger i)
+                    -- we know tag1 == tag2, so we arbitrarily use tag1 here
+                    isThisTag <- intEq sym tag1 i'
+                    mergeEval sym merge isThisTag
+                      (cmpFields i con1 con2)
+                      doRest
+                  notFound = raiseError sym $ NoMatchingConstructor Nothing
+          where
+            cmpFields i con1 con2 =
+              cmpValues
+                (toList (conFields (conTypes Vector.! i)))
+                (toList (conFields con1))
+                (toList (conFields con2))
+                k
 
     cmpValues (t : ts) (x1 : xs1) (x2 : xs2) k =
       do x1' <- x1
