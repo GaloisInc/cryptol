@@ -1,0 +1,4 @@
+Loading module Cryptol
+
+Parse error at deriving-parse-multiple.cry:1:38,
+  unexpected: deriving
