@@ -62,8 +62,8 @@ Newtype declarations can optionally have a ``deriving`` clause at the end to
 
   newtype NewT a b = { seq : [a]b } deriving (Eq, Cmp)
 
-The keyword ``deriving`` is followed by a parenthesized list of constraint
-names.
+The keyword ``deriving`` is followed by a parenthesized non-empty list of
+constraint names.
 
 .. _enums:
 
@@ -133,8 +133,8 @@ being defined.
 
   enum Maybe a = Nothing | Just a deriving (Eq, Cmp)
 
-The keyword ``deriving`` is followed by a parenthesized list of constraint
-names.
+The keyword ``deriving`` is followed by a parenthesized non-empty list of
+constraint names.
 
 **``Option`` and ``Result``.** Currently, Cryptol defines two ``enum``
 declarations in the Cryptol standard library: ``Option`` and ``Result``:

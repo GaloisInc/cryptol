@@ -310,8 +310,10 @@ constraint. For instance, if you have
 
   newtype T a b = { f1 : a, f2 : b } deriving (Eq, Cmp)
 
-then ``Eq (T a b)`` will only hold if ``Eq ({f1 : a, f2 : b})`` holds, and ``Cmp
-(T a b)`` will only hold if ``Cmp ({f1 : a, f2 : b})`` holds.
+then ``Eq (T a b)`` will only hold if ``Eq ({f1 : a, f2 : b})`` holds, which in
+turn will only hold if both ``Eq a`` and ``Eq b`` hold. Similarly, ``Cmp (T a
+b)`` will only hold if ``Cmp ({f1 : a, f2 : b})`` holds, which in turn will only
+hold if both ``Cmp a`` and ``Cmp b`` hold.
 
 The behavior of the built-in overloaded operations on newtypes with derived
 instances is exactly the same as the behavior on their underlying record types,
@@ -338,7 +340,9 @@ then ``Eq (T a b)`` will only hold if ``Eq a`` and ``Eq b`` hold, and ``Cmp (T a
 b)`` will only hold if ``Cmp a`` and ``Cmp b`` hold.
 
 Two enum values of the same type compare equal if they have the same constructor
-and the same field values for that constructor, and unequal otherwise.
+and the same field values for that constructor, and unequal otherwise. For
+instance, using the ``T`` type above, ``A 0x0 == A 0x0``, but ``A 0x0 != A 0x1``
+and ``A 0x0 != B 0x0``.
 
 Two enum values of the same type are ordered first by their constructor, then
 for values with the same constructor, by lexicographic ordering on the fields of
@@ -346,5 +350,7 @@ that constructor. The order of constructors is the order in which they are
 listed in the ``enum`` declaration; constructors listed earlier compare less
 than constructors listed later. In the above example of ``T a b``, any value
 with constructor ``A`` always compares less than any value with constructor
-``B``. For signed comparisons, fields are compared using signed comparisons but
-constructors themselves are still ordered in the same way.
+``B``. So you would have ``A 0x0 < A 0x1 < B 0x0 < B 0x1``. For signed
+comparisons, fields are compared using signed comparisons but constructors
+themselves are still ordered in the same way, so ``A (-1) <$ A 1 <$ B
+(-1) <$ B 1``.
