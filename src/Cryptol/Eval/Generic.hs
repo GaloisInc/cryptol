@@ -781,8 +781,8 @@ cmpValue sym merge fb fw fi fz fq ff ftag = cmp
         TVFloat _ _   -> ff (fromVFloat v1) (fromVFloat v2) k
         TVIntMod n    -> fz n (fromVInteger v1) (fromVInteger v2) k
         TVRational    -> fq (fromVRational v1) (fromVRational v2) k
-        TVArray{}     -> panic "Cryptol.Prims.Value.cmpValue"
-                               [ "Arrays are not comparable" ]
+        TVArray{}     -> evalPanic "Cryptol.Eval.Generic.cmpValue"
+                                   [ "Arrays are not comparable" ]
         TVSeq n t
           | isTBit t  -> do w1 <- fromVWord sym "cmpValue" v1
                             w2 <- fromVWord sym "cmpValue" v2
@@ -791,10 +791,10 @@ cmpValue sym merge fb fw fi fz fq ff ftag = cmp
                            (enumerateSeqMap n (fromVSeq v1))
                            (enumerateSeqMap n (fromVSeq v2))
                            k
-        TVStream _    -> panic "Cryptol.Prims.Value.cmpValue"
-                                [ "Infinite streams are not comparable" ]
-        TVFun _ _     -> panic "Cryptol.Prims.Value.cmpValue"
-                               [ "Functions are not comparable" ]
+        TVStream _    -> evalPanic "Cryptol.Eval.Generic.cmpValue"
+                                   [ "Infinite streams are not comparable" ]
+        TVFun _ _     -> evalPanic "Cryptol.Eval.Generic.cmpValue"
+                                   [ "Functions are not comparable" ]
         TVTuple tys   -> cmpValues tys (fromVTuple v1) (fromVTuple v2) k
         TVRec fields  -> cmpRecord fields
 
