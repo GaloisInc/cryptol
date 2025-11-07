@@ -1,5 +1,7 @@
 # next -- TBA
 
+# 3.4.0 -- 2025-11-07
+
 ## Language changes
 
 * When running validation commands (`:check`, `:prove`, `:exhaust`, etc.)

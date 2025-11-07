@@ -2,6 +2,8 @@
 
 ## next -- TBA
 
+## 3.4.0 -- 2025-11-07
+
 * Add a `--version`/`-v` command-line option.
 
 ## 3.3.0 -- 2025-03-21
