@@ -108,6 +108,7 @@ $white+                   { emit $ White Space }
 "interface"               { emit $ KW KW_interface }
 "newtype"                 { emit $ KW KW_newtype }
 "enum"                    { emit $ KW KW_enum }
+"deriving"                { emit $ KW KW_deriving }
 "pragma"                  { emit $ KW KW_pragma }
 "property"                { emit $ KW KW_property }
 "then"                    { emit $ KW KW_then }

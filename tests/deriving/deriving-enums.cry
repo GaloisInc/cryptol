@@ -1,0 +1,62 @@
+enum T a b c d e = T1 a b | T2 c d | T3 e deriving (Eq, Cmp, SignedCmp)
+
+ts : [_](T [1] [2] [4] [6] [8])
+ts = [ T2 3 4
+     , T2 1 3
+     , T2 0 3
+     , T1 0 1
+     , T3 100
+     , T1 1 0
+     , T3 200
+     , T2 12 42
+     , T1 1 1
+     , T2 15 0
+     , T3 128
+     , T2 0 0
+     , T1 0 0
+     , T1 0 2
+     , T2 1 3
+     , T1 1 0
+     , T3 0
+     , T3 3
+     , T2 10 3
+     , T1 0 3
+     , T1 1 3
+     , T2 5 60
+     , T2 15 32
+     , T3 1
+     , T1 1 0
+     ]
+
+// Check that constructors are ordered correctly.
+
+ctorOrdering : (T [2] [2] [2] [2] [2] -> T [2] [2] [2] [2] [2] -> Bit)
+            -> [2] -> [2] -> [2] -> [2] -> [2] -> Bit
+ctorOrdering lt a b c d e = lt x y /\ lt y z
+  where
+    x, y, z : T [2] [2] [2] [2] [2]
+    x = T1 a b
+    y = T2 c d
+    z = T3 e
+
+property ctorOrderingUnsigned = ctorOrdering (<)
+property ctorOrderingSigned = ctorOrdering (<$)
+
+// Check that fields are ordered correctly.
+
+fieldOrdering : (T [2] [2] [2] [2] [2] -> T [2] [2] [2] [2] [2] -> Bit)
+             -> (([2], [2]) -> ([2], [2]) -> Bit)
+             -> ([2] -> [2] -> Bit)
+             -> [2] -> [2] -> [2] -> [2] -> Bit
+fieldOrdering opT opPair opBv a1 b1 a2 b2 =
+     opT (T1 a1 b1) (T1 a2 b2) == opPair (a1, b1) (a2, b2)
+  /\ opT (T2 a1 b1) (T2 a2 b2) == opPair (a1, b1) (a2, b2)
+  /\ opT (T3 a1) (T3 a2) == opBv a1 a2
+
+property fieldOrderingLt = fieldOrdering (<) (<) (<)
+property fieldOrderingGt = fieldOrdering (>) (>) (>)
+property fieldOrderingLeq = fieldOrdering (<=) (<=) (<=)
+property fieldOrderingGeq = fieldOrdering (>=) (>=) (>=)
+property fieldOrderingEq = fieldOrdering (==) (==) (==)
+property fieldOrderingNeq = fieldOrdering (!=) (!=) (!=)
+property fieldOrderingLtSigned = fieldOrdering (<$) (<$) (<$)

@@ -31,10 +31,13 @@ import Control.Monad.IO.Class (MonadIO(..))
 import System.Random.TF.Gen (seedTFGen)
 
 import Data.Bits ((.&.), shiftR)
+import Data.Foldable
 import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as Map
 import Data.Map(Map)
+import qualified Data.IntMap.Strict as IMap
 import Data.Ratio ((%))
+import qualified Data.Vector as Vector
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,nAdd)
@@ -247,13 +250,20 @@ ringBinary sym opw opi opz opq opfp = loop
 
     -- records
     TVRec fs ->
+      doRecord fs
+
+    TVNominal _ _ ntv ->
+      case ntv of
+        -- newtypes
+        TVStruct fs -> doRecord fs
+        _ -> evalPanic "ringBinary" ["Enum/Abstract type not in `Ring`"]
+
+    where
+    doRecord fs =
       do VRecord <$>
             traverseRecordMap
               (\f fty -> sDelay sym (loop' fty (lookupRecord f l) (lookupRecord f r)))
               fs
-
-    TVNominal {} ->
-      evalPanic "ringBinary" ["Nominal type not in `Ring`"]
 
 type UnaryWord sym = Integer -> SWord sym -> SEval sym (SWord sym)
 
@@ -326,12 +336,20 @@ ringUnary sym opw opi opz opq opfp = loop
 
     -- records
     TVRec fs ->
+      doRecord fs
+
+    TVNominal _ _ ntv ->
+      case ntv of
+        -- newtypes
+        TVStruct fs -> doRecord fs
+        _ -> evalPanic "ringUnary" ["Enum/Abstract type not in `Ring`"]
+
+    where
+    doRecord fs =
       VRecord <$>
         traverseRecordMap
           (\f fty -> sDelay sym (loop' fty (lookupRecord f v)))
           fs
-
-    TVNominal {} -> evalPanic "ringUnary" ["Nominal type not in `Ring`"]
 
 
 {-# SPECIALIZE ringNullary ::
@@ -393,12 +411,18 @@ ringNullary sym opw opi opz opq opfp = loop
              do xs <- mapM (sDelay sym . loop) tys
                 pure $ VTuple xs
 
-        TVRec fs ->
+        TVRec fs -> doRecord fs
+
+        TVNominal _ _ ntv ->
+          case ntv of
+            TVStruct fs -> doRecord fs
+            _ -> evalPanic "ringNullary" ["Enum/Abstract type not in `Ring`"]
+
+      where
+        doRecord fs =
              do xs <- traverse (sDelay sym . loop) fs
                 pure $ VRecord xs
 
-        TVNominal {} ->
-          evalPanic "ringNullary" ["Nominal type not in `Ring`"]
 
 {-# SPECIALIZE integralBinary :: Concrete -> BinWord Concrete ->
       (SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
@@ -725,26 +749,30 @@ toSignedIntegerV sym =
 
 {-# SPECIALIZE cmpValue ::
   Concrete ->
+  (SBit Concrete -> a -> a -> SEval Concrete a) ->
   (SBit Concrete -> SBit Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (SWord Concrete -> SWord Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (SRational Concrete -> SRational Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (SFloat Concrete -> SFloat Concrete -> SEval Concrete a -> SEval Concrete a) ->
+  (SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (TValue -> GenValue Concrete -> GenValue Concrete -> SEval Concrete a -> SEval Concrete a)
   #-}
 
 cmpValue ::
   Backend sym =>
   sym ->
+  (SBit sym -> a -> a -> SEval sym a) -> -- ^ how to merge @a@s based on a condition
   (SBit sym -> SBit sym -> SEval sym a -> SEval sym a) ->
   (SWord sym -> SWord sym -> SEval sym a -> SEval sym a) ->
   (SInteger sym -> SInteger sym -> SEval sym a -> SEval sym a) ->
   (Integer -> SInteger sym -> SInteger sym -> SEval sym a -> SEval sym a) ->
   (SRational sym -> SRational sym -> SEval sym a -> SEval sym a) ->
   (SFloat sym -> SFloat sym -> SEval sym a -> SEval sym a) ->
+  (SInteger sym -> SInteger sym -> SEval sym a -> SEval sym a) -> -- ^ how to compare enum tags
   (TValue -> GenValue sym -> GenValue sym -> SEval sym a -> SEval sym a)
-cmpValue sym fb fw fi fz fq ff = cmp
+cmpValue sym merge fb fw fi fz fq ff ftag = cmp
   where
     cmp ty v1 v2 k =
       case ty of
@@ -753,8 +781,8 @@ cmpValue sym fb fw fi fz fq ff = cmp
         TVFloat _ _   -> ff (fromVFloat v1) (fromVFloat v2) k
         TVIntMod n    -> fz n (fromVInteger v1) (fromVInteger v2) k
         TVRational    -> fq (fromVRational v1) (fromVRational v2) k
-        TVArray{}     -> panic "Cryptol.Prims.Value.cmpValue"
-                               [ "Arrays are not comparable" ]
+        TVArray{}     -> evalPanic "Cryptol.Eval.Generic.cmpValue"
+                                   [ "Arrays are not comparable" ]
         TVSeq n t
           | isTBit t  -> do w1 <- fromVWord sym "cmpValue" v1
                             w2 <- fromVWord sym "cmpValue" v2
@@ -763,19 +791,81 @@ cmpValue sym fb fw fi fz fq ff = cmp
                            (enumerateSeqMap n (fromVSeq v1))
                            (enumerateSeqMap n (fromVSeq v2))
                            k
-        TVStream _    -> panic "Cryptol.Prims.Value.cmpValue"
-                                [ "Infinite streams are not comparable" ]
-        TVFun _ _     -> panic "Cryptol.Prims.Value.cmpValue"
-                               [ "Functions are not comparable" ]
+        TVStream _    -> evalPanic "Cryptol.Eval.Generic.cmpValue"
+                                   [ "Infinite streams are not comparable" ]
+        TVFun _ _     -> evalPanic "Cryptol.Eval.Generic.cmpValue"
+                                   [ "Functions are not comparable" ]
         TVTuple tys   -> cmpValues tys (fromVTuple v1) (fromVTuple v2) k
-        TVRec fields  -> cmpValues
-                            (recordElements fields)
-                            (recordElements (fromVRecord v1))
-                            (recordElements (fromVRecord v2))
-                            k
+        TVRec fields  -> cmpRecord fields
 
-        TVNominal {} -> evalPanic "cmpValue"
-                          [ "Nominal type not in `Cmp`" ]
+        TVNominal _ _ ntv ->
+          case ntv of
+            TVStruct fields -> cmpRecord fields
+            TVEnum conTypes -> cmpEnum conTypes
+            TVAbstract -> evalPanic "Cryptol.Eval.Generic.cmpValue"
+                                    [ "Abstract types are not comparable" ]
+
+      where
+        cmpRecord fields = cmpValues
+                             (recordElements fields)
+                             (recordElements (fromVRecord v1))
+                             (recordElements (fromVRecord v2))
+                             k
+
+        cmpEnum conTypes = do
+          let (tag1, cons1) = fromVEnum v1
+              (tag2, cons2) = fromVEnum v2
+          -- first compare based on tag...
+          ftag tag1 tag2
+            -- if both tags are concrete...
+            case (integerAsLit sym tag1, integerAsLit sym tag2) of
+              (Just i, Just j)
+                -- ...then because the comparisons are lazy, this part should
+                -- only be evaluated if tag1 == tag2
+                | i == j -> do
+                  -- in the fully concrete case, just look up the fields for
+                  -- this constructor and compare them
+                  let i' = fromInteger i
+                  case (IMap.lookup i' cons1, IMap.lookup i' cons2) of
+                    (Just con1, Just con2) -> cmpFields i' con1 con2
+                    _ -> evalPanic "Cryptol.Eval.Generic.cmpValue"
+                           ["Missing constructor for tag", show i']
+                | otherwise ->
+                  evalPanic "Cryptol.Eval.Generic.cmpValue"
+                    [ "Concrete enum tags not equal in equal case"
+                    , "Comparisons not lazy enough?" ]
+              _ -> do
+                -- in the symbolic case, here tag1 may or may not equal tag2, so
+                -- we need to explicitly check this
+                sameTag <- intEq sym tag1 tag2
+                -- if tag1 == tag2, then compare by field, otherwise we are done
+                -- comparing
+                mergeEval sym merge sameTag doFields k
+                where
+                  doFields =
+                    -- build up an if-then-else chain for each possible tag
+                    -- value
+                    IMap.foldrWithKey doFieldsForTag notFound $
+                      -- since at this point we know tag1 == tag2, we only need
+                      -- to consider the intersection of their possible
+                      -- constructors
+                      IMap.intersectionWith (,) cons1 cons2
+                  doFieldsForTag i (con1, con2) doRest = do
+                    -- if the tag is i, then compare fields for constructor i
+                    i' <- integerLit sym (toInteger i)
+                    -- we know tag1 == tag2, so we arbitrarily use tag1 here
+                    isThisTag <- intEq sym tag1 i'
+                    mergeEval sym merge isThisTag
+                      (cmpFields i con1 con2)
+                      doRest
+                  notFound = raiseError sym $ NoMatchingConstructor Nothing
+          where
+            cmpFields i con1 con2 =
+              cmpValues
+                (toList (conFields (conTypes Vector.! i)))
+                (toList (conFields con1))
+                (toList (conFields con2))
+                k
 
     cmpValues (t : ts) (x1 : xs1) (x2 : xs2) k =
       do x1' <- x1
@@ -796,7 +886,7 @@ bitGreaterThan sym x y = bitLessThan sym y x
 
 {-# INLINE valEq #-}
 valEq :: Backend sym => sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym)
-valEq sym ty v1 v2 = cmpValue sym fb fw fi fz fq ff ty v1 v2 (pure $ bitLit sym True)
+valEq sym ty v1 v2 = cmpValue sym (iteBit sym) fb fw fi fz fq ff ftag ty v1 v2 (pure $ bitLit sym True)
   where
   fb x y k   = eqCombine sym (bitEq  sym x y) k
   fw x y k   = eqCombine sym (wordEq sym x y) k
@@ -804,11 +894,12 @@ valEq sym ty v1 v2 = cmpValue sym fb fw fi fz fq ff ty v1 v2 (pure $ bitLit sym 
   fz m x y k = eqCombine sym (znEq sym m x y) k
   fq x y k   = eqCombine sym (rationalEq sym x y) k
   ff x y k   = eqCombine sym (fpEq sym x y) k
+  ftag       = fi
 
 {-# INLINE valLt #-}
 valLt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
-valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz fq ff ty v1 v2 (pure final)
+valLt sym ty v1 v2 final = cmpValue sym (iteBit sym) fb fw fi fz fq ff ftag ty v1 v2 (pure final)
   where
   fb x y k   = lexCombine sym (bitLessThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordLessThan sym x y) (wordEq sym x y) k
@@ -816,11 +907,12 @@ valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz fq ff ty v1 v2 (pure final)
   fz _ _ _ _ = panic "valLt" ["Z_n is not in `Cmp`"]
   fq x y k   = lexCombine sym (rationalLessThan sym x y) (rationalEq sym x y) k
   ff x y k   = lexCombine sym (fpLessThan   sym x y) (fpEq   sym x y) k
+  ftag       = fi
 
 {-# INLINE valGt #-}
 valGt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
-valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz fq ff ty v1 v2 (pure final)
+valGt sym ty v1 v2 final = cmpValue sym (iteBit sym) fb fw fi fz fq ff ftag ty v1 v2 (pure final)
   where
   fb x y k   = lexCombine sym (bitGreaterThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordGreaterThan sym x y) (wordEq sym x y) k
@@ -828,6 +920,7 @@ valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz fq ff ty v1 v2 (pure final)
   fz _ _ _ _ = panic "valGt" ["Z_n is not in `Cmp`"]
   fq x y k   = lexCombine sym (rationalGreaterThan sym x y) (rationalEq sym x y) k
   ff x y k   = lexCombine sym (fpGreaterThan   sym x y) (fpEq   sym x y) k
+  ftag       = fi
 
 {-# INLINE eqCombine #-}
 eqCombine :: Backend sym =>
@@ -835,7 +928,12 @@ eqCombine :: Backend sym =>
   SEval sym (SBit sym) ->
   SEval sym (SBit sym) ->
   SEval sym (SBit sym)
-eqCombine sym eq k = join (bitAnd sym <$> eq <*> k)
+eqCombine sym eq k =
+  do e <- eq
+     -- lazy `and` operator
+     case bitAsLit sym e of
+       Just False -> pure e
+       _ -> bitAnd sym e =<< k
 
 {-# INLINE lexCombine #-}
 lexCombine :: Backend sym =>
@@ -846,8 +944,15 @@ lexCombine :: Backend sym =>
   SEval sym (SBit sym)
 lexCombine sym cmp eq k =
   do c <- cmp
-     e <- eq
-     bitOr sym c =<< bitAnd sym e =<< k
+     -- lazy `or` operator
+     case bitAsLit sym c of
+       Just True -> pure c
+       _ ->
+         do e <- eq
+            -- lazy `and` operator
+            case bitAsLit sym e of
+              Just False -> pure c
+              _          -> bitOr sym c =<< bitAnd sym e =<< k
 
 {-# INLINE eqV #-}
 eqV :: Backend sym => sym -> Binary sym
@@ -875,7 +980,8 @@ greaterThanEqV sym ty v1 v2 = VBit <$> valGt sym ty v1 v2 (bitLit sym True)
 
 {-# INLINE signedLessThanV #-}
 signedLessThanV :: Backend sym => sym -> Binary sym
-signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz fq ff ty v1 v2 (pure $ bitLit sym False)
+signedLessThanV sym ty v1 v2 =
+  VBit <$> cmpValue sym (iteBit sym) fb fw fi fz fq ff ftag ty v1 v2 (pure $ bitLit sym False)
   where
   fb _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on bit type"]
   fw x y k   = lexCombine sym (wordSignedLessThan sym x y) (wordEq sym x y) k
@@ -883,6 +989,7 @@ signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz fq ff ty v1 v2 
   fz m _ _ _ = panic "signedLessThan" ["Attempted to perform signed comparison on Z_" ++ show m ++ " type"]
   fq _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Rational type"]
   ff _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Float"]
+  ftag x y k = lexCombine sym (intLessThan sym x y) (intEq sym x y) k
 
 
 
@@ -942,11 +1049,18 @@ zeroV sym ty = case ty of
 
   -- records
   TVRec fields ->
+    doRecord fields
+
+  -- newtypes
+  TVNominal _ _ ntv ->
+    case ntv of
+      TVStruct fields -> doRecord fields
+      _ -> evalPanic "zeroV" [ "Enum/Abstract type not in `Zero`" ]
+
+  where
+  doRecord fields =
       do xs <- traverse (sDelay sym . zeroV sym) fields
          pure $ VRecord xs
-
-  TVNominal {} -> evalPanic "zeroV" [ "Nominal type not in `Zero`" ]
-
 
 {-# SPECIALIZE joinSeq ::
   Concrete ->
@@ -1289,14 +1403,20 @@ logicBinary sym opb opw = loop
     TVFun _ bty ->
         lam sym $ \ a -> loop' bty (fromVFun sym l a) (fromVFun sym r a)
 
-    TVRec fields ->
+    TVRec fields -> doRecord fields
+
+    TVNominal _ _ ntv ->
+      case ntv of
+        TVStruct fields -> doRecord fields
+        _ -> evalPanic "logicBinary"
+                 [ "Enum/Abstract type not in `Logic`" ]
+
+    where
+    doRecord fields =
       VRecord <$>
         traverseRecordMap
           (\f fty -> sDelay sym (loop' fty (lookupRecord f l) (lookupRecord f r)))
           fields
-
-    TVNominal {} -> evalPanic "logicBinary"
-                        [ "Nominal type not in `Logic`" ]
 
 {-# SPECIALIZE logicUnary ::
   Concrete ->
@@ -1346,13 +1466,19 @@ logicUnary sym opb opw = loop
     TVFun _ bty ->
       lam sym $ \ a -> loop' bty (fromVFun sym val a)
 
-    TVRec fields ->
+    TVRec fields -> doRecord fields
+
+    TVNominal _ _ ntv ->
+      case ntv of
+        TVStruct fields -> doRecord fields
+        _ -> evalPanic "logicUnary" [ "Enum/Abstract type not in `Logic`" ]
+
+    where
+    doRecord fields =
       VRecord <$>
         traverseRecordMap
           (\f fty -> sDelay sym (loop' fty (lookupRecord f val)))
           fields
-
-    TVNominal {} -> evalPanic "logicUnary" [ "Nominal type not in `Logic`" ]
 
 
 {-# INLINE assertIndexInBounds #-}

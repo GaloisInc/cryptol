@@ -7,7 +7,8 @@ import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.Solver.Numeric.Fin(cryIsFinType)
 import Cryptol.TypeCheck.Solver.Numeric(cryIsEqual, cryIsNotEqual, cryIsGeq, cryIsPrime)
 import Cryptol.TypeCheck.Solver.Class
-  ( solveZeroInst, solveLogicInst, solveRingInst
+  ( solveDerivedInst
+  , solveZeroInst, solveLogicInst, solveRingInst
   , solveIntegralInst, solveFieldInst, solveRoundInst
   , solveEqInst, solveCmpInst, solveSignedCmpInst
   , solveLiteralInst
@@ -46,6 +47,9 @@ simplifyStep ctxt prop =
   case tNoUser prop of
     TCon (PC PTrue)  []        -> SolvedIf []
     TCon (PC PAnd)   [l,r]     -> SolvedIf [l,r]
+
+    TCon (PC pc) [ty]
+      | TNominal nt targs <- tNoUser ty -> solveDerivedInst pc nt targs
 
     TCon (PC PZero)  [ty]      -> solveZeroInst ty
     TCon (PC PLogic) [ty]      -> solveLogicInst ty

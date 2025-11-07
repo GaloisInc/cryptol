@@ -1,0 +1,14 @@
+:l deriving-enums.cry
+sort ts
+sortBy (<$) ts
+:set base=2
+[x == T1 1 0 | x <- ts]
+:set proverStats=off
+:prove
+:exhaust
+Some True == Some True
+Some False < Some True
+Some (-1 : [8]) <$ Some 1
+Ok True == (Ok True : Result Bit Bit)
+Ok False < (Ok True : Result Bit Bit)
+Err (-1) <$ (Err 1 : Result [8] [8])

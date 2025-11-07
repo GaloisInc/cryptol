@@ -642,7 +642,7 @@ x >=$ y = ~(x <$ y)
  * functions, i.e., functions that are not defined over their entire input
  * range. In these situations, 'None' can be used as a placeholder return value.
  */
-enum Option a = None | Some a
+enum Option a = None | Some a deriving (Eq, Cmp, SignedCmp)
 
 /**
  * Values of the 'Result t e' type can either be 'Ok', representing success and
@@ -651,7 +651,7 @@ enum Option a = None | Some a
  * expected and recoverable. For instance, 'e' might be a 'String' with an error
  * message, or it might be an 'Integer' with an error code.
  */
-enum Result t e = Ok t | Err e
+enum Result t e = Ok t | Err e deriving (Eq, Cmp, SignedCmp)
 
 // Bit specific operations ----------------------------------------
 

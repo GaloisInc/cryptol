@@ -620,24 +620,27 @@ mkPropSyn thead tdef =
 mkNewtype ::
   Type PName ->
   Located (RecordMap Ident (Range, Type PName)) ->
+  [Located PName] ->
   ParseM (Newtype PName)
-mkNewtype thead def =
+mkNewtype thead def derivs =
   do (nm,params) <- typeToDecl thead
-     pure (Newtype nm params (thing nm) (thing def))
+     pure (Newtype nm params (thing nm) (thing def) derivs)
 
 mkEnumDecl ::
   Type PName ->
   [ TopLevel (EnumCon PName) ] {- ^ Reversed -} ->
+  [Located PName] ->
   ParseM (EnumDecl PName)
-mkEnumDecl thead def =
+mkEnumDecl thead def derivs =
   do (nm,params) <- typeToDecl thead
      mapM_ reportRepeated
         (Map.toList (Map.fromListWith (++) [ (thing k,[srcRange k])
                                            | k <- map (ecName . tlValue) def ]))
      pure EnumDecl
-            { eName   = nm
-            , eParams = params
-            , eCons   = reverse def
+            { eName     = nm
+            , eParams   = params
+            , eCons     = reverse def
+            , eDeriving = derivs
             }
   where
   reportRepeated (i,xs) =

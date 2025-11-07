@@ -28,6 +28,15 @@
   section](https://galoisinc.github.io/cryptol/master/FFI.html#the-abstract-calling-convention)
   for more information.
 
+* User-defined `newtype` and `enum` types can now derive instances for standard
+  constraints like `Eq` and `Cmp`. This means you can use standard operations
+  like `==` with your custom types. See the [manual
+  section](https://galoisinc.github.io/cryptol/master/OverloadedOperations.html#derived-instances)
+  for more information.
+
+* The built-in types `Option` and `Result` now have derived instances for `Eq`,
+  `Cmp`, and `SignedCmp`.
+
 * Allow an explicit `;` separator between `case` branches. This change removes the
   unreachable code in the grammar for `case` and `where` expressions with explicit
   `{` and `}` that was never reachable due to the way the layout rule worked.
@@ -50,6 +59,11 @@
 
 * Fix browsing of `main` modules.
   crashing. ([#1874](https://github.com/GaloisInc/cryptol/issues/1857))
+
+* Make comparison operators lazy so that they do not evaluate any more of the
+  data structure than is required to determine the comparison result, matching
+  the behavior of the reference evaluator.
+  ([#1925](https://github.com/GaloisInc/cryptol/issues/1925))
 
 ## New Features
 

@@ -1,0 +1,3 @@
+enum T a b = A a | B b deriving (Cmp, SignedCmp)
+
+newtype N a b = { a : a, b : b } deriving (Cmp, SignedCmp, Ring, Logic)

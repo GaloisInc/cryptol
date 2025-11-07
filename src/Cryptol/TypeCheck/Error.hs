@@ -89,6 +89,7 @@ data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
               | DefaultingTo !TVarInfo Type
               | NonExhaustivePropGuards Name
+              | DuplicateDeriving PC
                 deriving (Show, Generic, NFData)
 
 -- | Various errors that might happen during type checking/inference
@@ -116,6 +117,19 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 --   expected number of parameters from signature.
                 --   More patterns provided for a bind than expected,
                 --   given its signature.
+
+              | ClassNotDerivable
+                -- ^ Deriving unsupported typeclass
+                  Name   -- ^ The thing that the user tried to derive
+                  String -- ^ Description of the type declaration
+                  [PC]   -- ^ The supported typeclasses for deriving on this
+                         --   sort of type declaration
+
+              | DerivingMissingSuperclasses
+                -- ^ Deriving instance for a class without deriving instances
+                --   for its superclasses
+                  PC   -- ^ The class listed in the deriving clause
+                  [PC] -- ^ Its superclasses not listed in the deriving clause
 
               | TypeMismatch TypeSource Path Type Type
                 -- ^ Expected type, inferred type
@@ -245,6 +259,8 @@ errorImportance err =
     KindMismatch {}                                  -> 10
     TyVarWithParams {}                               -> 9
     TooManyParams{}                                  -> 9
+    ClassNotDerivable{}                              -> 8
+    DerivingMissingSuperclasses{}                    -> 8
     TypeMismatch {}                                  -> 8
     EnumTypeMismatch {}                              -> 7
     SchemaMismatch {}                                -> 7
@@ -301,6 +317,7 @@ instance TVars Warning where
       DefaultingWildType {} -> warn
       DefaultingTo d ty     -> DefaultingTo d $! (apSubst su ty)
       NonExhaustivePropGuards {} -> warn
+      DuplicateDeriving {}  -> warn
 
 instance FVS Warning where
   fvs warn =
@@ -309,6 +326,7 @@ instance FVS Warning where
       DefaultingWildType {} -> Set.empty
       DefaultingTo _ ty     -> fvs ty
       NonExhaustivePropGuards {} -> Set.empty
+      DuplicateDeriving {}  -> Set.empty
 
 instance TVars Error where
   apSubst su err =
@@ -322,6 +340,8 @@ instance TVars Error where
       SchemaMismatch i t1 t2  ->
         SchemaMismatch i !$ (apSubst su t1) !$ (apSubst su t2)
       TooManyParams b t i j     -> TooManyParams b !$ (apSubst su t) .$ i .$ j
+      ClassNotDerivable {}      -> err
+      DerivingMissingSuperclasses {} -> err
       TypeMismatch src pa t1 t2 -> TypeMismatch src pa !$ (apSubst su t1) !$ (apSubst su t2)
       EnumTypeMismatch t        -> EnumTypeMismatch !$ apSubst su t
       InvalidConPat {}          -> err
@@ -375,6 +395,8 @@ instance FVS Error where
       RecursiveTypeDecls {}     -> Set.empty
       SchemaMismatch _ t1 t2    -> fvs (t1,t2)
       TooManyParams _ t _ _     -> fvs t
+      ClassNotDerivable {}      -> Set.empty
+      DerivingMissingSuperclasses {} -> Set.empty
       TypeMismatch _ _ t1 t2    -> fvs (t1,t2)
       EnumTypeMismatch t        -> fvs t
       InvalidConPat {}          -> Set.empty
@@ -439,6 +461,9 @@ instance PP (WithNames Warning) where
       NonExhaustivePropGuards n ->
         text "Could not prove that the constraint guards used in defining" <+>
         pp n <+> text "were exhaustive."
+
+      DuplicateDeriving pc ->
+        "Duplicate" <+> pp pc <+> "in deriving clause"
 
 instance PP (WithNames Error) where
   ppPrec _ (WithNames err names) =
@@ -505,6 +530,16 @@ instance PP (WithNames Error) where
             [ "Expected number of parameters:" <+> int j
             , "Actual number of parameters:" <+> int i
             , "When defining" <+> quotes ((pp n <> ":") <+> ppWithNames names t) ]
+
+      ClassNotDerivable badCls declDesc allowed ->
+        "Cannot derive" <+> backticks (pp badCls) $$
+        nested ("Derivable constraints for" <+> text declDesc <+> "declarations are:")
+          (commaSepFill (map pp allowed))
+
+      DerivingMissingSuperclasses pc supers ->
+        "Missing superclass(es) for" <+> pp pc $$
+        "To derive this constraint, you must also derive:" <+>
+          commaSepFill (map pp supers)
 
       TypeMismatch src pa t1 t2 ->
         addTVarsDescsAfter names err $

@@ -1,0 +1,5 @@
+type MyEq = Eq
+
+enum T a b = A a | B b deriving (Eq, Cmp, SignedCmp, Zero, Logic, Ring, Integral, Field, Round, Literal, fin, prime, Integer, Option, MyEq)
+
+newtype N a b = { a : a, b : b } deriving (Eq, Cmp, SignedCmp, Zero, Logic, Ring, Integral, Field, Round, Literal, fin, prime, Integer, Option, T, MyEq)
