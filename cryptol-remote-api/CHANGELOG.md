@@ -1,5 +1,7 @@
 # Revision history for `cryptol-remote-api` and `cryptol-eval-server`
 
+## next -- TBA
+
 ## 3.4.0 -- 2025-11-07
 
 * Add a `--version`/`-v` command-line option.
