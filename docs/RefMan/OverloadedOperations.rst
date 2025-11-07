@@ -47,6 +47,10 @@ Equality
     - ``Eq a``, ``Eq b``
   * - ``{f1 : a, f2 : b}``
     - ``Eq a``, ``Eq b``
+  * - ``Option a``
+    - ``Eq a``
+  * - ``Result t e``
+    - ``Eq t``, ``Eq e``
 
 
 
@@ -83,6 +87,10 @@ Comparisons
     - ``Cmp a``, ``Cmp b``
   * - ``{f1 : a, f2 : b}``
     - ``Cmp a``, ``Cmp b``
+  * - ``Option a``
+    - ``Cmp a``
+  * - ``Result t e``
+    - ``Cmp t``, ``Cmp e``
 
 
 
@@ -111,6 +119,10 @@ Signed Comparisons
     - ``SignedCmp a``, ``SignedCmp b``
   * - ``{f1 : a, f2 : b}``
     - ``SignedCmp a``, ``SignedCmp b``
+  * - ``Option a``
+    - ``SignedCmp a``
+  * - ``Result t e``
+    - ``SignedCmp t``, ``SignedCmp e``
 
 
 Zero
@@ -354,3 +366,8 @@ with constructor ``A`` always compares less than any value with constructor
 comparisons, fields are compared using signed comparisons but constructors
 themselves are still ordered in the same way, so ``A (-1) <$ A 1 <$ B
 (-1) <$ B 1``.
+
+The ``Eq``, ``Cmp``, and ``SignedCmp`` instances for the built-in ``Option`` and
+``Result`` types are actually just standard derived instances, so they work the
+same way as described above (for instance, ``None < Some x``, ``Ok x < Err
+y``).

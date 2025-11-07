@@ -141,9 +141,9 @@ declarations in the Cryptol standard library: ``Option`` and ``Result``:
 
 .. code-block:: cryptol
 
-  enum Option a = None | Some a
+  enum Option a = None | Some a deriving (Eq, Cmp, SignedCmp)
 
-  enum Result t e = Ok t | Err e
+  enum Result t e = Ok t | Err e deriving (Eq, Cmp, SignedCmp)
 
 The ``Option a`` type represents an optional value, which can either be a value
 of type ``a`` (``Some``) or no value at all ``None``. A value of type ``Result
@@ -175,6 +175,10 @@ One could also model this with ``Result``:
 
 With either result type, one can gracefully recover from ``f 42`` erroring by
 matching on ``None`` or ``Err`` in a ``case`` expression.
+
+Note that ``Option`` and ``Result`` both derive ``Eq``, ``Cmp``, and
+``SignedCmp`` instances, so you can use comparison operators on values of those
+types.
 
 **Upper Case Restriction.**
 The names of the constructors in an ``enum`` declarations
