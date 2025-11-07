@@ -1,5 +1,15 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+
+-- | Most of this module is re-exported by "Cryptol.TypeCheck.Subst", so you
+-- probably want to import that instead of this.
+--
+-- The exception being, if you want to substitute types without performing
+-- simplification afterwards, then you should use 'apSubstNoSimp' from this
+-- module. It is in this module so that you can use it from places like the
+-- typeclass solver itself, to avoid a module import cycle (since the regular
+-- 'Cryptol.TypeCheck.Subst.apSubst' has to import the class solver to do the
+-- substitution).
 module Cryptol.TypeCheck.Subst.Type
   ( Subst(..)
   , emptySubst
@@ -219,6 +229,14 @@ apSubstMaybe' simpProp su ty =
     TVar x -> applySubstToVar' (apSubstMaybe' simpProp) su x
 
 -- | Apply a substitution without simplifying the result when it is a predicate.
+--
+-- This is used by the typeclass solver itself, if it needs to perform
+-- substitution; e.g., when solving derived instances for nominal types. Some
+-- code asks the typeclass solver to do only a single simplification step; if it
+-- called the regular 'Cryptol.TypeCheck.Subst.apSubst' which simplifies
+-- recursively after substitution, then it would do many simplification steps
+-- instead of one, resulting in worse error messages. Not doing simplification
+-- also allows us to avoid a module dependency cycle.
 apSubstNoSimp :: Subst -> Type -> Type
 apSubstNoSimp su ty = fromMaybe ty (apSubstMaybe' id su ty)
 
