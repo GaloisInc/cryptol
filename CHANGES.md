@@ -58,6 +58,11 @@
 * Fix browsing of `main` modules.
   crashing. ([#1874](https://github.com/GaloisInc/cryptol/issues/1857))
 
+* Make comparison operators lazy so that they do not evaluate any more of the
+  data structure than is required to determine the comparison result, matching
+  the behavior of the reference evaluator.
+  ([#1925](https://github.com/GaloisInc/cryptol/issues/1925))
+
 ## New Features
 
 * New REPL command `:saw` to run SAW on a SAW file, usable in docstrings.
