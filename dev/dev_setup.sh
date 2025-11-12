@@ -37,7 +37,7 @@ GHCUP_URL="https://downloads.haskell.org/~ghcup"
 GHC_VERSION="9.4.8"
 CABAL_VERSION="3.10.3.0"
 
-WHAT4_SOLVERS_SNAPSHOT="snapshot-20250606"
+WHAT4_SOLVERS_SNAPSHOT="snapshot-20251112"
 WHAT4_SOLVERS_URL="https://github.com/GaloisInc/what4-solvers/releases/download/$WHAT4_SOLVERS_SNAPSHOT"
 WHAT4_SOLVERS_MACOS_13="macos-13-X64-bin.zip"
 WHAT4_SOLVERS_MACOS_14="macos-14-ARM64-bin.zip"

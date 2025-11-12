@@ -106,7 +106,7 @@ RUN case ${TARGETPLATFORM} in \
         printf "Unsupported architecture: %s\n" "${TARGETPLATFORM}" >&2 \
         exit 1 ;; \
     esac && \
-    curl -sL -o solvers.zip "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20250606/ubuntu-22.04-${WHAT4_SOLVERS_ARCH}-bin.zip" && \
+    curl -sL -o solvers.zip "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20251112/ubuntu-22.04-${WHAT4_SOLVERS_ARCH}-bin.zip" && \
     unzip solvers.zip && rm solvers.zip && chmod +x *
 USER root
 RUN chown -R root:root /cryptol/rootfs
