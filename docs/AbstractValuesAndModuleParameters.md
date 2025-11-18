@@ -10,7 +10,7 @@ We would like to extend Cryptol with two related, yet different features:
     mechanism to instantiate abstract values with concrete implamentations:
     this might be useful for testing abstract theories,
     implementing language primitives or, more generally, providing a
-    foregin function interface to Cryptol.
+    foreign function interface to Cryptol.
 
   2. The ability to parametrize modules by types and values.  This feature
     is similar to the first in that from the point of view of a module,
@@ -149,7 +149,7 @@ With this restriction, the rule is that two module instantiations are the
 same if they have the same parameters, where types are compared as usual,
 and values are compared by name.  Here are some examples:
 
-      moudle X where
+      module X where
       parameter
         type T : #
         val : [T]
@@ -162,17 +162,17 @@ and values are compared by name.  Here are some examples:
 In module `Examples` all instantiations of `X` are different because `val`
 uses different names.  In particular, `E2` and `E3` are different even though
 `val` is essentially given the same value.  Comparing names allows us to
-avoid having to evalute while checking, but more importantly it allows us
+avoid having to evaluate while checking, but more importantly it allows us
 to deal with parameters that are functions, which are can't be easily compared
 for equality.
 
 Naming Instantiations
 ---------------------
 
-If a module has quite a few paramters, it might be nice to allow to
+If a module has quite a few parameters, it might be nice to allow to
 name a specific instantiation which can then be used in many places.
 For example, we could have a module implementing some parametrized algorithm,
-but in a speicific application we would always use a specific instance of
+but in a specific application we would always use a specific instance of
 the algorithm.  One way to do this might be allow module like this:
 
     module SpecificAlg = GeneralAlg where
@@ -197,10 +197,10 @@ of `GeneralAlg`.  The declarations following the `where` keyword are
 similar to an ordinary module, but in this form they are just there
 to specify the instantiation of `GeneralAlg`.  In particular, the
 body should have a name in scope for each parameter of `GeneralAlg`.
-The body may contain other auxilliary declaratoins that are used
+The body may contain other auxiliary declaratoins that are used
 to define the instance but are not exported directly.
 
-XXX: Deisgn choice: we may want to insist that this kind of named instantiation
+XXX: Design choice: we may want to insist that this kind of named instantiation
 is the only way to instantiate modules.  If we do that, then the generativity
 issues from the previous section become less important: each named instance
 generates a fresh instance of everything, and one has to import the same module

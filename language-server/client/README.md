@@ -9,5 +9,5 @@ The exteions supports:
 
   * Syntax highlighting
   * View documentation when hovering over an identify
-  * Go to defintion
-  * Show type information for identifers and numeric literal
+  * Go to definition
+  * Show type information for identifiers and numeric literal

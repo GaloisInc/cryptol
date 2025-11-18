@@ -43,7 +43,7 @@ which is defined in the `/tests/` directory. It is invoked with the
 location of the `cryptol` executable, an output directory, and
 standard `test-framework` command line arguments.
 
-## Creaing a new test
+## Creating a new test
 
 A test consists at minimum of an `.icry` file, which is a batch-mode
 file for the interpreter, and an `.icry.stdout` file, which contains
