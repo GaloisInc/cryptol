@@ -1,4 +1,4 @@
-Typeclass Heriarchy
+Typeclass Hierarchy
 ---------------------
 
           Zero

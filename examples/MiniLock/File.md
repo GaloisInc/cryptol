@@ -26,7 +26,7 @@ The file format is:
 Variable sized formats are potentially awkward for Cryptol because Cryptol
 encodes the length of values in the type. For example, the header size varies
 in the JS implementation. Fortunately this variablity is all due to either the
-arbitrary choices of the encoder or things deterministicly dependent on the
+arbitrary choices of the encoder or things deterministically dependent on the
 input type (vs value).  For an example of the later case, the number of
 recipients leads to a variable header size that is computable from the input
 type. The former is a larger issue - for example a Base58 encoding of 0 could
@@ -45,7 +45,7 @@ The header format is:
 >     (One copy of the below object for every recipient)
 >     Unique nonce for decrypting this object (Base64): {
 >         senderID: Sender's miniLock ID (Base58),
->         recipientID: miniLock ID of this recipient (used for verfication) (Base58),
+>         recipientID: miniLock ID of this recipient (used for verification) (Base58),
 >         fileInfo: {
 >             fileKey: Key for file decryption (Base64),
 >             fileNonce: Nonce for file decryption (Base64),
@@ -55,7 +55,7 @@ The header format is:
 > }
 
 ```cryptol
-// Size of a given minilock container depends soley on the number of recipients and the plaintext
+// Size of a given minilock container depends solely on the number of recipients and the plaintext
 type MiniLockBytes nrRecip fileSize = 8 + 4 + 89 + (DecryptInfoSize + 1) * nrRecip + EncryptedBytes fileSize - 1
 
 minilock : {nrRecip, fileNameBytes, msgBytes}
