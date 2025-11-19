@@ -191,7 +191,10 @@ jobs:
       # request info because we might also be on master in a fork. It
       # seems that you can't stop scheduled jobs from also running in
       # forks. See https://github.com/orgs/community/discussions/16109.
-      - if: runner.os == 'Windows' && github.event.pull_request.head.repo.fork == false && github.repository_owner == 'GaloisInc'
+      - if: runner.os == 'Windows' &&
+            github.event.pull_request.head.repo.fork == false &&
+            github.repository_owner == 'GaloisInc' &&
+            github.actor != 'dependabot[bot]'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -220,7 +223,9 @@ jobs:
       # request info because we might also be on master in a fork. It
       # seems that you can't stop scheduled jobs from also running in
       # forks. See https://github.com/orgs/community/discussions/16109.
-      - if: github.event.pull_request.head.repo.fork == false && github.repository_owner == 'GaloisInc'
+      - if: github.event.pull_request.head.repo.fork == false &&
+            github.repository_owner == 'GaloisInc' &&
+            github.actor != 'dependabot[bot]'
         shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
@@ -424,7 +429,9 @@ jobs:
     # Do not run this on forks. It seems that you can't stop scheduled
     # jobs from also running in forks. See
     # https://github.com/orgs/community/discussions/16109.
-    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.config.outputs.release == 'true') && github.repository_owner == 'GaloisInc'
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.config.outputs.release == 'true') &&
+        github.repository_owner == 'GaloisInc' &&
+        github.actor != 'dependabot[bot]'
     strategy:
       fail-fast: false
       matrix:
