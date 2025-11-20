@@ -659,14 +659,14 @@ getFocusedEnv :: REPL M.ModContext
 getFocusedEnv  = M.focusedEnv <$> getModuleEnv
 
 -- | Get visible variable names.
--- This is used for command line completition.
+-- This is used for command line completion.
 getExprNames :: REPL [String]
 getExprNames =
   do fNames <- M.mctxNames <$> getFocusedEnv
      return (map (show . pp) (Map.keys (M.namespaceMap M.NSValue fNames)))
 
 -- | Get visible type signature names.
--- This is used for command line completition.
+-- This is used for command line completion.
 getTypeNames :: REPL [String]
 getTypeNames  =
   do fNames <- M.mctxNames <$> getFocusedEnv
