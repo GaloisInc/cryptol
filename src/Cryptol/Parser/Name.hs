@@ -8,6 +8,7 @@
 
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Cryptol.Parser.Name where
 
@@ -33,7 +34,7 @@ data UnQualVisibility = UserVisible | SystemVisible
   deriving (Eq,Ord,Show,Generic)
 
 -- | Names that originate in the parser.
-data PName = UnQual !Ident !UnQualVisibility
+data PName = UnQual' !Ident !UnQualVisibility
              -- ^ Unqualified names like @x@, @Foo@, or @+@.
            | Qual !ModName !Ident
              -- ^ Qualified names like @Foo::bar@ or @module::!@.
@@ -50,14 +51,20 @@ data Pass = NoPat
 instance NFData PName
 instance NFData Pass
 
+-- | Pattern synonym for when we are trying to deconstruct
+--   unqualified PNames to get their identifiers.
+pattern UnQual :: Ident -> PName
+pattern UnQual i <- UnQual' i _
+
+
 mkUnqual :: Ident -> UnQualVisibility -> PName
-mkUnqual  = UnQual
+mkUnqual  = UnQual'
 
 mkUnqualUser :: Ident -> PName
-mkUnqualUser  = (`UnQual` UserVisible)
+mkUnqualUser  = (`UnQual'` UserVisible)
 
 mkUnqualSystem :: Ident -> PName
-mkUnqualSystem = (`UnQual` SystemVisible)
+mkUnqualSystem = (`UnQual'` SystemVisible)
 
 mkQual :: ModName -> Ident -> PName
 mkQual  = Qual
@@ -70,7 +77,7 @@ origNameToDefPName og = toPName (ogName og)
   where
   toPName =
     case ogFromParam og of
-      Nothing -> UnQual
+      Nothing -> UnQual'
       Just sig -> Qual (identToModName sig)
 
 getModName :: PName -> Maybe ModName
@@ -78,7 +85,7 @@ getModName (Qual ns _) = Just ns
 getModName _           = Nothing
 
 getIdent :: PName -> Ident
-getIdent (UnQual n _)    = n
+getIdent (UnQual n)    = n
 getIdent (Qual _ n)    = n
 getIdent (NewName p i) = packIdent ("__" ++ pass ++ show i)
   where
