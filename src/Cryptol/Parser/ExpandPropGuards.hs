@@ -282,10 +282,10 @@ newName locName props =
       let txt = identText ident
           txt' = pack $ show $ pp props
        in Qual modName (mkIdent $ txt <> txt') <$ locName
-    UnQual ident ->
+    UnQual' ident ns ->
       let txt = identText ident
           txt' = pack $ show $ pp props
-       in UnQual (mkIdent $ txt <> txt') <$ locName
+       in UnQual' (mkIdent $ txt <> txt') ns <$ locName
     NewName _ _ ->
       panic "mkName"
         [ "During expanding prop guards"

@@ -106,6 +106,7 @@ import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)
+import Cryptol.Parser.Name (NameSource(..))
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
 import Cryptol.Parser.Position (emptyRange, Range(from))
@@ -788,7 +789,7 @@ uniqify name =
 
 -- | Generate a fresh name using the given index. The name will reside within
 -- the "<interactive>" namespace.
-freshName :: I.Ident -> M.NameSource -> REPL M.Name
+freshName :: I.Ident -> NameSource -> REPL M.Name
 freshName i sys =
   M.liftSupply (M.mkDeclared I.NSValue mpath sys i Nothing emptyRange)
   where mpath = M.TopModule I.interactiveName

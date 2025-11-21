@@ -79,7 +79,7 @@
 module Cryptol.Transform.MonoValues (rewModule) where
 
 import Cryptol.ModuleSystem.Name
-        (SupplyT,liftSupply,Supply,mkDeclared,NameSource(..),ModPath(..))
+        (SupplyT,liftSupply,Supply,mkDeclared,ModPath(..))
 import Cryptol.Parser.Position (emptyRange)
 import Cryptol.TypeCheck.AST hiding (splitTApp) -- XXX: just use this one
 import Cryptol.TypeCheck.TypeMap
@@ -92,6 +92,7 @@ import MonadLib hiding (mapM)
 
 import Prelude ()
 import Prelude.Compat
+import Cryptol.Parser.Name (NameSource(SystemName))
 
 {- (f,t,n) |--> x  means that when we spot instantiations of @f@ with @ts@ and
 @n@ proof argument, we should replace them with @Var x@ -}
