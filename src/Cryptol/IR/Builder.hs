@@ -48,6 +48,7 @@ module Cryptol.IR.Builder
 import Data.Text(Text)
 
 import qualified Cryptol.Parser.Position as Position
+import Cryptol.Parser.Name (NameSource(..))
 import           Cryptol.Utils.Ident(PrimIdent,Ident,ModPath(..))
 import qualified Cryptol.Utils.Ident as Ident
 import           Cryptol.TypeCheck.AST(Expr(..), Type, Kind(..), TParam(..))
@@ -104,7 +105,7 @@ string s = withPrimMap (\pm -> AST.eString pm s)
 newTopNameIn :: Namespace -> ModPath -> Ident -> ModuleM Name
 newTopNameIn ns mpath i =
   Name.liftSupply
-    (Name.mkDeclared ns mpath Name.SystemName i Nothing Position.emptyRange)
+    (Name.mkDeclared ns mpath SystemName i Nothing Position.emptyRange)
 
 -- | Generate a fresh top-level name in the value namespace
 newTopName :: ModPath -> Ident -> ModuleM Name
@@ -113,7 +114,7 @@ newTopName = newTopNameIn NSValue
 -- | Generate a fresh local name in the value name space
 newLocalName :: Ident -> ModuleM Name
 newLocalName i =
-  Name.liftSupply (Name.mkLocal Name.SystemName NSValue i Position.emptyRange)
+  Name.liftSupply (Name.mkLocal SystemName NSValue i Position.emptyRange)
 
 -- | Generate a fresh type binder to be used in the type signature for the
 -- given name.

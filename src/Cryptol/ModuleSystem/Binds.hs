@@ -31,7 +31,7 @@ import qualified MonadLib as M
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident(allNamespaces)
 import Cryptol.Parser.Position
-import Cryptol.Parser.Name(isGeneratedName)
+import Cryptol.Parser.Name(isGeneratedName, NameSource (..))
 import Cryptol.Parser.AST
 import Cryptol.ModuleSystem.Exports(exportedDecls,exported)
 import Cryptol.ModuleSystem.Renamer.Error

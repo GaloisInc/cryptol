@@ -39,7 +39,7 @@ import           MonadLib hiding (mapM)
 
 import           Cryptol.ModuleSystem.Name
                     (FreshM(..),Supply,mkLocal,asLocal
-                    , nameInfo, NameInfo(..),NameSource(..), nameTopModule)
+                    , nameInfo, NameInfo(..),nameTopModule)
 import           Cryptol.ModuleSystem.NamingEnv.Types
 import qualified Cryptol.ModuleSystem.Interface as If
 import           Cryptol.Parser.Position
@@ -59,6 +59,7 @@ import           Cryptol.TypeCheck.PP(NameMap, defaultPPCfg)
 import           Cryptol.Utils.PP(pp, (<+>), text,commaSep,brackets,debugShowUniques)
 import           Cryptol.Utils.Ident(Ident,Namespace(..),ModName)
 import           Cryptol.Utils.Panic(panic)
+import Cryptol.Parser.Name (NameSource(SystemName))
 
 -- | Information needed for type inference.
 data InferInput = InferInput
