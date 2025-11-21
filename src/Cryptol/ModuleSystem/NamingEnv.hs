@@ -29,7 +29,7 @@ import Cryptol.Utils.Ident(allNamespaces,packModName,modNameChunksText)
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.ModuleSystem.Name
-import Cryptol.ModuleSystem.Names
+import Cryptol.ModuleSystem.Names 
 import Cryptol.ModuleSystem.Interface
 
 import Cryptol.ModuleSystem.NamingEnv.Types
@@ -176,7 +176,7 @@ qualify :: ModName -> NamingEnv -> NamingEnv
 qualify pfx (NamingEnv env) = NamingEnv (Map.mapKeys toQual <$> env)
   where
   toQual (Qual mn n) = Qual (prependChunks pfx' mn) n
-  toQual (UnQual n)  = Qual pfx n
+  toQual (UnQual' n _ns)  = Qual pfx n
   toQual n@NewName{} = n
 
   -- | prependChunks - add ChunksText to start of ModName
@@ -255,7 +255,7 @@ modParamNamesNamingEnv T.ModParamNames { .. } =
                                map fromTy (Map.elems mpnTypes))
     ]
   where
-  toPName n = mkUnqual (nameIdent n)
+  toPName n = mkUnqual (nameIdent n) (nameSrc n)
 
   fromTy tp = let nm = T.mtpName tp
               in (toPName nm, One nm)
@@ -276,7 +276,7 @@ unqualifiedEnv :: IfaceDecls -> NamingEnv
 unqualifiedEnv IfaceDecls { .. } =
   mconcat [ exprs, tySyns, ntTypes, ntExprs, mods, sigs ]
   where
-  toPName n = mkUnqual (nameIdent n)
+  toPName n = mkUnqual (nameIdent n) (nameSrc n)
 
   exprs   = mconcat [ singletonNS NSValue (toPName n) n
                     | n <- Map.keys ifDecls ]

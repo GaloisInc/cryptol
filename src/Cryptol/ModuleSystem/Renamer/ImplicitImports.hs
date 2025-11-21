@@ -37,6 +37,7 @@ import Cryptol.Utils.Ident(identIsNormal, packModName)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Parser.Position(Range)
 import Cryptol.Parser.AST
+import Cryptol.Parser.Name (mkUnqualUser)
 
 {- | Add additional imports for modules nested withing this one -}
 addImplicitNestedImports :: [TopDecl PName] -> [TopDecl PName]
@@ -103,7 +104,7 @@ isToQual is = packModName (map identText is)
 -- This is the name of the module we are implicitly importing.
 isToName :: [Ident] -> PName
 isToName is = case is of
-                [i] -> mkUnqual i
+                [i] -> mkUnqualUser i
                 _   -> mkQual (isToQual (init is)) (last is)
 
 -- | Make an implicit import declaration.

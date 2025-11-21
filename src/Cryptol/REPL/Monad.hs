@@ -104,8 +104,10 @@ import Cryptol.Eval (EvalErrorEx, Unsupported, WordTooWide,EvalOpts(..))
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Name as M
+import qualified Cryptol.ModuleSystem.Names as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)
+import Cryptol.Parser.Name (NameSource(..), getNameSource)
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
 import Cryptol.Parser.Position (emptyRange, Range(from))
@@ -136,7 +138,7 @@ import Data.Char (isSpace, toLower)
 import Data.IORef
     (IORef,newIORef,readIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, isJust, isNothing)
 import Data.Ord (comparing)
 import Data.Tuple (swap)
 import Data.Typeable (Typeable)
@@ -658,15 +660,34 @@ rPrintDoc doc =
 getFocusedEnv :: REPL M.ModContext
 getFocusedEnv  = M.focusedEnv <$> getModuleEnv
 
+-- Helper function which applies a filter to key value pairs in a Map
+-- and returns the resulting Map
+filterMap :: Ord k => ((k,v) -> Bool) -> Map.Map k v -> Map.Map k v 
+filterMap f = Map.fromList . filter f . Map.toList
+
 -- | Get visible variable names.
--- This is used for command line completition.
+-- This is used for command line completion.
 getExprNames :: REPL [String]
 getExprNames =
-  do fNames <- M.mctxNames <$> getFocusedEnv
-     return (map (show . pp) (Map.keys (M.namespaceMap M.NSValue fNames)))
+  do 
+      fNames <- M.mctxNames <$> getFocusedEnv
+      let mnames = M.namespaceMap M.NSValue fNames
+      -- UnQual PName have their separate flag that define their User/System visibility
+      -- so we check them first
+      let unqual = filterMap (\(k, _v) -> Just UserName == getNameSource k) mnames 
+      -- If the PName is Qual or NewName, we check its NameSource availabe in the namespaceMap
+      -- Note on assumptions: If a PName is ambiguous and maps to multiple Name in S[Name],
+      -- we consider that the PName is a UserName if any of Name in [Name]
+      -- is a UserName.
+      let rest = 
+                filterMap (\(k, v) -> 
+                  isNothing (getNameSource k) 
+                  && isJust (M.filterNames (\n -> UserName == M.nameSrc n) v)) mnames
+      return (map (show . pp) (Map.keys (Map.union unqual rest) ))
+
 
 -- | Get visible type signature names.
--- This is used for command line completition.
+-- This is used for command line completion.
 getTypeNames :: REPL [String]
 getTypeNames  =
   do fNames <- M.mctxNames <$> getFocusedEnv
@@ -788,7 +809,7 @@ uniqify name =
 
 -- | Generate a fresh name using the given index. The name will reside within
 -- the "<interactive>" namespace.
-freshName :: I.Ident -> M.NameSource -> REPL M.Name
+freshName :: I.Ident -> NameSource -> REPL M.Name
 freshName i sys =
   M.liftSupply (M.mkDeclared I.NSValue mpath sys i Nothing emptyRange)
   where mpath = M.TopModule I.interactiveName

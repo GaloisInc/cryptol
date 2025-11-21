@@ -36,6 +36,7 @@ import Cryptol.Utils.Fixity
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.RecordMap
 import Prelude
+import Cryptol.Parser.Name (NameSource(SystemName))
 
 infix  4 =#=, >==
 infixr 5 `tFun`

@@ -11,6 +11,7 @@ import qualified Data.Text          as Text
 import           Numeric.Natural
 
 import           Cryptol.Parser.AST
+import Cryptol.Parser.Name (mkUnqualUser)
 
 -- * Built-in syntax
 
@@ -59,7 +60,7 @@ funT2 f a b = var f $^ [PosInst a, PosInst b]
 
 -- | Create an unqualified variable expression from an identifier.
 var :: Ident -> Expr PName
-var = EVar . mkUnqual
+var = EVar . mkUnqualUser --- xxxx: double check
 
 -- | Infix operator for Cryptol value application.
 ($$) :: Expr n -> Expr n -> Expr n
