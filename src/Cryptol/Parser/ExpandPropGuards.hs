@@ -27,6 +27,7 @@ import Cryptol.Utils.Panic (panic)
 import Data.Foldable (traverse_)
 import Data.Text (pack)
 import GHC.Generics (Generic)
+import Cryptol.Parser.Name (NameSource(SystemName))
 
 -- | Monad
 type ExpandPropGuardsM a = Either Error a
@@ -282,10 +283,10 @@ newName locName props =
       let txt = identText ident
           txt' = pack $ show $ pp props
        in Qual modName (mkIdent $ txt <> txt') <$ locName
-    UnQual' ident ns ->
+    UnQual' ident _ns ->
       let txt = identText ident
           txt' = pack $ show $ pp props
-       in UnQual' (mkIdent $ txt <> txt') ns <$ locName
+       in UnQual' (mkIdent $ txt <> txt') SystemName <$ locName
     NewName _ _ ->
       panic "mkName"
         [ "During expanding prop guards"

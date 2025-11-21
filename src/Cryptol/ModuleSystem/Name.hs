@@ -73,7 +73,7 @@ import qualified Data.Text as Text
 import           Data.Char(isAlpha,toUpper)
 
 
-import           Cryptol.Parser.Name (PName, NameSource)
+import           Cryptol.Parser.Name (PName, NameSource(..))
 import qualified Cryptol.Parser.Name as PName
 import           Cryptol.Parser.Position (Range,Located(..))
 import           Cryptol.Utils.Fixity
