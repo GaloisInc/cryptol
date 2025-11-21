@@ -1297,7 +1297,7 @@ exprToFieldPath e0 = reverse <$> go noLoc e0
                    [] -> panic "exprToFieldPath" ["empty list of selectors"]
            let rng = loc { from = to (srcRange l) }
            pure (Located { thing = s, srcRange = rng } : ls)
-      EVar (UnQual' l _) ->
+      EVar (UnQual l) ->
         pure [ Located { thing = RecordSel l Nothing, srcRange = loc } ]
 
       ELit (ECNum n (DecLit {})) ->
@@ -1575,7 +1575,7 @@ desugarInstImport i inst =
   origMod = iModule (thing i)
 
   iname = Located {
-    thing = mkUnqualUser ----- xxxx: Double check visibility
+    thing = mkUnqualSystem
         $ let pos = from (srcRange i)
           in identAnonInstImport (line pos) (col pos),
     srcRange = srcRange origMod
