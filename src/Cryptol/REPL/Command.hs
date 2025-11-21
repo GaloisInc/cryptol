@@ -112,6 +112,7 @@ import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
 import qualified Cryptol.Parser.AST as P
+import           Cryptol.Parser.Name (NameSource(..), mkUnqualUser)
 import qualified Cryptol.Project as Proj
 import qualified Cryptol.Transform.Specialize as S
 import Cryptol.Symbolic
@@ -1830,7 +1831,7 @@ replReadFile fp handler =
 -- is returned.
 bindItVariable :: E.TValue -> T.Expr -> REPL T.Name
 bindItVariable ty expr = do
-  freshIt <- freshName itIdent M.UserName
+  freshIt <- freshName itIdent UserName
   let schema = T.Forall { T.sVars  = []
                         , T.sProps = []
                         , T.sType  = E.tValTy ty
@@ -1845,7 +1846,7 @@ bindItVariable ty expr = do
                     }
   liftModuleCmd (M.evalDecls [T.NonRecursive decl])
   denv <- getDynEnv
-  let nenv' = M.singletonNS M.NSValue (P.UnQual itIdent) freshIt
+  let nenv' = M.singletonNS M.NSValue (mkUnqualUser itIdent) freshIt
                            `M.shadowing` M.deNames denv
   setDynEnv $ denv { M.deNames = nenv' }
   return freshIt
