@@ -21,7 +21,6 @@
 module Cryptol.ModuleSystem.Name (
     -- * Names
     Name(), NameInfo(..)
-  , NameSource(..)
   , nameUnique
   , nameIdent
   , mapNameIdent
@@ -74,7 +73,7 @@ import qualified Data.Text as Text
 import           Data.Char(isAlpha,toUpper)
 
 
-import           Cryptol.Parser.Name (PName)
+import           Cryptol.Parser.Name (PName, NameSource)
 import qualified Cryptol.Parser.Name as PName
 import           Cryptol.Parser.Position (Range,Located(..))
 import           Cryptol.Utils.Fixity
@@ -102,10 +101,6 @@ data Name = Name { nUnique :: {-# UNPACK #-} !Int
                  , nLoc :: !Range
                    -- ^ Where this name was defined
                  } deriving (Generic, NFData, Show)
-
-
-data NameSource = SystemName | UserName
-                    deriving (Generic, NFData, Show, Eq)
 
 
 instance Eq Name where
@@ -244,22 +239,22 @@ nameFixity = nFixity
 nameToDefPName :: Name -> PName
 nameToDefPName n =
   case nInfo n of
-    GlobalName _ og -> PName.origNameToDefPName og
-    LocalName _ _ txt -> PName.mkUnqual txt
+    GlobalName ns og -> PName.origNameToDefPName og ns
+    LocalName ns _ txt -> PName.mkUnqual txt ns
 
 -- | Compute a `PName` from `Name`, this preserves all qualifiers in the name,
 -- whereas `nameToDefPName` does not.
 nameToPNameWithQualifiers :: Name -> PName
 nameToPNameWithQualifiers n =
   case nameInfo n of
-    GlobalName _ og   -> origNameToPName og
-    LocalName _ _ txt -> PName.mkUnqual txt
+    GlobalName ns og   -> origNameToPName og ns
+    LocalName ns _ txt -> PName.mkUnqual txt ns
 
   where
-  origNameToPName :: OrigName -> PName
-  origNameToPName og =
+  origNameToPName :: OrigName -> NameSource -> PName
+  origNameToPName og vis =
     case modPathSplit (ogModule og) of
-      (_top,[] ) -> PName.UnQual ident
+      (_top,[] ) -> PName.UnQual' ident vis
       (_top,ids) -> PName.Qual (packModName (map identText ids)) ident
 
     where
@@ -419,8 +414,8 @@ mkLocalPName ns nm = mkLocal src ns ident
   where
   ident = PName.getIdent nm
   src   = case nm of
-            PName.NewName {} -> SystemName
-            _                -> UserName
+            PName.NewName {} -> PName.SystemName
+            _                -> PName.UserName
 
 -- | Make a new parameter name.
 mkLocal :: NameSource -> Namespace -> Ident -> Range -> Supply -> (Name,Supply)
@@ -453,7 +448,7 @@ mkModParam own pname rng n s = (name, s')
   (u,s') = nextUnique s
   name = Name { nUnique = u
               , nInfo   = GlobalName
-                            UserName
+                            PName.UserName
                             OrigName
                               { ogModule    = own
                               , ogName      = nameIdent n
