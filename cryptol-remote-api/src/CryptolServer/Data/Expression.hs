@@ -463,7 +463,7 @@ getExpr = CryptolCommand . const . getCryptolExpr
 -- N.B., used in SAWServer as well, hence the more generic monad
 getCryptolExpr :: (Argo.Method m, Monad m) => Expression -> m (CP.Expr CP.PName)
 getCryptolExpr (Variable nm) =
-  return $ CP.EVar $ CP.mkUnqualSystem $ mkIdent nm ---- xxxxx: Double Check with Iavor
+  return $ CP.EVar $ CP.mkUnqualUser $ mkIdent nm
 getCryptolExpr Unit =
   return $
     CP.ETyped
@@ -472,18 +472,18 @@ getCryptolExpr Unit =
 getCryptolExpr (Bit b) =
   return $
     CP.ETyped
-      (CP.EVar (CP.mkUnqualSystem (mkIdent $ if b then "True" else "False"))) ---- xxxxx: Double Check with Iavor
+      (CP.EVar (CP.mkUnqualUser (mkIdent $ if b then "True" else "False")))
       CP.TBit
 getCryptolExpr (Integer i) =
   return $
     CP.ETyped
       (CP.ELit (CP.ECNum i (CP.DecLit (pack (show i)))))
-      (CP.TUser (Located emptyRange (CP.mkUnqualSystem (mkIdent "Integer"))) []) ---- xxxxx: Double Check with Iavor
+      (CP.TUser (Located emptyRange (CP.mkUnqualUser(mkIdent "Integer"))) [])
 getCryptolExpr (IntegerModulo i n) =
   return $
     CP.ETyped
       (CP.ELit (CP.ECNum i (CP.DecLit (pack (show i)))))
-      (CP.TUser (Located emptyRange (CP.mkUnqualSystem (mkIdent "Z"))) [CP.TNum n])
+      (CP.TUser (Located emptyRange (CP.mkUnqualUser (mkIdent "Z"))) [CP.TNum n])
 getCryptolExpr (Num enc txt w) =
   do d <- decode enc txt
      return $ CP.ETyped
@@ -508,7 +508,7 @@ getCryptolExpr (Let binds body) =
     mkBind (LetBinding x rhs) =
       CP.DBind .
       (\bindBody ->
-         CP.Bind { CP.bName = fakeLoc (CP.mkUnqualUser (mkIdent x)) ---- xxxxx: Double Check with Iavor
+         CP.Bind { CP.bName = fakeLoc (CP.mkUnqualUser (mkIdent x))
               , CP.bParams = CP.noParams
               , CP.bDef = bindBody
               , CP.bSignature = Nothing
@@ -650,7 +650,7 @@ bindValToFreshName nameBase ty val = do
       liftModuleCmd (evalDecls [TC.NonRecursive decl])
       modifyModuleEnv $ \me ->
         let denv = meDynEnv me
-        in me {meDynEnv = denv { deNames = singletonNS NSValue (CP.mkUnqualUser (mkIdent txt)) name `shadowing` deNames denv }} ---- xxxxx: Double Check with Iavor
+        in me {meDynEnv = denv { deNames = singletonNS NSValue (CP.mkUnqualUser (mkIdent txt)) name `shadowing` deNames denv }}
       return $ Just txt
   where
     genFresh :: CryptolCommand (Text, Name)
@@ -664,7 +664,7 @@ bindValToFreshName nameBase ty val = do
       where nextNewName ::  Map CP.PName a -> Int -> Text
             nextNewName ns n =
               let txt = "CryptolServer'" <> nameBase <> (T.pack $ show n)
-                  pname = CP.mkUnqualUser (mkIdent txt) ---- xxxxx: Double Check with Iavor
+                  pname = CP.mkUnqualUser (mkIdent txt)
               in if Map.member pname ns
                  then nextNewName ns (n + 1)
                  else txt
