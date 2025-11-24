@@ -46,13 +46,14 @@ import Cryptol.ModuleSystem.Monad (runModuleM, interactive)
 import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.ModuleSystem.Renamer as R
 import Cryptol.ModuleSystem.Name
-  (Name, mkDeclared, NameSource( UserName ), liftSupply, nameIdent)
+  (Name, mkDeclared, liftSupply, nameIdent)
 import Cryptol.ModuleSystem.NamingEnv (singletonNS, shadowing, namespaceMap)
 
 import qualified Cryptol.Parser as CP
 import qualified Cryptol.Parser.AST as CP
 import Cryptol.Parser.Position (Located(..), emptyRange)
 import Cryptol.Parser.Selector
+import Cryptol.Parser.Name (NameSource( UserName ))
 import qualified Cryptol.TypeCheck.AST as TC
 import Cryptol.Utils.Ident
 import Cryptol.Utils.RecordMap (recordFromFields, canonicalFields)
@@ -63,6 +64,7 @@ import CryptolServer
 import CryptolServer.AesonCompat
 import CryptolServer.Exceptions
 import CryptolServer.Data.Type
+import qualified Cryptol.Parser.Name as CP
 
 data Encoding = Base64 | Hex
   deriving (Eq, Show, Ord)
@@ -443,7 +445,7 @@ getTypeName ::
   Text ->
   m Name
 getTypeName nmEnv runModuleCmd ty =
-  runModuleCmd $ renameType nmEnv (CP.UnQual (mkIdent ty))
+  runModuleCmd $ renameType nmEnv (CP.mkUnqualUser (mkIdent ty))
 
 getCryptolType ::
   (Monad m) =>
@@ -461,7 +463,7 @@ getExpr = CryptolCommand . const . getCryptolExpr
 -- N.B., used in SAWServer as well, hence the more generic monad
 getCryptolExpr :: (Argo.Method m, Monad m) => Expression -> m (CP.Expr CP.PName)
 getCryptolExpr (Variable nm) =
-  return $ CP.EVar $ CP.UnQual $ mkIdent nm
+  return $ CP.EVar $ CP.mkUnqualSystem $ mkIdent nm ---- xxxxx: Double Check with Iavor
 getCryptolExpr Unit =
   return $
     CP.ETyped
@@ -470,18 +472,18 @@ getCryptolExpr Unit =
 getCryptolExpr (Bit b) =
   return $
     CP.ETyped
-      (CP.EVar (CP.UnQual (mkIdent $ if b then "True" else "False")))
+      (CP.EVar (CP.mkUnqualSystem (mkIdent $ if b then "True" else "False"))) ---- xxxxx: Double Check with Iavor
       CP.TBit
 getCryptolExpr (Integer i) =
   return $
     CP.ETyped
       (CP.ELit (CP.ECNum i (CP.DecLit (pack (show i)))))
-      (CP.TUser (Located emptyRange (CP.UnQual (mkIdent "Integer"))) [])
+      (CP.TUser (Located emptyRange (CP.mkUnqualSystem (mkIdent "Integer"))) []) ---- xxxxx: Double Check with Iavor
 getCryptolExpr (IntegerModulo i n) =
   return $
     CP.ETyped
       (CP.ELit (CP.ECNum i (CP.DecLit (pack (show i)))))
-      (CP.TUser (Located emptyRange (CP.UnQual (mkIdent "Z"))) [CP.TNum n])
+      (CP.TUser (Located emptyRange (CP.mkUnqualSystem (mkIdent "Z"))) [CP.TNum n])
 getCryptolExpr (Num enc txt w) =
   do d <- decode enc txt
      return $ CP.ETyped
@@ -506,7 +508,7 @@ getCryptolExpr (Let binds body) =
     mkBind (LetBinding x rhs) =
       CP.DBind .
       (\bindBody ->
-         CP.Bind { CP.bName = fakeLoc (CP.UnQual (mkIdent x))
+         CP.Bind { CP.bName = fakeLoc (CP.mkUnqualUser (mkIdent x)) ---- xxxxx: Double Check with Iavor
               , CP.bParams = CP.noParams
               , CP.bDef = bindBody
               , CP.bSignature = Nothing
@@ -648,7 +650,7 @@ bindValToFreshName nameBase ty val = do
       liftModuleCmd (evalDecls [TC.NonRecursive decl])
       modifyModuleEnv $ \me ->
         let denv = meDynEnv me
-        in me {meDynEnv = denv { deNames = singletonNS NSValue (CP.UnQual (mkIdent txt)) name `shadowing` deNames denv }}
+        in me {meDynEnv = denv { deNames = singletonNS NSValue (CP.mkUnqualUser (mkIdent txt)) name `shadowing` deNames denv }} ---- xxxxx: Double Check with Iavor
       return $ Just txt
   where
     genFresh :: CryptolCommand (Text, Name)
@@ -662,7 +664,7 @@ bindValToFreshName nameBase ty val = do
       where nextNewName ::  Map CP.PName a -> Int -> Text
             nextNewName ns n =
               let txt = "CryptolServer'" <> nameBase <> (T.pack $ show n)
-                  pname = CP.UnQual (mkIdent txt)
+                  pname = CP.mkUnqualUser (mkIdent txt) ---- xxxxx: Double Check with Iavor
               in if Map.member pname ns
                  then nextNewName ns (n + 1)
                  else txt
