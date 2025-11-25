@@ -1,0 +1,12 @@
+foobar : {n} [n]
+foobar  
+  | n == 1 => 0b1
+  | n != 1 => zero
+
+
+_f = ()
+  where
+    [x] = 0b1
+
+submodule S where
+  [a] = 0b0
