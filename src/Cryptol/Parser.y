@@ -41,7 +41,7 @@ import Cryptol.Parser.LexerUtils hiding (mkIdent)
 import Cryptol.Parser.Token
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
-import Cryptol.Parser.Name (mkUnqualUser, pattern UnQual)
+import Cryptol.Parser.Name (mkUnqual, pattern UnQual)
 import Cryptol.Utils.RecordMap(RecordMap)
 
 import Paths_cryptol
@@ -507,24 +507,24 @@ qop                              :: { LPName }
 
 op                               :: { LPName }
   : pat_op                          { $1 }
-  | '#'                             { Located $1 $ mkUnqualUser $ mkInfix "#" }
-  | '@'                             { Located $1 $ mkUnqualUser $ mkInfix "@" }
+  | '#'                             { Located $1 $ mkUnqual $ mkInfix "#" }
+  | '@'                             { Located $1 $ mkUnqual $ mkInfix "@" }
 
 pat_op                           :: { LPName }
   : other_op                        { $1 }
 
     -- special cases for operators that are re-used elsewhere
-  | '*'                             { Located $1 $ mkUnqualUser $ mkInfix "*" }
-  | '+'                             { Located $1 $ mkUnqualUser $ mkInfix "+" }
-  | '-'                             { Located $1 $ mkUnqualUser $ mkInfix "-" }
-  | '~'                             { Located $1 $ mkUnqualUser $ mkInfix "~" }
-  | '^^'                            { Located $1 $ mkUnqualUser $ mkInfix "^^" }
-  | '<'                             { Located $1 $ mkUnqualUser $ mkInfix "<" }
-  | '>'                             { Located $1 $ mkUnqualUser $ mkInfix ">" }
+  | '*'                             { Located $1 $ mkUnqual $ mkInfix "*" }
+  | '+'                             { Located $1 $ mkUnqual $ mkInfix "+" }
+  | '-'                             { Located $1 $ mkUnqual $ mkInfix "-" }
+  | '~'                             { Located $1 $ mkUnqual $ mkInfix "~" }
+  | '^^'                            { Located $1 $ mkUnqual $ mkInfix "^^" }
+  | '<'                             { Located $1 $ mkUnqual $ mkInfix "<" }
+  | '>'                             { Located $1 $ mkUnqual $ mkInfix ">" }
 
 other_op                         :: { LPName }
   : OP                              { let Token (Op (Other [] str)) _ = thing $1
-                                       in mkUnqualUser (mkInfix str) A.<$ $1 }
+                                       in mkUnqual (mkInfix str) A.<$ $1 }
 
 ops                     :: { [LPName] }
   : op                     { [$1] }
@@ -620,7 +620,7 @@ no_sel_aexpr                   :: { Expr PName                             }
   | FRAC                          { at $1 $ fracLit (thing $1)             }
   | STRLIT                        { at $1 $ ELit $ ECString $ getStr $1    }
   | CHARLIT                       { at $1 $ ELit $ ECChar $ getChr $1      }
-  | '_'                           { at $1 $ EVar $ mkUnqualUser $ mkIdent "_" }
+  | '_'                           { at $1 $ EVar $ mkUnqual $ mkIdent "_" }
 
   | '(' expr ')'                  { at ($1,$3) $ EParens $2                }
   | '(' tuple_exprs ')'           { at ($1,$3) $ ETuple (reverse $2)       }
@@ -888,7 +888,7 @@ ident              :: { Located Ident }
   | 'hiding'          { Located { srcRange = $1, thing = mkIdent "hiding" } }
 
 name               :: { LPName }
-  : ident             { fmap mkUnqualUser $1 }
+  : ident             { fmap mkUnqual $1 }
 
 
 smodName                       :: { Located ModName }

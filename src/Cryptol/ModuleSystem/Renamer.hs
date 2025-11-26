@@ -62,7 +62,6 @@ import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Renamer.Monad
 import Cryptol.ModuleSystem.Renamer.Imports
 import Cryptol.ModuleSystem.Renamer.ImplicitImports
-import Cryptol.Parser.Name (mkUnqualUser)
 
 
 {-
@@ -1125,7 +1124,7 @@ instance Rename UpdField where
                  UpdFun -> UpdField UpdFun [l] <$>
                                         rename (EFun emptyFunDesc [PVar p] e)
                        where
-                       p = mkUnqualUser . selName <$> last ls           
+                       p = mkUnqual . selName <$> last ls           
          _ -> UpdField UpdFun [l] <$> rename (EUpd Nothing [ UpdField h more e])
       [] -> panic "rename@UpdField" [ "Empty label list." ]
 

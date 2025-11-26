@@ -56,7 +56,7 @@ import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 import Cryptol.Utils.RecordMap
-import Cryptol.Parser.Name (pattern UnQual, mkUnqualUser, mkUnqualSystem)
+import Cryptol.Parser.Name (pattern UnQual, mkUnqualSystem)
 
 
 parseString :: Config -> ParseM a -> String -> Either ParseError a
@@ -235,7 +235,7 @@ mkSchema xs ps t = Forall xs ps t Nothing
 
 getName :: Located Token -> PName
 getName l = case thing l of
-              Token (Ident [] x) _ -> mkUnqualUser (mkIdent x)
+              Token (Ident [] x) _ -> mkUnqual (mkIdent x)
               _ -> panic "[Parser] getName" ["not an Ident:", show l]
 
 getNum :: Located Token -> Integer
@@ -605,7 +605,7 @@ mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
 mkTParam :: Located Ident -> Maybe Kind -> ParseM (TParam PName)
 mkTParam Located { srcRange = rng, thing = n } k
   | n == widthIdent = errorMessage rng ["`width` is not a valid type parameter name."]
-  | otherwise       = return (TParam (mkUnqualUser n) k (Just rng))
+  | otherwise       = return (TParam (mkUnqual n) k (Just rng))
 
 
 mkTySyn :: Type PName -> Type PName -> ParseM (Decl PName)
@@ -1145,7 +1145,7 @@ mkModule nm ds = Module { mName = nm
 mkNested :: Module PName -> ParseM (NestedModule PName)
 mkNested m =
   case modNameChunks (thing nm) of
-    [c] -> pure (NestedModule m { mName = nm { thing = mkUnqualUser (packIdent c)}})
+    [c] -> pure (NestedModule m { mName = nm { thing = mkUnqual (packIdent c)}})
     _   -> errorMessage r
                 ["Nested modules names should be a simple identifier."]
   where
