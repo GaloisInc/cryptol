@@ -17,7 +17,6 @@ module Cryptol.Parser.Name (
   , mkQual
   , mkUnqual
   , mkUnqualSystem
-  , mkUnqualUser
   , origNameToDefPName
   , getModName
   , getIdent
@@ -68,12 +67,8 @@ instance NFData NameSource
 pattern UnQual :: Ident -> PName
 pattern UnQual i <- UnQual' i _
 
-
-mkUnqual :: Ident -> NameSource -> PName
-mkUnqual  = UnQual'
-
-mkUnqualUser :: Ident -> PName
-mkUnqualUser  = (`UnQual'` UserName)
+mkUnqual :: Ident -> PName
+mkUnqual  = (`UnQual'` UserName)
 
 mkUnqualSystem :: Ident -> PName
 mkUnqualSystem = (`UnQual'` SystemName)
@@ -89,7 +84,7 @@ origNameToDefPName og vis = toPName (ogName og)
   where
   toPName =
     case ogFromParam og of
-      Nothing -> (`mkUnqual` vis)
+      Nothing -> (`UnQual'` vis)
       Just sig -> Qual (identToModName sig)
 
 getModName :: PName -> Maybe ModName

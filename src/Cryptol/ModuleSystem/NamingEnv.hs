@@ -255,7 +255,7 @@ modParamNamesNamingEnv T.ModParamNames { .. } =
                                map fromTy (Map.elems mpnTypes))
     ]
   where
-  toPName n = mkUnqual (nameIdent n) (nameSrc n)
+  toPName n = UnQual' (nameIdent n) (nameSrc n)
 
   fromTy tp = let nm = T.mtpName tp
               in (toPName nm, One nm)
@@ -276,7 +276,7 @@ unqualifiedEnv :: IfaceDecls -> NamingEnv
 unqualifiedEnv IfaceDecls { .. } =
   mconcat [ exprs, tySyns, ntTypes, ntExprs, mods, sigs ]
   where
-  toPName n = mkUnqual (nameIdent n) (nameSrc n)
+  toPName n = UnQual' (nameIdent n) (nameSrc n)
 
   exprs   = mconcat [ singletonNS NSValue (toPName n) n
                     | n <- Map.keys ifDecls ]

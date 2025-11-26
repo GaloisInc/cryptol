@@ -240,7 +240,7 @@ nameToDefPName :: Name -> PName
 nameToDefPName n =
   case nInfo n of
     GlobalName ns og -> PName.origNameToDefPName og ns
-    LocalName ns _ txt -> PName.mkUnqual txt ns
+    LocalName ns _ txt -> PName.UnQual' txt ns
 
 -- | Compute a `PName` from `Name`, this preserves all qualifiers in the name,
 -- whereas `nameToDefPName` does not.
@@ -248,7 +248,7 @@ nameToPNameWithQualifiers :: Name -> PName
 nameToPNameWithQualifiers n =
   case nameInfo n of
     GlobalName ns og   -> origNameToPName og ns
-    LocalName ns _ txt -> PName.mkUnqual txt ns
+    LocalName ns _ txt -> PName.UnQual' txt ns
 
   where
   origNameToPName :: OrigName -> NameSource -> PName
