@@ -20,7 +20,7 @@
 
 module Cryptol.ModuleSystem.Name (
     -- * Names
-    Name(), NameInfo(..)
+    Name(), NameInfo(..), NameSource(..)
   , nameUnique
   , nameIdent
   , mapNameIdent
