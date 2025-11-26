@@ -39,7 +39,7 @@ import Cryptol.Parser.Position
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Renamer.Imports
   (ResolvedLocal,rmodKind,rmodDefines,rmodNested)
-import Cryptol.Parser.Name (NameSource(..), getNameSource)
+import Cryptol.Parser.Name (getNameSource)
 
 -- | Indicates if a name is in a binding poisition or a use site
 data NameType = NameBind | NameUse

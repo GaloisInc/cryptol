@@ -62,7 +62,7 @@ import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Renamer.Monad
 import Cryptol.ModuleSystem.Renamer.Imports
 import Cryptol.ModuleSystem.Renamer.ImplicitImports
-import Cryptol.Parser.Name (NameSource(..), mkUnqualUser)
+import Cryptol.Parser.Name (mkUnqualUser)
 
 
 {-
