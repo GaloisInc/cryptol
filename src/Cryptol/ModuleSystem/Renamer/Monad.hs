@@ -356,7 +356,7 @@ checkOverlap env =
 checkShadowing :: NamingEnv -> NamingEnv -> RenameM ()
 checkShadowing envNew envOld =
   mapM_ recordWarning
-    [ SymbolShadowed p x xs | (p,x,xs) <- findShadowing envNew envOld, not (bothUser p x)]
+    [ SymbolShadowed p x xs | (p,x,xs) <- findShadowing envNew envOld,  bothUser p x]
       where
         bothUser p' x' = getNameSource p' == Just UserName || nameSrc x' == UserName
 
