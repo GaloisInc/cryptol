@@ -30,7 +30,7 @@ import Cryptol.Utils.RecordMap (canonicalFields)
 
 import qualified Argo.Doc as Doc
 import CryptolServer.AesonCompat
-import qualified Cryptol.Parser.Name as C
+import qualified Cryptol.Parser.Name()
 
 
 newtype JSONSchema = JSONSchema Schema
@@ -282,7 +282,7 @@ instance JSON.FromJSON JSONPType where
       typeField o fname = (o .: fname) >>= getType
       typeListField o fname = (o .: fname) >>= traverse getType
 
-      name = C.mkUnqualUser . mkIdent
+      name = C.mkUnqual . mkIdent
 
       asProp "==" = binPropF "==" "left" "right"
       asProp "!=" = binPropF "!=" "left" "right"

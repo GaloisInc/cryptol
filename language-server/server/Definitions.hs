@@ -9,7 +9,6 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.RecordMap
 import Cryptol.Utils.Ident
 import Cryptol.Parser.AST
-import Cryptol.Parser.Name
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.TypeCheck.AST qualified as T

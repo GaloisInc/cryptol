@@ -680,7 +680,7 @@ getExprNames =
       -- we consider that the PName is a UserName if any of Name in [Name]
       -- is a UserName.
       let rest = 
-                filterMap (\(k, v) -> 
+                Map.filterWithKey (\k v -> 
                   isNothing (getNameSource k) 
                   && isJust (M.filterNames (\n -> UserName == M.nameSrc n) v)) mnames
       return (map (show . pp) (Map.keys (Map.union unqual rest) ))

@@ -29,7 +29,7 @@ import Cryptol.Utils.Ident(allNamespaces,packModName,modNameChunksText)
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.ModuleSystem.Name
-import Cryptol.ModuleSystem.Names 
+import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.Interface
 
 import Cryptol.ModuleSystem.NamingEnv.Types
