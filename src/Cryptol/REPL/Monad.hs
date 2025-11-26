@@ -660,11 +660,6 @@ rPrintDoc doc =
 getFocusedEnv :: REPL M.ModContext
 getFocusedEnv  = M.focusedEnv <$> getModuleEnv
 
--- Helper function which applies a filter to key value pairs in a Map
--- and returns the resulting Map
-filterMap :: Ord k => ((k,v) -> Bool) -> Map.Map k v -> Map.Map k v 
-filterMap f = Map.fromList . filter f . Map.toList
-
 -- | Get visible variable names.
 -- This is used for command line completion.
 getExprNames :: REPL [String]
@@ -674,16 +669,15 @@ getExprNames =
       let mnames = M.namespaceMap M.NSValue fNames
       -- UnQual PName have their separate flag that define their User/System visibility
       -- so we check them first
-      let unqual = filterMap (\(k, _v) -> Just UserName == getNameSource k) mnames 
       -- If the PName is Qual or NewName, we check its NameSource availabe in the namespaceMap
       -- Note on assumptions: If a PName is ambiguous and maps to multiple Name in S[Name],
       -- we consider that the PName is a UserName if any of Name in [Name]
       -- is a UserName.
-      let rest = 
-                Map.filterWithKey (\k v -> 
+      let userNamesMap = 
+                Map.filterWithKey (\k v -> Just UserName == getNameSource k || 
                   isNothing (getNameSource k) 
                   && isJust (M.filterNames (\n -> UserName == M.nameSrc n) v)) mnames
-      return (map (show . pp) (Map.keys (Map.union unqual rest) ))
+      return (map (show . pp) (Map.keys userNamesMap))
 
 
 -- | Get visible type signature names.

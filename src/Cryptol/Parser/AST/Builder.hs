@@ -58,6 +58,8 @@ funT2 :: Ident -> Type PName -> Type PName -> Expr PName
 funT2 f a b = var f $^ [PosInst a, PosInst b]
 
 -- | Create an unqualified variable expression from an identifier.
+--   We assume here that the variable's PName is user visible, i.e. 
+--   is a UserName
 var :: Ident -> Expr PName
 var = EVar . mkUnqual
 
