@@ -1831,7 +1831,7 @@ replReadFile fp handler =
 -- is returned.
 bindItVariable :: E.TValue -> T.Expr -> REPL T.Name
 bindItVariable ty expr = do
-  freshIt <- freshName itIdent UserName
+  freshIt <- freshName itIdent M.UserName
   let schema = T.Forall { T.sVars  = []
                         , T.sProps = []
                         , T.sType  = E.tValTy ty

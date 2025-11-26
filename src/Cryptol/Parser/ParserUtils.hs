@@ -233,7 +233,6 @@ mkModParamName lsig qual =
 mkSchema :: [TParam PName] -> [Prop PName] -> Type PName -> Schema PName
 mkSchema xs ps t = Forall xs ps t Nothing
 
--- xxx: Is this ever called?
 getName :: Located Token -> PName
 getName l = case thing l of
               Token (Ident [] x) _ -> mkUnqualUser (mkIdent x)
