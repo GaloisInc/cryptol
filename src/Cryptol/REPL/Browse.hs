@@ -38,7 +38,7 @@ browseModContext how mc =
     ]
 
   disp     = DispInfo { dispHow = how, env = mctxNameDisp mc }
-  decls    = filterIfaceDecls (`Set.member` visNames) (mctxDecls mc)
+  decls    = filterIfaceDecls (`Set.member` visUserNames) (mctxDecls mc)
   allNames = namingEnvNames (mctxNames mc)
   notAnon nm = identIsNormal (nameIdent nm) &&
                case nameModPathMaybe nm of
@@ -48,6 +48,7 @@ browseModContext how mc =
              case how of
                BrowseInScope  -> allNames
                BrowseExported -> mctxExported mc
+  visUserNames = Set.filter (\n -> nameSrc n == UserName) visNames
 
 data DispInfo = DispInfo { dispHow :: BrowseHow, env :: NameDisp }
 

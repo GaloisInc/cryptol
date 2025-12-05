@@ -39,6 +39,7 @@ import Cryptol.Parser.Position
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Renamer.Imports
   (ResolvedLocal,rmodKind,rmodDefines,rmodNested)
+import Cryptol.Parser.Name (getNameSource)
 
 -- | Indicates if a name is in a binding poisition or a use site
 data NameType = NameBind | NameUse
@@ -350,11 +351,14 @@ checkOverlap env =
                 pure (forceUnambig env)
 
 -- | Issue warnings if entries in the first environment would
--- shadow something in the second.
+--   shadow something in the second. This warning is only emited 
+--   for UserNames
 checkShadowing :: NamingEnv -> NamingEnv -> RenameM ()
 checkShadowing envNew envOld =
   mapM_ recordWarning
-    [ SymbolShadowed p x xs | (p,x,xs) <- findShadowing envNew envOld ]
+    [ SymbolShadowed p x xs | (p,x,xs) <- findShadowing envNew envOld,  bothUser p x]
+      where
+        bothUser p' x' = getNameSource p' == Just UserName || nameSrc x' == UserName
 
 
 -- | Shadow the current naming environment with some more names.
