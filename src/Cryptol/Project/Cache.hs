@@ -102,7 +102,11 @@ instance Toml.FromValue LoadCache where
 
 data CacheEntry = CacheEntry
   { cacheFingerprint :: FullFingerprint
+    -- ^ Identifier for a module that is part of the project
+
   , cacheDocstringResult :: Maybe Bool
+    -- ^ `Nothing` means unchecked,
+    -- `Just` means checked, and if validation succeeded.
   }
   deriving (Show, Read)
 
@@ -126,7 +130,7 @@ loadCachePath = metaDir FP.</> "loadcache.toml"
 emptyLoadCache :: LoadCache
 emptyLoadCache = LoadCache { cacheModules = mempty }
 
--- | Load a cache.  Also returns an id for the cahce.
+-- | Load a cache.  Also returns an id for the cache.
 -- If there is no cache (or it failed to load), then we return an empty id.
 loadLoadCache :: IO (LoadCache, CacheId)
 loadLoadCache =
