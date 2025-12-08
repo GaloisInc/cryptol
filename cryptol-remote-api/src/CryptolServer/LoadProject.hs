@@ -155,7 +155,8 @@ instance FromJSON LoadProjectMode where
   parseJSON = JSON.withText "LoadProjectMode"
     \case
       "modified" -> pure ModifiedMode
-      "untested" -> pure UntestedMode
+      "untested" -> pure (UntestedMode Proj.CachedFailed)
+      "unsuccessful" -> pure (UntestedMode Proj.RecheckFailed)
       "refresh"  -> pure RefreshMode
       _ -> fail "expected: modified/untested/refresh"
 
@@ -169,6 +170,9 @@ instance Doc.Described LoadProjectMode where
           )
         , ( pure (Doc.Literal "untested")
           , Doc.Paragraph[Doc.Text "Load files that do not have a current test result"]
+          )
+        , ( pure (Doc.Literal "unsuccessful")
+          , Doc.Paragraph[Doc.Text "Load files that do not have a successful test result"]
           )
         , ( pure (Doc.Literal "refresh")
           , Doc.Paragraph[Doc.Text "Reload all files in the project discarding the cache results"]
