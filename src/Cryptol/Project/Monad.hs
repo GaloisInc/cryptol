@@ -148,7 +148,7 @@ runLoadM mode cfg (LoadM m) =
             (cache,cacheId) <-
               case mode of
                 RefreshMode  -> pure (emptyLoadCache, emptyCacheId)
-                UntestedMode -> loadLoadCache
+                UntestedMode _ -> loadLoadCache
                 ModifiedMode -> loadLoadCache
             pure LoadConfig { canonRoot = path
                             , loadCache = cache

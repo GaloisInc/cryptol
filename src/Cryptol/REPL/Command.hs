@@ -2402,13 +2402,24 @@ loadProjectREPL mode cfg =
                         pure (fpAcc', needCheck, success) -- preserve success
 
                     Just False ->
-                     do rPrint ("Checking module" <+> hcat [pp name, ": FAIL (cached)"])
-                        let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just False }) (Proj.CacheInFile path) fpAcc
-                        pure (fpAcc', needCheck, False) -- preserve fai
-                    Nothing ->
-                      do
-                        let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Nothing }) (Proj.CacheInFile path) fpAcc
-                        pure (fpAcc', (path, m) : needCheck, success)
+                      case mode of
+                        Proj.UntestedMode Proj.RecheckFailed ->
+                          do
+                            let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Nothing }) (Proj.CacheInFile path) fpAcc
+                            pure (fpAcc', (path, m) : needCheck, success)
+                        _ ->
+                          do 
+                            rPrint ("Checking module" <+> hcat [pp name, ": FAIL (cached)"])
+                            let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just False }) (Proj.CacheInFile path) fpAcc
+                            pure (fpAcc', needCheck, False) -- preserve fail
+                        
+                    Nothing -> pure (fpAcc', newNeedCheck, success)
+                      where
+                      fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Nothing }) (Proj.CacheInFile path) fpAcc
+                      newNeedCheck =
+                        case mode of
+                          Proj.ModifiedMode -> needCheck
+                          _                 -> (path, m) : needCheck
                      
           Proj.Scanned Proj.Changed _ ms -> pure (fpAcc', reverse pms ++ needCheck_, success_)
             where pms = [ (path, m) | (m, _) <- ms ]
