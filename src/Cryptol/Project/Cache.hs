@@ -9,6 +9,7 @@ import qualified Data.Text.Encoding               as Text
 import qualified Data.ByteString                  as BS
 import           Data.Set                         (Set)
 import           System.Directory
+import           System.IO
 import           System.FilePath                  as FP
 import           System.IO.Error
 import qualified Toml
@@ -148,5 +149,8 @@ saveLoadCache cache =
   do createDirectoryIfMissing False metaDir
      let txt = Text.pack (show (Toml.encode cache))
          !bytes = Text.encodeUtf8 txt
-     BS.writeFile loadCachePath bytes
+     (tmpFile,h) <- openBinaryTempFile metaDir "load-cache-XXXXX.toml"
+     BS.hPut h bytes
+     hClose h
+     renameFile tmpFile loadCachePath
      pure (SHA256.hash bytes)
