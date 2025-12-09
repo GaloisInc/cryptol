@@ -7,7 +7,7 @@
   useful because we get partial results if the validation process is
   interrupted.
   
-* Change default behavior of `-p`/`--project`.  The new behavior is that
+* Change the default behavior of `-p`/`--project`.  The new behavior is that
   it will check all files that have changed, and also files that have not
   been previously verified.  The old behavior would only validate files that
   have changed since last time.
