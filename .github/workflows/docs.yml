@@ -187,6 +187,7 @@ jobs:
             ) || (
              echo "Unable to generate documentation for this release" > ${tgt}/docs/RefMan/_build/html/RefMan.html
             )
+            mkdir -p docs/RefMan/_build
             mv ${tgt}/docs/RefMan/_build/html docs/RefMan/_build/$(basename ${tgt})
           done
           cp docs/index.html docs/RefMan/_build/index.html
