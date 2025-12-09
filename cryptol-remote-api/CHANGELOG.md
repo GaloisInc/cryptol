@@ -2,24 +2,7 @@
 
 ## next -- TBA
 
-* Modify project loading to update the cache after each module is validated,
-  and make saving the cache atomic (with some caveats on Windows).  This is
-  useful because we get partial results if the validation process is
-  interrupted.
-  
-* Change the default behavior of `-p`/`--project`.  The new behavior is that
-  it will check all files that have changed, and also files that have not
-  been previously verified.  The old behavior would only validate files that
-  have changed since last time.
-
-* Add a new flag, `--modified-project` which gives us the old `-p` behavior
-  (i.e., check only files that have changed).
-
-* Replace the `--untested-project` flag with the `--unsuccessful-project` flag.
-  This will run validation on all files that have not been successfully validated,
-  including ones that perviously failed, and have not changed.
-
-* In the Cryptol API, `untested` corresponds to `--project`,
+* For loading projects, `untested` corresponds to `--project`,
   `modified` corresponds to `--modified-project`, `refresh` corresponds to
   `--refresh-project` and `unsuccessful` corresponds to `--unsuccessful-project`.
 
