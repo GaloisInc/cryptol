@@ -93,7 +93,7 @@ options  =
   , Option "" ["refresh-project"] (NoArg setProjectRefresh)
     "Ignore a pre-existing cache file when loading a project."
 
-  , Option "" ["untested-project"] (NoArg setProjectUntested)
+  , Option "" ["unsuccessful-project"] (NoArg setProjectUnsuccessful)
     "Load all project files that don't have a successful test result."
 
   , Option "" ["modified-project"] (NoArg setProjectModified)
@@ -163,8 +163,8 @@ setProject path = modify $ \opts -> opts { optProject = Just path }
 setProjectRefresh :: OptParser Options
 setProjectRefresh = modify $ \opts -> opts { optProjectRefresh = Project.RefreshMode }
 
-setProjectUntested :: OptParser Options
-setProjectUntested = modify $ \opts -> opts { optProjectRefresh = Project.UntestedMode Project.RecheckFailed }
+setProjectUnsuccessful :: OptParser Options
+setProjectUnsuccessful = modify $ \opts -> opts { optProjectRefresh = Project.UntestedMode Project.RecheckFailed }
 
 setProjectModified :: OptParser Options
 setProjectModified = modify $ \opts -> opts { optProjectRefresh = Project.ModifiedMode }
