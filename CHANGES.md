@@ -19,9 +19,9 @@
   ([#1925](https://github.com/GaloisInc/cryptol/issues/1925))
 
 * Modify project loading to update the cache after each module is validated,
-  and make saving the cache atomic (with some caveats on Windows).  This is
-  useful because we get partial results if the validation process is
-  interrupted.
+  and make saving the cache atomic on file systems where renaming a file to
+  an existing file is atomic.  This is useful because we get partial results
+  if the validation process is interrupted.
   
 * Change the default behavior of `-p`/`--project`.  The new behavior is that
   it will check all files that have changed, and also files that have not

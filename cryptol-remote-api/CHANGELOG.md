@@ -2,7 +2,7 @@
 
 ## next -- TBA
 
-* For loading projects, `untested` corresponds to `--project`,
+* For loading projects, `untested` corresponds to Cryptol's `--project`,
   `modified` corresponds to `--modified-project`, `refresh` corresponds to
   `--refresh-project` and `unsuccessful` corresponds to `--unsuccessful-project`.
 
