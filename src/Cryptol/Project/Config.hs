@@ -22,9 +22,17 @@ data Config = Config
   } deriving Show
 
 data LoadProjectMode
-  = RefreshMode  -- load all files
-  | ModifiedMode -- load modified files
-  | UntestedMode -- load files without a successful test result
+  = RefreshMode 
+    -- ^ load all files
+  | ModifiedMode
+    -- ^ load modified files
+  | UntestedMode CheckFailedMode
+    -- ^ load files without a successful test result
+  deriving Show
+
+-- | Indicates if we should load files that have not changed, but
+-- contain failed properties.
+data CheckFailedMode = RecheckFailed | CachedFailed
   deriving Show
 
 instance FromValue Config where

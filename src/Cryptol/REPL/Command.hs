@@ -2285,7 +2285,7 @@ printDocStringsCmd input = withModule input checkModNameForPrint
 checkDocStringsCmd ::
   String {- ^ module name -} ->
   REPL CommandResult
-checkDocStringsCmd input = withModule input (checkModName 0)
+checkDocStringsCmd input = withModule input (fmap snd . checkModName Nothing 0)
 
 
 countOutcomes :: [[SubcommandResult]] -> (Int, Int, Int)
@@ -2299,39 +2299,39 @@ countOutcomes = foldl' countOutcomes1 (0, 0, 0)
       | crSuccess (srResult result) = (successes + 1, nofences, failures)
       | otherwise = (successes, nofences, failures + 1)
 
-withValidModule :: P.ModName -> String -> (M.LoadedModule -> REPL CommandResult) -> REPL CommandResult
-withValidModule mn tab f =
+withValidModule :: P.ModName -> String -> (CommandResult -> REPL a) -> (M.LoadedModule -> REPL a) -> REPL a
+withValidModule mn tab kNo kYes =
  do env <- getModuleEnv
     case M.lookupModule mn env of
       Nothing ->
         case M.lookupSignature mn env of
           Nothing ->
            do rPutStrLn (tab ++ "Module " ++ show mn ++ " is not loaded")
-              pure emptyCommandResult { crSuccess = False }
+              kNo emptyCommandResult { crSuccess = False }
           Just{} ->
            do rPutStrLn (tab ++ "Skipping docstrings on interface module")
-              pure emptyCommandResult
+              kNo emptyCommandResult
       Just fe
         | T.isParametrizedModule (M.lmdModule (M.lmData fe)) -> do
           rPutStrLn (tab ++ "Skipping docstrings on parameterized module")
-          pure emptyCommandResult
-        | otherwise -> f fe
+          kNo emptyCommandResult
+        | otherwise -> kYes fe
 
 
-checkModName :: Int -> P.ModName -> REPL CommandResult
-checkModName ind mn =
-  withValidModule mn tab (\m -> do
-              (results,_) <- checkDocStrings m Nothing
+checkModName :: Maybe Proj.CacheId -> Int -> P.ModName -> REPL (Maybe Proj.CacheId, CommandResult)
+checkModName mbCid ind mn =
+  withValidModule mn tab (\r -> pure (mbCid,r)) (\m -> do
+              (results,newCid) <- checkDocStrings m mbCid
               let (successes, nofences, failures) = countOutcomes [concat (drFences r) | r <- results]
               rPutStrLn ("Successes: " ++ show successes ++
                           ", No fences: " ++ show nofences ++
                           ", Failures: " ++ show failures)
-              pure emptyCommandResult { crSuccess = failures == 0 })
+              pure (Just newCid, emptyCommandResult { crSuccess = failures == 0 }))
   where tab = replicate ind ' '
 
 checkModNameForPrint :: P.ModName -> REPL CommandResult
 checkModNameForPrint mn =
-  withValidModule mn "" (\m -> do
+  withValidModule mn "" pure (\m -> do
                             printDocStrings m
                             pure emptyCommandResult { crSuccess = True })
 
@@ -2352,48 +2352,12 @@ loadProjectREPL mode cfg =
       Right ((fps, mp, docstringResults),env) ->
        do setModuleEnv env
           let cache0 = fmap (\fp -> Proj.CacheEntry { cacheDocstringResult = Nothing, cacheFingerprint = fp }) fps
-          (cache, success) <-
-            foldM (\(fpAcc_, success_) (k, v) ->
-              case k of
-                M.InMem{} -> pure (fpAcc_, success_)
-                M.InFile path ->
-                  case v of
-                    Proj.Invalid e ->
-                     do rPrint ("Failed to process module:" <+> (text path <> ":") $$
-                                 indent 2 (ppInvalidStatus e))
-                        pure (fpAcc_, False) -- report failure
-                    Proj.Scanned Proj.Unchanged _ ms ->
-                      foldM f (fpAcc_, success_) ms
-                      where
-                        f (fpAcc, success) (m, _) =
-                         do let name = P.thing (P.mName m)
-                            case join (Map.lookup (Proj.CacheInFile path) docstringResults) of
-                              Just True  ->
-                               do rPrint ("Checking module" <+> hcat [pp name, ": PASS (cached)"])
-                                  let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just True }) (Proj.CacheInFile path) fpAcc
-                                  pure (fpAcc', success) -- preserve success
+          (cache1, needCheck, success1) <-
+            foldM (updateStatus docstringResults) (cache0, [], True) (Map.assocs mp)
+          cacheId <- io (Proj.saveLoadCache (Proj.LoadCache cache1))
 
-                              Just False ->
-                               do rPrint ("Checking module" <+> hcat [pp name, ": FAIL (cached)"])
-                                  let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just False }) (Proj.CacheInFile path) fpAcc
-                                  pure (fpAcc', False) -- preserve failure
-
-                              Nothing ->
-                               do checkRes <- checkModName 2 name
-                                  let success1 = crSuccess checkRes
-                                  let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just success1 }) (Proj.CacheInFile path) fpAcc
-                                  pure (fpAcc', success && success1)
-
-                    Proj.Scanned Proj.Changed _ ms ->
-                      foldM f (fpAcc_, success_) ms
-                      where
-                        f (fpAcc, success) (m, _) =
-                         do let name = P.thing (P.mName m)
-                            checkRes <- checkModName 2 name
-                            let fpAcc' = Map.adjust (\fp -> fp { Proj.cacheDocstringResult = Just (crSuccess checkRes) }) (Proj.CacheInFile path) fpAcc
-                            pure (fpAcc', success && crSuccess checkRes)
-
-              ) (cache0, True) (Map.assocs mp)
+          -- Revalidate modules, updating cache as you go
+          (_cacheId, cache, success) <- foldM doCheck (Just cacheId, cache1, success1) (reverse needCheck)
 
           let (passing, failing, missing) =
                 foldl
@@ -2406,8 +2370,60 @@ loadProjectREPL mode cfg =
 
           rPutStrLn ("Passing: " ++ show passing ++ ", Failing: " ++ show failing ++ ", Missing: " ++ show missing)
 
-          _cacheId <- io (Proj.saveLoadCache (Proj.LoadCache cache))
           pure emptyCommandResult { crSuccess = success }
+
+  where
+  doCheck (cid, fpAcc, success) (path, m) =
+    do
+      let name = P.thing (P.mName m)
+      (newCid, checkRes) <- checkModName cid 2 name
+      let fpAcc' = Map.adjust (\fp -> fp { Proj.cacheDocstringResult = Just (crSuccess checkRes) }) (Proj.CacheInFile path) fpAcc
+      pure (newCid, fpAcc', success && crSuccess checkRes)
+
+  -- Check if some modules need to be revalidated.
+  updateStatus curCache (fpAcc_, needCheck_, success_) (k, v) =
+    case k of
+      M.InMem{} -> pure (fpAcc_, needCheck_, success_)
+
+      M.InFile path ->
+        case v of
+          Proj.Invalid e ->
+           do rPrint ("Failed to process module:" <+> (text path <> ":") $$
+                       indent 2 (ppInvalidStatus e))
+              pure (fpAcc_, needCheck_, False) -- report failure
+          Proj.Scanned Proj.Unchanged _ ms -> foldM f (fpAcc_, needCheck_, success_) ms
+            where
+              f (fpAcc, needCheck, success) (m, _) =
+               do let name = P.thing (P.mName m)
+                  case join (Map.lookup (Proj.CacheInFile path) curCache) of
+                    Just True  ->
+                     do rPrint ("Checking module" <+> hcat [pp name, ": PASS (cached)"])
+                        let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just True }) (Proj.CacheInFile path) fpAcc
+                        pure (fpAcc', needCheck, success) -- preserve success
+
+                    Just False ->
+                      case mode of
+                        Proj.UntestedMode Proj.RecheckFailed ->
+                          do
+                            let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Nothing }) (Proj.CacheInFile path) fpAcc
+                            pure (fpAcc', (path, m) : needCheck, success)
+                        _ ->
+                          do 
+                            rPrint ("Checking module" <+> hcat [pp name, ": FAIL (cached)"])
+                            let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just False }) (Proj.CacheInFile path) fpAcc
+                            pure (fpAcc', needCheck, False) -- preserve fail
+                        
+                    Nothing -> pure (fpAcc', newNeedCheck, success)
+                      where
+                      fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Nothing }) (Proj.CacheInFile path) fpAcc
+                      newNeedCheck =
+                        case mode of
+                          Proj.ModifiedMode -> needCheck
+                          _                 -> (path, m) : needCheck
+                     
+          Proj.Scanned Proj.Changed _ ms -> pure (fpAcc', reverse pms ++ needCheck_, success_)
+            where pms = [ (path, m) | (m, _) <- ms ]
+                  fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Nothing }) (Proj.CacheInFile path) fpAcc_              
 
 -- | Get the path to the SAW command.
 -- Search options, in order:

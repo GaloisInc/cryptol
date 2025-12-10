@@ -8,6 +8,7 @@ module Cryptol.Project
   , ChangeStatus(..)
   , InvalidStatus(..)
   , LoadProjectMode(..)
+  , CheckFailedMode(..)
   , Parsed
   , loadProject
   , depMap
@@ -46,12 +47,22 @@ loadProject mode cfg =
           untested (InFile f) =
             case out of
               Left _ -> True
-              Right m -> Map.lookup (CacheInFile f) m /= Just (Just True)
+              Right m ->
+                case mode of
+                  UntestedMode checkFailed ->
+                    case Map.lookup (CacheInFile f) m of
+                       Nothing            -> True
+                       Just Nothing       -> True
+                       Just (Just True)   -> False
+                       Just (Just False)  ->
+                         case checkFailed of
+                           RecheckFailed -> True
+                           CachedFailed  -> False
+                  RefreshMode  -> True
+                  ModifiedMode -> False
 
-      let needLoad = case mode of
-            RefreshMode  -> [thing (P.mName m) | Scanned _ _ ps <- Map.elems statuses, (m, _) <- ps]
-            ModifiedMode -> [thing (P.mName m) | Scanned Changed _ ps <- Map.elems statuses, (m, _) <- ps]
-            UntestedMode -> [thing (P.mName m) | (k, Scanned ch _ ps) <- Map.assocs statuses, ch == Changed || untested k,  (m, _) <- ps]
+      let needLoad =
+            [thing (P.mName m) | (k, Scanned ch _ ps) <- Map.assocs statuses, ch == Changed || untested k, (m, _) <- ps]
       let order = loadOrder deps needLoad
 
       let modDetails = Map.fromList [(thing (P.mName m), (m, mp, fp)) | (mp, Scanned _ fp ps) <- Map.assocs statuses, (m, _) <- ps]

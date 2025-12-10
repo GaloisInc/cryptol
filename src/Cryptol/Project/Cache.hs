@@ -9,6 +9,7 @@ import qualified Data.Text.Encoding               as Text
 import qualified Data.ByteString                  as BS
 import           Data.Set                         (Set)
 import           System.Directory
+import           System.IO
 import           System.FilePath                  as FP
 import           System.IO.Error
 import qualified Toml
@@ -102,7 +103,11 @@ instance Toml.FromValue LoadCache where
 
 data CacheEntry = CacheEntry
   { cacheFingerprint :: FullFingerprint
+    -- ^ Identifier for a module that is part of the project
+
   , cacheDocstringResult :: Maybe Bool
+    -- ^ `Nothing` means unchecked,
+    -- `Just` means checked, and if validation succeeded.
   }
   deriving (Show, Read)
 
@@ -126,7 +131,7 @@ loadCachePath = metaDir FP.</> "loadcache.toml"
 emptyLoadCache :: LoadCache
 emptyLoadCache = LoadCache { cacheModules = mempty }
 
--- | Load a cache.  Also returns an id for the cahce.
+-- | Load a cache.  Also returns an id for the cache.
 -- If there is no cache (or it failed to load), then we return an empty id.
 loadLoadCache :: IO (LoadCache, CacheId)
 loadLoadCache =
@@ -144,5 +149,8 @@ saveLoadCache cache =
   do createDirectoryIfMissing False metaDir
      let txt = Text.pack (show (Toml.encode cache))
          !bytes = Text.encodeUtf8 txt
-     BS.writeFile loadCachePath bytes
+     (tmpFile,h) <- openBinaryTempFile metaDir "load-cache-XXXXX.toml"
+     BS.hPut h bytes
+     hClose h
+     renameFile tmpFile loadCachePath
      pure (SHA256.hash bytes)

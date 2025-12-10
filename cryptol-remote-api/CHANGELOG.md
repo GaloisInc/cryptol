@@ -2,6 +2,10 @@
 
 ## next -- TBA
 
+* For loading projects, `untested` corresponds to Cryptol's `--project`,
+  `modified` corresponds to `--modified-project`, `refresh` corresponds to
+  `--refresh-project` and `unsuccessful` corresponds to `--unsuccessful-project`.
+
 ## 3.4.0 -- 2025-11-07
 
 * Add a `--version`/`-v` command-line option.
