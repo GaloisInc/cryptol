@@ -30,7 +30,6 @@ import Cryptol.Utils.RecordMap (canonicalFields)
 
 import qualified Argo.Doc as Doc
 import CryptolServer.AesonCompat
-import qualified Cryptol.Parser.Name()
 
 
 newtype JSONSchema = JSONSchema Schema

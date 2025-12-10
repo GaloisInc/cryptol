@@ -601,7 +601,6 @@ mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
              | otherwise                  = NamedInst x
 
--- | Make a type parameter, 
 mkTParam :: Located Ident -> Maybe Kind -> ParseM (TParam PName)
 mkTParam Located { srcRange = rng, thing = n } k
   | n == widthIdent = errorMessage rng ["`width` is not a valid type parameter name."]
@@ -1587,6 +1586,5 @@ desugarInstImport i inst =
                        , tlDoc    = Nothing
                        , tlValue  = NestedModule m
                        }
-
 
 

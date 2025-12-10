@@ -46,14 +46,13 @@ import Cryptol.ModuleSystem.Monad (runModuleM, interactive)
 import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.ModuleSystem.Renamer as R
 import Cryptol.ModuleSystem.Name
-  (Name, mkDeclared, liftSupply, nameIdent)
+  (Name, mkDeclared, liftSupply, nameIdent, NameSource(..))
 import Cryptol.ModuleSystem.NamingEnv (singletonNS, shadowing, namespaceMap)
 
 import qualified Cryptol.Parser as CP
 import qualified Cryptol.Parser.AST as CP
 import Cryptol.Parser.Position (Located(..), emptyRange)
 import Cryptol.Parser.Selector
-import Cryptol.Parser.Name (NameSource( UserName ))
 import qualified Cryptol.TypeCheck.AST as TC
 import Cryptol.Utils.Ident
 import Cryptol.Utils.RecordMap (recordFromFields, canonicalFields)
@@ -64,7 +63,6 @@ import CryptolServer
 import CryptolServer.AesonCompat
 import CryptolServer.Exceptions
 import CryptolServer.Data.Type
-import qualified Cryptol.Parser.Name()
 
 data Encoding = Base64 | Hex
   deriving (Eq, Show, Ord)
