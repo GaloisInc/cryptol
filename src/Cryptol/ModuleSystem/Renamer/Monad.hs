@@ -357,7 +357,7 @@ checkShadowing :: NamingEnv -> NamingEnv -> RenameM ()
 checkShadowing envNew envOld =
   mapM_
     recordWarning
-    [SymbolShadowed p x (keepUserNames xs) | (p, x, xs) <- findShadowing envNew envOld, checkUserName x && not (null xs)]
+    [SymbolShadowed p x (keepUserNames xs) | (p, x, xs) <- findShadowing envNew envOld, checkUserName x && not (null (keepUserNames xs))]
   where
     keepUserNames = filter (\n -> nameSrc n == UserName)
     checkUserName n = nameSrc n == UserName
