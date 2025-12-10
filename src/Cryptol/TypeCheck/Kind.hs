@@ -25,6 +25,7 @@ module Cryptol.TypeCheck.Kind
 
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position
+import           Cryptol.ModuleSystem.Name(nameLoc)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Subst(listSubst,apSubst,isEmptySubst)
@@ -97,15 +98,34 @@ checkPropGuards props =
 
 
 
--- | Check a module parameter declarations.  Nothing much to check,
--- we just translate from one syntax to another.
+-- | Check a module parameter declaration.
+-- We check that it has kind either * or #.
 checkParameterType :: P.ParameterType Name -> InferM ModTParam
 checkParameterType a =
-  do let mbDoc = P.ptDoc a
-         k = cvtK (P.ptKind a)
-         n = thing (P.ptName a)
-     return ModTParam { mtpKind = k, mtpName = n, mtpDoc = thing <$> mbDoc }
-
+  do
+    let
+      mbDoc = P.ptDoc a
+      k  = cvtK (P.ptKind a)
+      n  = thing (P.ptName a)
+      mp = ModTParam { mtpKind = k, mtpName = n, mtpDoc = thing <$> mbDoc }
+    case k of
+      KNum -> pure mp
+      KType -> pure mp
+      _ ->
+        do
+          let mp' = mp { mtpKind = someKind k }
+          inRange (nameLoc n)
+            $ recordError (BadParameterKind (mtpParam mp') k [KNum,KType])
+          pure mp'
+  where
+  -- When we find a malformed kind, we report an error, and correct the kind
+  -- according to this function.
+  someKind e =
+    case e of
+      _ :-> x -> someKind x
+      KNum  -> KNum
+      KType -> KType
+      KProp -> KType
 
 -- | Check a type-synonym declaration.
 checkTySyn :: P.TySyn Name -> Maybe Text -> InferM TySyn

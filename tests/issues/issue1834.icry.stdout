@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading interface module F__parameter
+
+[error] at issue1834.cry:3:8--3:9:
+  Illegal kind assigned to type variable: T
+  Expected: # or *
+  Actual: # -> #
+  where
+  T is module parameter F__parameter::T at issue1834.cry:3:8--3:9
