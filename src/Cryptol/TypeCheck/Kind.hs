@@ -119,7 +119,8 @@ checkParameterType a =
           pure mp'
   where
   -- When we find a malformed kind, we report an error, and correct the kind
-  -- according to this function.
+  -- according to this function, as the rest of the code expects one of
+  -- these kinds.
   someKind e =
     case e of
       _ :-> x -> someKind x
