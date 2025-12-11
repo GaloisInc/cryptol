@@ -633,13 +633,13 @@ checkParamKind tp flav k =
         KNum  -> return ()
         KType -> return ()
         KProp -> return ()
-        _ -> recordError (BadParameterKind tp k)
+        _ -> recordError (BadParameterKind tp k [KNum, KType, KProp])
 
     starOrHash =
       case k of
         KNum  -> return ()
         KType -> return ()
-        _ -> recordError (BadParameterKind tp k)
+        _ -> recordError (BadParameterKind tp k [KNum,KType])
 
 -- | Generate a new free type variable.
 newTParam :: P.TParam Name -> TPFlavor -> Kind -> InferM TParam

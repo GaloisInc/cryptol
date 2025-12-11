@@ -10,7 +10,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Set as Set
 import Control.DeepSeq(NFData)
 import GHC.Generics(Generic)
-import Data.List((\\),sortBy,partition)
+import Data.List((\\),sortBy,partition,intersperse)
 import Data.Function(on)
 
 import Cryptol.Utils.Ident(Ident,Namespace(..))
@@ -175,9 +175,9 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
                 -- ^ Too many positional type arguments, in an explicit
                 -- type instantiation
 
-              | BadParameterKind TParam Kind
-                -- ^ Kind other than `*` or `#` given to parameter of
-                --   type synonym, newtype, function signature, etc.
+              | BadParameterKind TParam Kind [Kind]
+                -- ^ We expected one of the kinds in the list, but got
+                -- the given one instead.
 
               | CannotMixPositionalAndNamedTypeParams
 
@@ -415,7 +415,7 @@ instance FVS Error where
       UndefinedTypeParameter {}             -> Set.empty
       RepeatedTypeParameter {}              -> Set.empty
       AmbiguousSize _ t -> fvs t
-      BadParameterKind tp _ -> Set.singleton (TVBound tp)
+      BadParameterKind tp _ _ -> Set.singleton (TVBound tp)
 
       BareTypeApp -> Set.empty
 
@@ -635,10 +635,11 @@ instance PP (WithNames Error) where
                    ++ [ "When checking" <+> pp src ]
                )
 
-      BadParameterKind tp k ->
+      BadParameterKind tp k ks ->
         addTVarsDescsAfter names err $
         vcat [ "Illegal kind assigned to type variable:" <+> ppWithNames names tp
-             , "Unexpected:" <+> pp k
+             , "Expected:" <+> hsep (intersperse "or" (map pp ks))
+             , "Actual:" <+> pp k
              ]
 
       TooManyPositionalTypeParams ->
