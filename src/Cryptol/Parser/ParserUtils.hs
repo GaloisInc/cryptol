@@ -197,14 +197,6 @@ expected :: String -> ParseM a
 expected x = P $ \cfg _ s ->
                     Left (HappyUnexpected (cfgSource cfg) (sPrevTok s) x)
 
-
-
-
-
-
-
-
-
 mkModName :: [Text] -> ModName
 mkModName = packModName
 
@@ -224,7 +216,7 @@ mkModParamName lsig qual =
                                $ modNameToNormalModName t
         ImpNested nm ->
           case nm of
-            UnQual i -> i
+            UnQual' i _ -> i
             Qual _ i -> i
             NewName {} -> panic "mkModParamName" ["Unexpected NewName",show lsig]
     Just m -> packIdent (last (modNameChunks (thing m)))

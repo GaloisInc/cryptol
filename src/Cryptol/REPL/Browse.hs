@@ -6,8 +6,6 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe(mapMaybe)
 import Data.List(sortBy)
-import Data.Void (Void)
-import qualified Prettyprinter as PP
 
 import Cryptol.Parser.AST(Pragma(..))
 import qualified Cryptol.TypeCheck.Type as T
