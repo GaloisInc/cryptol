@@ -20,7 +20,7 @@ import Cryptol.Parser.AST (ForeignMode)
 import Cryptol.Eval.FFI.Error ( FFILoadError )
 import Cryptol.Eval (Eval, EvalEnv )
 import Cryptol.TypeCheck.AST
-    ( Name, FFI(..), TVar(TVBound), findForeignDecls )
+    ( FFI(..), TVar(TVBound), findForeignDecls )
 import Cryptol.TypeCheck.FFI.FFIType ( FFIFunType(..) )
 
 #ifdef FFI_ENABLED
