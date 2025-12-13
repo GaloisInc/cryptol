@@ -107,7 +107,7 @@ import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.Names as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)
-import Cryptol.Parser.Name (NameSource(..), getNameSource)
+import Cryptol.Parser.Name (NameSource(..))
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
 import Cryptol.Parser.Position (emptyRange, Range(from))
@@ -536,8 +536,6 @@ setLoadedMod n = do
 getLoadedMod :: REPL (Maybe LoadedModule)
 getLoadedMod  = eLoadedMod `fmap` getRW
 
-
-
 -- | Set the path for the ':e' command.
 -- Note that this does not change the focused module (i.e., what ":r" reloads)
 setEditPath :: FilePath -> REPL ()
@@ -667,16 +665,11 @@ getExprNames =
   do 
       fNames <- M.mctxNames <$> getFocusedEnv
       let mnames = M.namespaceMap M.NSValue fNames
-      -- UnQual PName have their separate flag that define their User/System visibility
-      -- so we check them first
-      -- If the PName is Qual or NewName, we check its NameSource availabe in the namespaceMap
       -- Note on assumptions: If a PName is ambiguous and maps to multiple Name in S[Name],
       -- we consider that the PName is a UserName if any of Name in [Name]
       -- is a UserName.
       let userNamesMap = 
-                Map.filterWithKey (\k v -> Just UserName == getNameSource k || 
-                  isNothing (getNameSource k) 
-                  && isJust (M.filterNames (\n -> UserName == M.nameSrc n) v)) mnames
+                Map.filterWithKey (\_k v -> isJust (M.filterNames (\n -> UserName == M.nameSrc n) v)) mnames
       return (map (show . pp) (Map.keys userNamesMap))
 
 
