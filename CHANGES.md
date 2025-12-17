@@ -35,6 +35,7 @@
   This will run validation on all files that have not been successfully validated,
   including ones that perviously failed, and have not changed.
 
+* Allow user to specify how many satisfying results `satProve` (from `IR/Prove.hs`) produces
 
 # 3.4.0 -- 2025-11-07
 
