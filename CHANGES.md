@@ -11,7 +11,12 @@
 * The built-in types `Option` and `Result` now have derived instances for `Eq`,
   `Cmp`, and `SignedCmp`.
 
+* We can now infer that `a = Bit`, from the constraint `Integral [n][a]`.
+
 ## Bug fixes
+
+* Fix incorrect defaulting during type inference.
+  ([#1957](https://github.com/GaloisInc/cryptol/issues/1957))
 
 * Make comparison operators lazy so that they do not evaluate any more of the
   data structure than is required to determine the comparison result, matching
