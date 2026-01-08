@@ -19,10 +19,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -yq \
 RUN curl https://i.jpillora.com/chisel! | bash
 
 # Install GHC
-ARG GHCVER="9.4.8"
+ARG GHCVER="9.6.7"
 ENV GHCUP_INSTALL_BASE_PREFIX=/opt \
     PATH=/opt/.ghcup/bin:$PATH
-RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.22.0/x86_64-linux-ghcup-0.1.22.0" && \
+RUN curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.50.2/x86_64-linux-ghcup-0.1.50.2" && \
     chmod +x /usr/local/bin/ghcup
 RUN ghcup install cabal --set
 ENV PATH=/root/.cabal/bin:$PATH

@@ -2,7 +2,7 @@
 # resolution to https://github.com/coder/coder/issues/17316.
 FROM ubuntu:22.04 AS build
 
-ARG GHCVER="9.4.8"
+ARG GHCVER="9.6.7"
 ARG CABALVER="3.10.3.0"
 RUN apt-get update && \
     apt-get install -y \
@@ -49,7 +49,7 @@ RUN case ${TARGETPLATFORM} in \
         exit 1 ;; \
     esac && \
     mkdir -p /home/cryptol/.local/bin && \
-    curl -L https://downloads.haskell.org/~ghcup/0.1.22.0/${GHCUP_ARCH}-linux-ghcup-0.1.22.0 -o /home/cryptol/.local/bin/ghcup && \
+    curl -L https://downloads.haskell.org/~ghcup/0.1.50.2/${GHCUP_ARCH}-linux-ghcup-0.1.50.2 -o /home/cryptol/.local/bin/ghcup && \
     chmod +x /home/cryptol/.local/bin/ghcup
 RUN mkdir -p /home/cryptol/.ghcup && \
     ghcup --version && \
