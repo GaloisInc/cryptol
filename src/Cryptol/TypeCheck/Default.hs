@@ -22,10 +22,14 @@ import Cryptol.Utils.Panic(panic)
 -- | We default constraints of the form @Literal t a@ and @FLiteral m n r a@.
 --
 --   For @Literal t a@ we examine the context of constraints on the type @a@
---   to decide how to default.  If @Logic a@ is required,
---   we cannot do any defaulting.  Otherwise, we default
---   to either @Integer@ or @Rational@.  In particular, if
---   we need to satisfy the @Field a@, constraint, we choose
+--   to decide how to default.
+-- 
+--   We do NOT default if:
+--     * `Logic t` and `a` in `fvs t`
+--     * `Integral t`, and `t /= a`, and `a` in `fvs t`
+--
+--   Otherwise, we default to either @Integer@ or @Rational@.
+--   In particular, if we need to satisfy the @Field a@, constraint, we choose
 --   @Rational@ and otherwise we choose @Integer@.
 --
 --   For @FLiteral t a@ we always default to @Rational@.
@@ -39,6 +43,20 @@ defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
 
   isLiteralGoal a = isJust (Map.lookup a (literalGoals gSet)) ||
                     isJust (Map.lookup a (literalLessThanGoals gSet))
+
+  disableDefaultPred a p =
+    case pIsLogic p of
+      Just t -> a `Set.member` fvs t
+      Nothing ->
+        case pIsIntegral p of
+          Just t ->
+            case tIsVar t of
+              Just _  -> False 
+              Nothing -> a `Set.member` fvs t
+          Nothing -> False
+
+  disableDefault a = any (disableDefaultPred a) allProps
+
   tryDefVar a =
     -- If there is an `FLiteral` constraint we use that for defaulting.
     case Map.lookup a (flitDefaultCandidates gSet) of
@@ -46,10 +64,10 @@ defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
 
       -- Otherwise we try to use a `Literal`
       Nothing
-        | isLiteralGoal a -> do
-           defT <- if has pLogic a then mzero
-                   else if has pField a && not (has pIntegral a)
-                          then pure tRational
+        | isLiteralGoal a && not (disableDefault a)  -> do
+           defT <- 
+                   if has pField a && not (has pIntegral a)
+                      then pure tRational
                    else if not (has pField a) then pure tInteger
                    else mzero
            let d    = tvInfo a
