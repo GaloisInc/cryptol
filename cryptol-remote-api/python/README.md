@@ -11,7 +11,7 @@ server.
 
 # TL;DR Steps to running Cryptol Python scripts
 
-1. Clone the repo 
+1. Clone the repo
 ```
 git clone https://github.com/GaloisInc/cryptol.git
 ```
@@ -19,7 +19,7 @@ git clone https://github.com/GaloisInc/cryptol.git
 ```
 cd cryptol
 ```
-3. Initialize git submodules 
+3. Initialize git submodules
 ```
 git submodule update --init
 ```
@@ -40,7 +40,7 @@ $ export CRYPTOL_SERVER_URL="http://localhost:8080/"
 ```
 6. Install the Python client (requires Python v3.7 or newer -- we recommend using [`poetry`](https://python-poetry.org/docs/#installation) to install the package):
 ```
-$ poetry install 
+$ poetry install
 ```
 7. Run tests or individual scripts:
 ```
