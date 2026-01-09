@@ -6,8 +6,6 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe(mapMaybe)
 import Data.List(sortBy)
-import Data.Void (Void)
-import qualified Prettyprinter as PP
 
 import Cryptol.Parser.AST(Pragma(..))
 import qualified Cryptol.TypeCheck.Type as T
@@ -38,7 +36,7 @@ browseModContext how mc =
     ]
 
   disp     = DispInfo { dispHow = how, env = mctxNameDisp mc }
-  decls    = filterIfaceDecls (`Set.member` visNames) (mctxDecls mc)
+  decls    = filterIfaceDecls (`Set.member` visUserNames) (mctxDecls mc)
   allNames = namingEnvNames (mctxNames mc)
   notAnon nm = identIsNormal (nameIdent nm) &&
                case nameModPathMaybe nm of
@@ -48,6 +46,7 @@ browseModContext how mc =
              case how of
                BrowseInScope  -> allNames
                BrowseExported -> mctxExported mc
+  visUserNames = Set.filter (\n -> nameSrc n == UserName) visNames
 
 data DispInfo = DispInfo { dispHow :: BrowseHow, env :: NameDisp }
 

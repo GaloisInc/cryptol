@@ -9,6 +9,8 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE PatternSynonyms #-}
+
 module Cryptol.Parser
   ( parseModule
   , parseProgram, parseProgramWith
@@ -39,6 +41,7 @@ import Cryptol.Parser.LexerUtils hiding (mkIdent)
 import Cryptol.Parser.Token
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
+import Cryptol.Parser.Name (mkUnqual, pattern UnQual)
 import Cryptol.Utils.RecordMap(RecordMap)
 
 import Paths_cryptol
