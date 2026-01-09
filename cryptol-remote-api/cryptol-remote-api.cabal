@@ -12,11 +12,6 @@ flag static
   default: False
   description: Create a statically-linked binary
 
-flag NotThreaded
-  default: False
-  manual: True
-  description: Omit the -threaded ghc flag
-
 common warnings
   ghc-options:
     -Wall
@@ -99,10 +94,7 @@ executable cryptol-remote-api
   import:              deps, warnings, errors
   main-is:             Main.hs
   hs-source-dirs:      cryptol-remote-api
-  if flag(NotThreaded)
-    ghc-options: -rtsopts -with-rtsopts=-xb0x200000000
-  else
-    ghc-options: -threaded -rtsopts -with-rtsopts=-xb0x200000000
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-xb0x200000000
 
   build-depends:
     cryptol-remote-api,
@@ -122,10 +114,7 @@ executable cryptol-eval-server
   import:              deps, warnings, errors
   main-is:             Main.hs
   hs-source-dirs:      cryptol-eval-server
-  if flag(NotThreaded)
-    ghc-options: -rtsopts -with-rtsopts=-xb0x200000000
-  else
-    ghc-options: -threaded -rtsopts -with-rtsopts=-xb0x200000000
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-xb0x200000000
 
   build-depends:
     cryptol-remote-api,
