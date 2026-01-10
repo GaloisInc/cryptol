@@ -1,28 +1,14 @@
 ARG GHCVER="9.4.8"
 ARG CABALVER="3.10.3.0"
-# This is the version of GHC that we use as part of the process of building a
-# separate copy of GHC from source. The version of GHC that we build from source
-# is determined by the value of GHCVER.
-ARG GHCVER_BOOTSTRAP="9.0.2"
-# We pin specific versions of alex and happy that are necessary to build
-# GHC. In general, we don't want to build the latest versions of each
-# tool, as GHC may not support them (see, for example,
-# https://github.com/GaloisInc/cryptol/issues/1599). If you update GHCVER, you
-# may need to update ALEXVER and HAPPYVER as well.
-ARG ALEXVER="3.4.0.1"
-ARG HAPPYVER="1.20.1.1"
 # Note that we intentionally do not use ubuntu:24.04 or later pending a
 # resolution to https://github.com/coder/coder/issues/17316.
 FROM ubuntu:22.04 AS toolchain
-ARG PORTABILITY=false
 RUN apt-get update && \
     apt-get install -y \
       # ghcup requirements
       build-essential curl libffi-dev libffi8 libgmp-dev libgmp10 libncurses-dev libncurses6 libtinfo6 \
       # Cryptol dependencies
       zlib1g-dev \
-      # GHC build dependencies
-      $(if ${PORTABILITY}; then echo git autoconf python3 libnuma-dev; fi) \
       # Miscellaneous
       unzip
 ENV LANG=C.UTF-8 \
@@ -43,35 +29,13 @@ RUN case ${TARGETPLATFORM} in \
     chmod +x /usr/local/bin/ghcup
 RUN ghcup install cabal ${CABALVER} --set
 ENV PATH=/root/.cabal/bin:$PATH
-ADD ./cryptol-remote-api/ghc-portability.patch .
 ARG GHCVER
 ARG CABALVER
-ARG GHCVER_BOOTSTRAP
-ARG ALEXVER
-ARG HAPPYVER
-RUN if ${PORTABILITY}; then \
-        ghcup install ghc ${GHCVER_BOOTSTRAP} && \
-        ghcup set ghc ${GHCVER_BOOTSTRAP} && \
-        cabal v2-update && \
-        cabal v2-install alex-${ALEXVER} happy-${HAPPYVER} && \
-        git clone --recurse-submodules --depth 1 --branch ghc-${GHCVER}-release https://gitlab.haskell.org/ghc/ghc.git && \
-        cd ./ghc && \
-        git apply ../ghc-portability.patch && \
-        ./boot && \
-        ./configure && \
-        make -j && \
-        make install && \
-        cd .. && \
-        rm -rf ./ghc && \
-        ghcup rm ghc ${GHCVER_BOOTSTRAP}; \
-    else \
-        ghcup install ghc ${GHCVER} && \
-        ghcup set ghc ${GHCVER}; \
-    fi
+RUN ghcup install ghc ${GHCVER} && \
+    ghcup set ghc ${GHCVER}
 
 FROM toolchain AS build
 ARG GHCVER
-ARG PORTABILITY
 ARG TARGETPLATFORM
 
 RUN useradd -m cryptol
@@ -84,10 +48,8 @@ ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 COPY cabal.GHC-${GHCVER}.config cabal.project.freeze
 
-RUN if ${PORTABILITY}; then SERVERS_NOT_THREADED="true"; fi
-
 RUN cabal v2-update && \
-    cabal v2-build -j ${SERVERS_NOT_THREADED:+-fNotThreaded} cryptol-remote-api:exe:cryptol-remote-api cryptol-remote-api:exe:cryptol-eval-server && \
+    cabal v2-build -j cryptol-remote-api:exe:cryptol-remote-api cryptol-remote-api:exe:cryptol-eval-server && \
     mkdir -p rootfs/usr/local/bin && \
     cp $(cabal v2-exec which cryptol-remote-api) rootfs/usr/local/bin && \
     cp $(cabal v2-exec which cryptol-eval-server) rootfs/usr/local/bin

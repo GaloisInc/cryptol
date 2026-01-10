@@ -440,12 +440,7 @@ jobs:
             file: Dockerfile
             image: ghcr.io/galoisinc/cryptol
             cache: ghcr.io/galoisinc/cache-cryptol
-          - build-args: PORTABILITY=true
-            file: cryptol-remote-api/Dockerfile
-            image: ghcr.io/galoisinc/cryptol-remote-api
-            cache: ghcr.io/galoisinc/cache-cryptol-remote-api
-          - build-args: PORTABILITY=false
-            file: cryptol-remote-api/Dockerfile
+          - file: cryptol-remote-api/Dockerfile
             image: ghcr.io/galoisinc/cryptol-remote-api
             cache: ghcr.io/galoisinc/cache-cryptol-remote-api
     steps:
@@ -456,10 +451,6 @@ jobs:
       - name: Generate cryptol.buildinfo.json
         shell: bash
         run: .github/ci.sh generate_buildinfo "${{ github.sha }}" "${{ github.ref_name }}"
-
-      - if: matrix.build-args == 'PORTABILITY=true'
-        id: prefix
-        run: echo "::set-output name=prefix::portable-"
 
       - uses: rlespinasse/github-slug-action@v5
 
