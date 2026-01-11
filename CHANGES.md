@@ -1,5 +1,9 @@
 # next -- TBA
 
+## Administrative changes
+
+* The binary builds are now built with GHC 9.6 rather than 9.4.
+
 ## Language changes
 
 * User-defined `newtype` and `enum` types can now derive instances for standard

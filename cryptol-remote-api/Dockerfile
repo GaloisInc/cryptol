@@ -1,4 +1,4 @@
-ARG GHCVER="9.4.8"
+ARG GHCVER="9.6.7"
 ARG CABALVER="3.10.3.0"
 # Note that we intentionally do not use ubuntu:24.04 or later pending a
 # resolution to https://github.com/coder/coder/issues/17316.
@@ -25,7 +25,7 @@ RUN case ${TARGETPLATFORM} in \
         printf "Unsupported architecture: %s\n" "${TARGETPLATFORM}" >&2 \
         exit 1 ;; \
     esac && \
-    curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.22.0/${GHCUP_ARCH}-linux-ghcup-0.1.22.0" && \
+    curl -o /usr/local/bin/ghcup "https://downloads.haskell.org/~ghcup/0.1.50.2/${GHCUP_ARCH}-linux-ghcup-0.1.50.2" && \
     chmod +x /usr/local/bin/ghcup
 RUN ghcup install cabal ${CABALVER} --set
 ENV PATH=/root/.cabal/bin:$PATH

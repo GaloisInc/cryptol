@@ -34,7 +34,7 @@ truncate -s 0 $VAR_FILE
 echo "# Generated environment variables. Manual changes will get clobbered by dev_setup.sh" >> $VAR_FILE
 
 GHCUP_URL="https://downloads.haskell.org/~ghcup"
-GHC_VERSION="9.4.8"
+GHC_VERSION="9.6.7"
 CABAL_VERSION="3.10.3.0"
 
 WHAT4_SOLVERS_SNAPSHOT="snapshot-20251112"
