@@ -33,6 +33,14 @@ anyOne xs =
       |  otherwise
       -> Set.elemAt 0 ns
 
+anyOneUserName::Names -> Name
+anyOneUserName xs = 
+    case l of
+      [] -> panic "anyOne" ["Ambig with no UserNames"]
+      x:_xs -> x
+      where 
+        l = [ x | x <- namesToList xs, nameSrc x == UserName]
+
 instance Semigroup Names where
   xs <> ys =
     case (xs,ys) of
