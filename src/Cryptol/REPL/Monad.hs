@@ -665,9 +665,6 @@ getExprNames =
   do 
       fNames <- M.mctxNames <$> getFocusedEnv
       let mnames = M.namespaceMap M.NSValue fNames
-      -- Note on assumptions: If a PName is ambiguous and maps to multiple Name in S[Name],
-      -- we consider that the PName is a UserName if any of Name in [Name]
-      -- is a UserName.
       let userNamesMap = 
                 Map.filterWithKey (\_k v -> isJust (M.filterNames (\n -> UserName == M.nameSrc n) v)) mnames
       return (map (show . pp) (Map.keys userNamesMap))
