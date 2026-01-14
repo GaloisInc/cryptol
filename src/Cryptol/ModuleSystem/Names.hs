@@ -33,10 +33,12 @@ anyOne xs =
       |  otherwise
       -> Set.elemAt 0 ns
 
+-- | Returns a UserName if one is available, otherwise it returns
+-- | the a anyOne SystemName.
 anyOneUserName::Names -> Name
 anyOneUserName xs = 
     case l of
-      [] -> panic "anyOne" ["Ambig with no UserNames"]
+      [] -> anyOne xs
       x:_xs -> x
       where 
         l = [ x | x <- namesToList xs, nameSrc x == UserName]
