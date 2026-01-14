@@ -1,0 +1,47 @@
+newtype T a b c = {a : a, b : b, c : c} deriving (Eq, Cmp, SignedCmp, Zero, Ring, Logic)
+
+unT : {a, b, c} T a b c -> {a : a, b : b, c : c}
+unT x = { a = x.a, b = x.b, c = x.c }
+
+// Check that the behavior of typeclass operations on newtypes is the same as
+// the behavior on the underlying records.
+
+type R = {a : [2], b : [2], c : [2]}
+type N = T [2] [2] [2]
+
+same0 : R -> N -> Bit
+same0 x y = x == unT y
+
+property sameZero = same0 zero zero
+
+same1 : (R -> R) -> (N -> N) -> R -> Bit
+same1 f g r = f r == unT (g (T r))
+
+property sameComplement = same1 complement complement
+property sameNegate = same1 negate negate
+
+same1Int : (Integer -> R) -> (Integer -> N) -> [2] -> Bit
+same1Int f g n = f (toInteger n) == unT (g (toInteger n))
+
+property sameFromInteger = same1Int fromInteger fromInteger
+
+same2 : (R -> R -> R) -> (N -> N -> N) -> R -> R -> Bit
+same2 f g r1 r2 = f r1 r2 == unT (g (T r1) (T r2))
+
+property sameAnd = same2 (&&) (&&)
+property sameOr = same2 (||) (||)
+property sameXor = same2 (^) (^)
+property samePlus = same2 (+) (+)
+property sameMinus = same2 (-) (-)
+property sameTimes = same2 (*) (*)
+
+same2Bit : (R -> R -> Bit) -> (N -> N -> Bit) -> R -> R -> Bit
+same2Bit f g r1 r2 = f r1 r2 == g (T r1) (T r2)
+
+property sameEq = same2Bit (==) (==)
+property sameNeq = same2Bit (!=) (!=)
+property sameLt = same2Bit (<) (<)
+property sameGt = same2Bit (>) (>)
+property sameLeq = same2Bit (<=) (<=)
+property sameGeq = same2Bit (>=) (>=)
+property sameLtSigned = same2Bit (<$) (<$)

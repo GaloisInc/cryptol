@@ -29,16 +29,17 @@ satProve ::
   [DeclGroup]   {-^ Additional definitions -} ->
   Expr          {-^ The expression we are examining -} ->
   Type          {-^ The type of the expression to examine -} ->
+  Int           {-^ How many satisfying assumptions produced -} ->
   Int           {-^ Timeout in seconds -} ->
   ModuleM [SatResult]
   {- ^ A list of possible models (lazy).  Empty if no models were found. -}
-satProve decls expr exprType timeoutSec =
+satProve decls expr exprType numResults timeoutSec =
   do
     timing <- M.io (newIORef 0)
     let
       cmd =
         ProverCommand {
-          pcQueryType    = SatQuery AllSat,
+          pcQueryType    = SatQuery (SomeSat numResults),
           pcProverName   = "z3",
           pcVerbose      = False,
           pcValidate     = True,

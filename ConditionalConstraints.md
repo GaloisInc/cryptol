@@ -52,4 +52,4 @@ Decl
   }
 ```
 
-Each case of an `EPropGuards` is typechecked by first asssuming the `props` and then typechecking the expression. However, this typechecking isn't really that important because by construction the expression is just a simple application that is ensured to be well-typed. But we can use this structure for more general purposes.
+Each case of an `EPropGuards` is typechecked by first assuming the `props` and then typechecking the expression. However, this typechecking isn't really that important because by construction the expression is just a simple application that is ensured to be well-typed. But we can use this structure for more general purposes.

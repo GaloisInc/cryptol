@@ -1,6 +1,6 @@
 cabal-version:       2.4
 name:                cryptol-remote-api
-version:             3.3.0.99
+version:             3.4.0.99
 license:             BSD-3-Clause
 license-file:        LICENSE
 author:              Galois, Inc.
@@ -11,11 +11,6 @@ extra-doc-files:     CHANGELOG.md
 flag static
   default: False
   description: Create a statically-linked binary
-
-flag NotThreaded
-  default: False
-  manual: True
-  description: Omit the -threaded ghc flag
 
 common warnings
   ghc-options:
@@ -99,10 +94,7 @@ executable cryptol-remote-api
   import:              deps, warnings, errors
   main-is:             Main.hs
   hs-source-dirs:      cryptol-remote-api
-  if flag(NotThreaded)
-    ghc-options: -rtsopts -with-rtsopts=-xb0x200000000
-  else
-    ghc-options: -threaded -rtsopts -with-rtsopts=-xb0x200000000
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-xb0x200000000
 
   build-depends:
     cryptol-remote-api,
@@ -122,10 +114,7 @@ executable cryptol-eval-server
   import:              deps, warnings, errors
   main-is:             Main.hs
   hs-source-dirs:      cryptol-eval-server
-  if flag(NotThreaded)
-    ghc-options: -rtsopts -with-rtsopts=-xb0x200000000
-  else
-    ghc-options: -threaded -rtsopts -with-rtsopts=-xb0x200000000
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-xb0x200000000
 
   build-depends:
     cryptol-remote-api,

@@ -13,7 +13,7 @@ data Ctxt =
   SolverCtxt
   { intervals :: Map TVar Interval
   , saturatedAsmps :: Set Prop
-  }
+  } deriving Show
 
 instance Semigroup Ctxt where
   SolverCtxt is1 as1 <> SolverCtxt is2 as2 = SolverCtxt (is1 <> is2) (as1 <> as2)

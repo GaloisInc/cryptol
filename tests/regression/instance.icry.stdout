@@ -113,7 +113,7 @@ negate`{Float _ _} : {n, m} (ValidFloat n m) => Float n m -> Float n m
       at instance.icry:46:4--46:7
   where
   ?m is type wildcard (_) at instance.icry:46:11--46:12
-(%)`{[_]_} : {n, a} (Integral ([n]a)) => [n]a -> [n]a -> [n]a
+(%)`{[_]_} : {n} (fin n) => [n] -> [n] -> [n]
 
 [error] at instance.icry:48:4--48:7:
   • `?a -> ?b` is not an integral type.

@@ -269,7 +269,7 @@ Local declarations have the weakest precedence of all expressions.
       where x = 2         // `x` is in scope in the whole `if`
 
     \y -> x + y
-      where x = 2         // `y` is not in scope in the defintion of `x`
+      where x = 2         // `y` is not in scope in the definition of `x`
 
 
 **Block Arguments**
@@ -523,7 +523,7 @@ to accommodate the value of the type:
     `t : {a} (Literal t a) => a
 
 This backtick notation is syntax sugar for an application of the
-`number` primtive, so the above may be written as:
+`number` primitive, so the above may be written as:
 
     number`{t} : {a} (Literal t a) => a
 

@@ -946,8 +946,8 @@ Internet-Draft                  cfrgcurve                     March 2015
 8.2 Utility Functions
 
 
-In the textual specification arithmatic is modular.  For the Cryptol code
-modular arithmatic must be explicitly implemented, which has been done in a
+In the textual specification arithmetic is modular.  For the Cryptol code
+modular arithmetic must be explicitly implemented, which has been done in a
 separate file.
 
 ```cryptol

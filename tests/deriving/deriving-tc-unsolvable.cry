@@ -1,0 +1,16 @@
+enum T a b = T1 a | T2 b deriving (Eq, Cmp, SignedCmp)
+
+newtype X = { x : () }
+
+newtype U a b = { a : a, b : b, c : X } deriving (Eq, Cmp, SignedCmp, Zero, Ring, Logic)
+
+enum V = V1 (T [8] [16]) | V2 (T [32] X) deriving (Eq, Cmp, SignedCmp)
+
+enum W = W1 ([8], [16]) | W2 ([32], X) deriving (Eq, Cmp, SignedCmp)
+
+foo = T1 (0 : [8]) <$ T2 (0 : Integer)
+
+bar = X { x = () } == X { x = () }
+
+baz : U Bit Bit
+baz = zero

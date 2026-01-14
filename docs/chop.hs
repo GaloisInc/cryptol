@@ -11,7 +11,7 @@
 {- A utility for spliting a long column of stuff into multiple columns. -}
 import Data.List(transpose,sort)
 
-rs = 4      -- number of rows per column
+rs = 5      -- number of rows per column
 spacing = 4 -- blanks between columns
 
 main = interact (unlines . map concat . transpose . map toCol . chop rs . sort . lines)

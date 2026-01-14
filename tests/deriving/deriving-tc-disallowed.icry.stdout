@@ -1,0 +1,92 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at deriving-tc-disallowed.cry:3:54--3:58:
+  Cannot derive `Zero`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:60--3:65:
+  Cannot derive `Logic`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:67--3:71:
+  Cannot derive `Ring`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:73--3:81:
+  Cannot derive `Integral`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:83--3:88:
+  Cannot derive `Field`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:90--3:95:
+  Cannot derive `Round`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:97--3:104:
+  Cannot derive `Literal`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:106--3:109:
+  Cannot derive `fin`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:111--3:116:
+  Cannot derive `prime`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:118--3:125:
+  Cannot derive `Integer`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:127--3:133:
+  Cannot derive `Option`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:135--3:139:
+  Cannot derive `Main::MyEq`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:5:83--5:91:
+  Cannot derive `Integral`
+  Derivable constraints for newtype declarations are:
+    Eq, Cmp, SignedCmp, Zero, Logic, Ring
+[error] at deriving-tc-disallowed.cry:5:93--5:98:
+  Cannot derive `Field`
+  Derivable constraints for newtype declarations are:
+    Eq, Cmp, SignedCmp, Zero, Logic, Ring
+[error] at deriving-tc-disallowed.cry:5:100--5:105:
+  Cannot derive `Round`
+  Derivable constraints for newtype declarations are:
+    Eq, Cmp, SignedCmp, Zero, Logic, Ring
+[error] at deriving-tc-disallowed.cry:5:107--5:114:
+  Cannot derive `Literal`
+  Derivable constraints for newtype declarations are:
+    Eq, Cmp, SignedCmp, Zero, Logic, Ring
+[error] at deriving-tc-disallowed.cry:5:116--5:119:
+  Cannot derive `fin`
+  Derivable constraints for newtype declarations are:
+    Eq, Cmp, SignedCmp, Zero, Logic, Ring
+[error] at deriving-tc-disallowed.cry:5:121--5:126:
+  Cannot derive `prime`
+  Derivable constraints for newtype declarations are:
+    Eq, Cmp, SignedCmp, Zero, Logic, Ring
+[error] at deriving-tc-disallowed.cry:5:128--5:135:
+  Cannot derive `Integer`
+  Derivable constraints for newtype declarations are:
+    Eq, Cmp, SignedCmp, Zero, Logic, Ring
+[error] at deriving-tc-disallowed.cry:5:137--5:143:
+  Cannot derive `Option`
+  Derivable constraints for newtype declarations are:
+    Eq, Cmp, SignedCmp, Zero, Logic, Ring
+[error] at deriving-tc-disallowed.cry:5:145--5:146:
+  Cannot derive `Main::T`
+  Derivable constraints for newtype declarations are:
+    Eq, Cmp, SignedCmp, Zero, Logic, Ring
+[error] at deriving-tc-disallowed.cry:5:148--5:152:
+  Cannot derive `Main::MyEq`
+  Derivable constraints for newtype declarations are:
+    Eq, Cmp, SignedCmp, Zero, Logic, Ring

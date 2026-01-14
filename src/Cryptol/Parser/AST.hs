@@ -587,12 +587,14 @@ data Newtype name = Newtype
   , nParams   :: [TParam name]       -- ^ Type params
   , nConName  :: !name               -- ^ Constructor function name
   , nBody     :: Rec (Type name)     -- ^ Body
+  , nDeriving :: [Located name]      -- ^ Derived typeclasses
   } deriving (Eq, Show, Generic, NFData)
 
 data EnumDecl name = EnumDecl
   { eName     :: Located name               -- ^ Type name
   , eParams   :: [TParam name]              -- ^ Type params
   , eCons     :: [TopLevel (EnumCon name)]  -- ^ Value constructors
+  , eDeriving :: [Located name]             -- ^ Derived typeclasses
   } deriving (Show, Generic, NFData)
 
 data EnumCon name = EnumCon
@@ -1631,12 +1633,14 @@ instance NoPos (Newtype name) where
                     , nParams   = nParams n
                     , nConName  = nConName n
                     , nBody     = fmap noPos (nBody n)
+                    , nDeriving = map noPos (nDeriving n)
                     }
 
 instance NoPos (EnumDecl name) where
   noPos n = EnumDecl { eName    = noPos (eName n)
                      , eParams  = eParams n
                      , eCons    = map noPos (eCons n)
+                     , eDeriving = map noPos (eDeriving n)
                      }
 
 instance NoPos (EnumCon name) where

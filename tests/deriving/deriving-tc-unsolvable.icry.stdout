@@ -1,0 +1,91 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at deriving-tc-unsolvable.cry:5:51--5:53:
+  • Type `Main::X` does not support equality.
+      arising from
+      the underlying record of the newtype
+      when deriving instance (Eq Main::U)
+      at deriving-tc-unsolvable.cry:5:51--5:53
+[error] at deriving-tc-unsolvable.cry:5:55--5:58:
+  • Type `Main::X` does not support comparisons.
+      arising from
+      the underlying record of the newtype
+      when deriving instance (Cmp Main::U)
+      at deriving-tc-unsolvable.cry:5:55--5:58
+[error] at deriving-tc-unsolvable.cry:5:60--5:69:
+  • Type `Main::X` does not support signed comparisons.
+      arising from
+      the underlying record of the newtype
+      when deriving instance (SignedCmp Main::U)
+      at deriving-tc-unsolvable.cry:5:60--5:69
+[error] at deriving-tc-unsolvable.cry:5:71--5:75:
+  • Type `Main::X` does not have `zero`
+      arising from
+      the underlying record of the newtype
+      when deriving instance (Zero Main::U)
+      at deriving-tc-unsolvable.cry:5:71--5:75
+[error] at deriving-tc-unsolvable.cry:5:77--5:81:
+  • Type `Main::X` does not support ring operations.
+      arising from
+      the underlying record of the newtype
+      when deriving instance (Ring Main::U)
+      at deriving-tc-unsolvable.cry:5:77--5:81
+[error] at deriving-tc-unsolvable.cry:5:83--5:88:
+  • Type `Main::X` does not support logical operations.
+      arising from
+      the underlying record of the newtype
+      when deriving instance (Logic Main::U)
+      at deriving-tc-unsolvable.cry:5:83--5:88
+[error] at deriving-tc-unsolvable.cry:7:52--7:54:
+  • Type `Main::X` does not support equality.
+      arising from
+      field 1 of constructor `Main::V2` (type `Main::T [32] (Main::X)`)
+      when deriving instance (Eq Main::V)
+      at deriving-tc-unsolvable.cry:7:52--7:54
+[error] at deriving-tc-unsolvable.cry:7:56--7:59:
+  • Type `Main::X` does not support comparisons.
+      arising from
+      field 1 of constructor `Main::V2` (type `Main::T [32] (Main::X)`)
+      when deriving instance (Cmp Main::V)
+      at deriving-tc-unsolvable.cry:7:56--7:59
+[error] at deriving-tc-unsolvable.cry:7:61--7:70:
+  • Type `Main::X` does not support signed comparisons.
+      arising from
+      field 1 of constructor `Main::V2` (type `Main::T [32] (Main::X)`)
+      when deriving instance (SignedCmp Main::V)
+      at deriving-tc-unsolvable.cry:7:61--7:70
+[error] at deriving-tc-unsolvable.cry:9:50--9:52:
+  • Type `Main::X` does not support equality.
+      arising from
+      field 1 of constructor `Main::W2` (type `([32], Main::X)`)
+      when deriving instance (Eq Main::W)
+      at deriving-tc-unsolvable.cry:9:50--9:52
+[error] at deriving-tc-unsolvable.cry:9:54--9:57:
+  • Type `Main::X` does not support comparisons.
+      arising from
+      field 1 of constructor `Main::W2` (type `([32], Main::X)`)
+      when deriving instance (Cmp Main::W)
+      at deriving-tc-unsolvable.cry:9:54--9:57
+[error] at deriving-tc-unsolvable.cry:9:59--9:68:
+  • Type `Main::X` does not support signed comparisons.
+      arising from
+      field 1 of constructor `Main::W2` (type `([32], Main::X)`)
+      when deriving instance (SignedCmp Main::W)
+      at deriving-tc-unsolvable.cry:9:59--9:68
+[error] at deriving-tc-unsolvable.cry:11:1--11:39:
+  • Type `Integer` does not support signed comparisons.
+      arising from
+      use of expression (<$)
+      at deriving-tc-unsolvable.cry:11:7--11:39
+[error] at deriving-tc-unsolvable.cry:13:1--13:35:
+  • Type `Main::X` does not support equality.
+      arising from
+      use of expression (==)
+      at deriving-tc-unsolvable.cry:13:7--13:35
+[error] at deriving-tc-unsolvable.cry:16:1--16:11:
+  • Type `Main::U Bit Bit` does not have `zero`
+      arising from
+      use of expression zero
+      at deriving-tc-unsolvable.cry:16:7--16:11

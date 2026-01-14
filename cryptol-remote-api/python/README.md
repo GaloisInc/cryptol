@@ -11,7 +11,7 @@ server.
 
 # TL;DR Steps to running Cryptol Python scripts
 
-1. Clone the repo 
+1. Clone the repo
 ```
 git clone https://github.com/GaloisInc/cryptol.git
 ```
@@ -19,7 +19,7 @@ git clone https://github.com/GaloisInc/cryptol.git
 ```
 cd cryptol
 ```
-3. Initialize git submodules 
+3. Initialize git submodules
 ```
 git submodule update --init
 ```
@@ -35,12 +35,12 @@ cd cryptol-remote-api/python
 $ docker run --name=cryptol-remote-api -d \
   -v $PWD/tests/cryptol/test-files:/home/cryptol/tests/cryptol/test-files \
   -p 8080:8080 \
-  ghcr.io/galoisinc/cryptol-remote-api:nightly-portable
+  ghcr.io/galoisinc/cryptol-remote-api:nightly
 $ export CRYPTOL_SERVER_URL="http://localhost:8080/"
 ```
 6. Install the Python client (requires Python v3.7 or newer -- we recommend using [`poetry`](https://python-poetry.org/docs/#installation) to install the package):
 ```
-$ poetry install 
+$ poetry install
 ```
 7. Run tests or individual scripts:
 ```
@@ -124,7 +124,7 @@ These images are set up to run as HTTP `cryptol-remote-api` servers, e.g.:
 ```
 docker run --name=cryptol-remote-api -d \
   -p 8080:8080 \
-  ghcr.io/galoisinc/cryptol-remote-api:nightly-portable
+  ghcr.io/galoisinc/cryptol-remote-api:nightly
 ```
 
 The `-v` option to `docker run` can be used to load files into the docker

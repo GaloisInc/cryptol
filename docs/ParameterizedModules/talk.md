@@ -1,5 +1,5 @@
 
-ML-Sytle Modules for Cryptol
+ML-Style Modules for Cryptol
 ----------------------------
 
 Iavor S. Diatchki
@@ -152,7 +152,7 @@ Note: `P` is *not* a normal name.
 Instantiation
 -------------
 
-Another way to introduce a module entitiy:
+Another way to introduce a module entity:
 ```cryptol
 module I where
 

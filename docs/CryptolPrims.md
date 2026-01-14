@@ -1,4 +1,4 @@
-Typeclass Heriarchy
+Typeclass Hierarchy
 ---------------------
 
           Zero
@@ -15,6 +15,11 @@ Cryptol are related.  A type which is an instance of a
 subclass is also always a member of all of its superclasses.
 For example, any type which is a member of `Field` is also
 a member of `Ring` and `Zero`.
+
+In addition to the built-in instances listed here, `newtype` declarations can
+derive instances for `Eq`, `Cmp`, `SignedCmp`, `Zero`, `Logic`, and `Ring`, and
+`enum` declarations can derive instances for `Eq`, `Cmp`, and `SignedCmp`. See
+the reference manual for more information.
 
 
 Literals

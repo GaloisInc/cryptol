@@ -1,0 +1,65 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[T1 0x0 0x0, T1 0x0 0x1, T1 0x0 0x2, T1 0x0 0x3, T1 0x1 0x0,
+ T1 0x1 0x0, T1 0x1 0x0, T1 0x1 0x1, T1 0x1 0x3, T2 0x0 0x00,
+ T2 0x0 0x03, T2 0x1 0x03, T2 0x1 0x03, T2 0x3 0x04, T2 0x5 0x3c,
+ T2 0xa 0x03, T2 0xc 0x2a, T2 0xf 0x00, T2 0xf 0x20, T3 0x00,
+ T3 0x01, T3 0x03, T3 0x64, T3 0x80, T3 0xc8]
+[T1 0x1 0x3, T1 0x1 0x0, T1 0x1 0x0, T1 0x1 0x0, T1 0x1 0x1,
+ T1 0x0 0x2, T1 0x0 0x3, T1 0x0 0x0, T1 0x0 0x1, T2 0xa 0x03,
+ T2 0xc 0x2a, T2 0xf 0x20, T2 0xf 0x00, T2 0x0 0x00, T2 0x0 0x03,
+ T2 0x1 0x03, T2 0x1 0x03, T2 0x3 0x04, T2 0x5 0x3c, T3 0x80,
+ T3 0xc8, T3 0x00, T3 0x01, T3 0x03, T3 0x64]
+0b0000010000000001000000001
+:prove ctorOrderingUnsigned
+	Q.E.D.
+:prove ctorOrderingSigned
+	Q.E.D.
+:prove fieldOrderingLt
+	Q.E.D.
+:prove fieldOrderingGt
+	Q.E.D.
+:prove fieldOrderingLeq
+	Q.E.D.
+:prove fieldOrderingGeq
+	Q.E.D.
+:prove fieldOrderingEq
+	Q.E.D.
+:prove fieldOrderingNeq
+	Q.E.D.
+:prove fieldOrderingLtSigned
+	Q.E.D.
+property ctorOrderingUnsigned Using exhaustive testing.
+Testing... Passed 1024 tests.
+Q.E.D.
+property ctorOrderingSigned Using exhaustive testing.
+Testing... Passed 1024 tests.
+Q.E.D.
+property fieldOrderingLt Using exhaustive testing.
+Testing... Passed 256 tests.
+Q.E.D.
+property fieldOrderingGt Using exhaustive testing.
+Testing... Passed 256 tests.
+Q.E.D.
+property fieldOrderingLeq Using exhaustive testing.
+Testing... Passed 256 tests.
+Q.E.D.
+property fieldOrderingGeq Using exhaustive testing.
+Testing... Passed 256 tests.
+Q.E.D.
+property fieldOrderingEq Using exhaustive testing.
+Testing... Passed 256 tests.
+Q.E.D.
+property fieldOrderingNeq Using exhaustive testing.
+Testing... Passed 256 tests.
+Q.E.D.
+property fieldOrderingLtSigned Using exhaustive testing.
+Testing... Passed 256 tests.
+Q.E.D.
+True
+True
+True
+True
+True
+True

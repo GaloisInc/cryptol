@@ -37,6 +37,7 @@ data TokenKW  = KW_else
               | KW_submodule
               | KW_newtype
               | KW_enum
+              | KW_deriving
               | KW_pragma
               | KW_property
               | KW_then

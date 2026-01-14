@@ -1,0 +1,4 @@
+:l deriving-newtypes.cry
+:set proverStats=off
+:prove
+:exhaust

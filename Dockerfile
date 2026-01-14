@@ -2,7 +2,7 @@
 # resolution to https://github.com/coder/coder/issues/17316.
 FROM ubuntu:22.04 AS build
 
-ARG GHCVER="9.4.8"
+ARG GHCVER="9.6.7"
 ARG CABALVER="3.10.3.0"
 RUN apt-get update && \
     apt-get install -y \
@@ -30,7 +30,7 @@ RUN case ${TARGETPLATFORM} in \
         printf "Unsupported architecture: %s\n" "${TARGETPLATFORM}" >&2 \
         exit 1 ;; \
     esac && \
-    curl -o solvers.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20250606/ubuntu-22.04-${WHAT4_SOLVERS_ARCH}-bin.zip"
+    curl -o solvers.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20251112/ubuntu-22.04-${WHAT4_SOLVERS_ARCH}-bin.zip"
 RUN unzip solvers.zip && rm solvers.zip && chmod +x *
 WORKDIR /cryptol
 ENV PATH=/cryptol/rootfs/usr/local/bin:/home/cryptol/.local/bin:/home/cryptol/.ghcup/bin:$PATH
@@ -49,7 +49,7 @@ RUN case ${TARGETPLATFORM} in \
         exit 1 ;; \
     esac && \
     mkdir -p /home/cryptol/.local/bin && \
-    curl -L https://downloads.haskell.org/~ghcup/0.1.22.0/${GHCUP_ARCH}-linux-ghcup-0.1.22.0 -o /home/cryptol/.local/bin/ghcup && \
+    curl -L https://downloads.haskell.org/~ghcup/0.1.50.2/${GHCUP_ARCH}-linux-ghcup-0.1.50.2 -o /home/cryptol/.local/bin/ghcup && \
     chmod +x /home/cryptol/.local/bin/ghcup
 RUN mkdir -p /home/cryptol/.ghcup && \
     ghcup --version && \

@@ -14,6 +14,8 @@ module Cryptol.TypeCheck.Solve
   , proveModuleTopLevel
   , defaultAndSimplify
   , defaultReplExpr
+  , quickSolver
+  , buildSolverCtxt
   ) where
 
 import           Cryptol.Parser.Position(thing,emptyRange)

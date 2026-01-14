@@ -8,8 +8,6 @@ Showing a specific instance of polymorphic result:
 Showing a specific instance of polymorphic result:
   * Using 'Rational' for type of sequence member
 []
-Showing a specific instance of polymorphic result:
-  * Using 'Bit' for type of sequence member
 []
 Loading module Cryptol
 Loading module Main
@@ -25,7 +23,5 @@ c : {a} (Round a) => [0]Integer
 Showing a specific instance of polymorphic result:
   * Using 'Rational' for type of sequence member
 []
-d : {a} (Integral ([1]a)) => [0]Integer
-Showing a specific instance of polymorphic result:
-  * Using 'Bit' for type of sequence member
+d : [0]Integer
 []

@@ -35,6 +35,8 @@
 > import qualified LibBF as FP
 > import qualified GHC.Num.Compat as Integer
 > import qualified Data.List as List
+> import Data.Vector (Vector)
+> import qualified Data.Vector as Vector
 >
 > import Cryptol.ModuleSystem.Name (asPrim,nameIdent)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
@@ -43,7 +45,7 @@
 > import qualified Cryptol.Backend.FloatHelpers as FP
 > import Cryptol.Backend.Monad (EvalError(..))
 > import Cryptol.Eval.Type
->   (TValue(..), TNominalTypeValue(..),
+>   (TValue(..), TNominalTypeValue(..), ConInfo(..),
 >    isTBit, evalValType, evalNumType, TypeEnv, bindTypeVar)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
 > import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim, unpackIdent)
@@ -1076,9 +1078,9 @@ The `Zero` class has a single method `zero` which computes
 a zero value for all the built-in types for Cryptol.
 For bits, bitvectors and the base numeric types, this
 returns the obvious 0 representation.  For sequences, records,
-and tuples, the zero method operates pointwise the underlying types.
-For functions, `zero` returns the constant function that returns
-`zero` in the codomain.
+tuples, and newtypes deriving `Zero`, the zero method operates
+pointwise the underlying types. For functions, `zero` returns
+the constant function that returns `zero` in the codomain.
 
 > zero :: TValue -> Value
 > zero TVBit          = VBit False
@@ -1093,7 +1095,10 @@ For functions, `zero` returns the constant function that returns
 > zero (TVRec fields) = VRecord [ (f, pure (zero fty))
 >                               | (f, fty) <- canonicalFields fields ]
 > zero (TVFun _ bty)  = VFun (\_ -> pure (zero bty))
-> zero (TVNominal {})  = evalPanic "zero" ["Nominal type not in `Zero`"]
+> zero (TVNominal _ _ ntv) =
+>   case ntv of
+>     TVStruct fields -> zero (TVRec fields)
+>     _               -> evalPanic "zero" ["Enum/Abstract type not in `Zero`"]
 
 Literals
 --------
@@ -1162,7 +1167,10 @@ at the same positions.
 >         TVArray{}    -> evalPanic "logicUnary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
 >         TVFloat{}    -> evalPanic "logicUnary" ["Float not in class Logic"]
->         TVNominal {}  -> evalPanic "logicUnary" ["Nominal type not in `Logic`"]
+>         TVNominal _ _ ntv ->
+>           case ntv of
+>             TVStruct fields -> go (TVRec fields) val
+>             _ -> evalPanic "logicUnary" ["Enum/Abstract type not in `Logic`"]
 
 > logicBinary :: (Bool -> Bool -> Bool) -> TValue -> E Value -> E Value -> E Value
 > logicBinary op = go
@@ -1200,7 +1208,10 @@ at the same positions.
 >         TVArray{}    -> evalPanic "logicBinary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicBinary" ["Rational not in class Logic"]
 >         TVFloat{}    -> evalPanic "logicBinary" ["Float not in class Logic"]
->         TVNominal {} -> evalPanic "logicBinary" ["Nominal type not in `Logic`"]
+>         TVNominal _ _ ntv ->
+>           case ntv of
+>             TVStruct fields -> go (TVRec fields) l r
+>             _ -> evalPanic "logicBinary" ["Enum/Abstract type not in `Logic`"]
 
 
 Ring Arithmetic
@@ -1224,7 +1235,7 @@ False]`, but to `error "foo"`.
 >     go ty =
 >       case ty of
 >         TVBit ->
->           evalPanic "arithNullary" ["Bit not in class Ring"]
+>           evalPanic "ringNullary" ["Bit not in class Ring"]
 >         TVInteger ->
 >           VInteger <$> i
 >         TVIntMod n ->
@@ -1234,7 +1245,7 @@ False]`, but to `error "foo"`.
 >         TVFloat e p ->
 >           VFloat . fpToBF e p <$> fl e p
 >         TVArray{} ->
->           evalPanic "arithNullary" ["Array not in class Ring"]
+>           evalPanic "ringNullary" ["Array not in class Ring"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w <$> i
 >           | otherwise -> pure $ VList (Nat w) (genericReplicate w (go a))
@@ -1246,8 +1257,10 @@ False]`, but to `error "foo"`.
 >           pure $ VTuple (map go tys)
 >         TVRec fs ->
 >           pure $ VRecord [ (f, go fty) | (f, fty) <- canonicalFields fs ]
->         TVNominal {} ->
->           evalPanic "arithNullary" ["Newtype type not in `Ring`"]
+>         TVNominal _ _ ntv ->
+>           case ntv of
+>             TVStruct fs -> go (TVRec fs)
+>             _ -> evalPanic "ringNullary" ["Enum/Abstract type not in `Ring`"]
 
 > ringUnary ::
 >   (Integer -> E Integer) ->
@@ -1260,11 +1273,11 @@ False]`, but to `error "foo"`.
 >     go ty val =
 >       case ty of
 >         TVBit ->
->           evalPanic "arithUnary" ["Bit not in class Ring"]
+>           evalPanic "ringUnary" ["Bit not in class Ring"]
 >         TVInteger ->
 >           VInteger <$> appOp1 iop (fromVInteger <$> val)
 >         TVArray{} ->
->           evalPanic "arithUnary" ["Array not in class Ring"]
+>           evalPanic "ringUnary" ["Array not in class Ring"]
 >         TVIntMod n ->
 >           VInteger <$> appOp1 (\i -> flip mod n <$> iop i) (fromVInteger <$> val)
 >         TVRational ->
@@ -1284,8 +1297,10 @@ False]`, but to `error "foo"`.
 >           do val' <- val
 >              pure $ VRecord [ (f, go fty (lookupRecord f val'))
 >                             | (f, fty) <- canonicalFields fs ]
->         TVNominal {} ->
->           evalPanic "arithUnary" ["Nominal type not in `Ring`"]
+>         TVNominal _ _ ntv ->
+>           case ntv of
+>             TVStruct fs -> go (TVRec fs) val
+>             _ -> evalPanic "ringUnary" ["Enum/Abstract type not in `Ring`"]
 
 > ringBinary ::
 >   (Integer -> Integer -> E Integer) ->
@@ -1298,7 +1313,7 @@ False]`, but to `error "foo"`.
 >     go ty l r =
 >       case ty of
 >         TVBit ->
->           evalPanic "arithBinary" ["Bit not in class Ring"]
+>           evalPanic "ringBinary" ["Bit not in class Ring"]
 >         TVInteger ->
 >           VInteger <$> appOp2 iop (fromVInteger <$> l) (fromVInteger <$> r)
 >         TVIntMod n ->
@@ -1309,7 +1324,7 @@ False]`, but to `error "foo"`.
 >           VFloat . fpToBF e p <$>
 >             appOp2 (flop e p) (fromVFloat <$> l) (fromVFloat <$> r)
 >         TVArray{} ->
->           evalPanic "arithBinary" ["Array not in class Ring"]
+>           evalPanic "ringBinary" ["Array not in class Ring"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w <$> appOp2 iop (fromVWord =<< l) (fromVWord =<< r)
 >           | otherwise ->
@@ -1332,8 +1347,10 @@ False]`, but to `error "foo"`.
 >              pure $ VRecord
 >                [ (f, go fty (lookupRecord f l') (lookupRecord f r'))
 >                | (f, fty) <- canonicalFields fs ]
->         TVNominal {} ->
->           evalPanic "arithBinary" ["Nominal type not in class `Ring`"]
+>         TVNominal _ _ ntv ->
+>           case ntv of
+>             TVStruct fs -> go (TVRec fs) l r
+>             _ -> evalPanic "ringBinary" ["Enum/Abstract type not in class `Ring`"]
 
 
 Integral
@@ -1463,12 +1480,16 @@ Rational
 Comparison
 ----------
 
-Comparison primitives may be applied to any type that is constructed of
-out of base types and tuples, records and finite sequences.
+Comparison primitives may be applied to any type that is constructed
+out of base types and tuples, records, finite sequences, and newtypes
+and enums deriving the appropriate instances.
 All such types are compared using a lexicographic ordering of components.
 On bits, we have `False` < `True`. Sequences and
 tuples are compared left-to-right, and record fields are compared in
-alphabetical order.
+alphabetical order. Newtypes are compared using their underlying records.
+Enums are compared first based on constructor, in the order that they are
+listed in the `enum` declaration, then for enum values with the same
+constructor, by the constructor fields in left-to-right order.
 
 Comparisons on base types are strict in both arguments. Comparisons on
 larger types have short-circuiting behavior: A comparison involving an
@@ -1510,8 +1531,12 @@ bits to the *left* of that position are equal.
 >          ls <- map snd . sortBy (comparing fst) . fromVRecord <$> l
 >          rs <- map snd . sortBy (comparing fst) . fromVRecord <$> r
 >          lexList (zipWith3 lexCompare tys ls rs)
->     TVNominal {} ->
->       evalPanic "lexCompare" ["Nominal type not in `Cmp`"]
+>     TVNominal _ _ ntv ->
+>       case ntv of
+>         TVStruct fields -> lexCompare (TVRec fields) l r
+>         TVEnum conInfos -> lexEnum lexCompare conInfos l r
+>         TVAbstract ->
+>           evalPanic "lexCompare" ["Abstract type not in `Cmp`"]
 >
 > lexList :: [E Ordering] -> E Ordering
 > lexList [] = pure EQ
@@ -1520,6 +1545,29 @@ bits to the *left* of that position are equal.
 >     LT -> pure LT
 >     EQ -> lexList es
 >     GT -> pure GT
+>
+> -- | Lexicographic ordering on enums, given a comparison function for fields.
+> lexEnum :: (TValue -> E Value -> E Value -> E Ordering)
+>         -> Vector (ConInfo TValue) -> E Value -> E Value -> E Ordering
+> lexEnum cmp conInfos l r =
+>   do (lcon, lfields) <- fromVEnum <$> l
+>      (rcon, rfields) <- fromVEnum <$> r
+>      let lconIndex = conIndex lcon
+>          rconIndex = conIndex rcon
+>          -- We arbitrarily use the field types of the left side constructor
+>          -- here, but this is okay since this should only be evaluated when
+>          -- the left and right constructors are the same.
+>          fieldTys = Vector.toList $
+>                       conFields (conInfos Vector.! lconIndex)
+>      lexList (pure (compare lconIndex rconIndex)
+>               : zipWith3 cmp fieldTys lfields rfields)
+>   where
+>     conIndex con =
+>       case Vector.findIndex ((== con) . conIdent) conInfos of
+>         Just i -> i
+>         Nothing ->
+>           evalPanic "lexEnum"
+>             ["Unknown enum constructor " ++ unpackIdent con]
 
 Signed comparisons may be applied to any type made up of non-empty
 bitvectors using finite sequences, tuples and records.
@@ -1564,8 +1612,12 @@ fields are compared in alphabetical order.
 >          ls <- map snd . sortBy (comparing fst) . fromVRecord <$> l
 >          rs <- map snd . sortBy (comparing fst) . fromVRecord <$> r
 >          lexList (zipWith3 lexSignedCompare tys ls rs)
->     TVNominal {} ->
->       evalPanic "lexSignedCompare" ["Nominal type not in `Cmp`"]
+>     TVNominal _ _ ntv ->
+>       case ntv of
+>         TVStruct fields -> lexSignedCompare (TVRec fields) l r
+>         TVEnum conInfos -> lexEnum lexSignedCompare conInfos l r
+>         TVAbstract ->
+>           evalPanic "lexSignedCompare" ["Abstract type not in `Cmp`"]
 
 
 Sequences

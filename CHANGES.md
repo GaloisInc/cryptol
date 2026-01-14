@@ -1,12 +1,60 @@
 # next -- TBA
 
+## Administrative changes
+
+* The binary builds are now built with GHC 9.6 rather than 9.4.
+
+## Language changes
+
+* User-defined `newtype` and `enum` types can now derive instances for standard
+  constraints like `Eq` and `Cmp`. This means you can use standard operations
+  like `==` with your custom types. See the [manual
+  section](https://galoisinc.github.io/cryptol/master/OverloadedOperations.html#derived-instances)
+  for more information.
+
+* The built-in types `Option` and `Result` now have derived instances for `Eq`,
+  `Cmp`, and `SignedCmp`.
+
+* We can now infer that `a = Bit`, from the constraint `Integral [n][a]`.
+
+## Bug fixes
+
+* Fix incorrect defaulting during type inference.
+  ([#1957](https://github.com/GaloisInc/cryptol/issues/1957))
+
+* Make comparison operators lazy so that they do not evaluate any more of the
+  data structure than is required to determine the comparison result, matching
+  the behavior of the reference evaluator.
+  ([#1925](https://github.com/GaloisInc/cryptol/issues/1925))
+
+* Modify project loading to update the cache after each module is validated,
+  and make saving the cache atomic on file systems where renaming a file to
+  an existing file is atomic.  This is useful because we get partial results
+  if the validation process is interrupted.
+  
+* Change the default behavior of `-p`/`--project`.  The new behavior is that
+  it will check all files that have changed, and also files that have not
+  been previously verified.  The old behavior would only validate files that
+  have changed since last time.
+
+* Add a new flag, `--modified-project` which gives us the old `-p` behavior
+  (i.e., check only files that have changed).
+
+* Replace the `--untested-project` flag with the `--unsuccessful-project` flag.
+  This will run validation on all files that have not been successfully validated,
+  including ones that perviously failed, and have not changed.
+
+* Allow user to specify how many satisfying results `satProve` (from `IR/Prove.hs`) produces
+
+# 3.4.0 -- 2025-11-07
+
 ## Language changes
 
 * When running validation commands (`:check`, `:prove`, `:exhaust`, etc.)
   without an explicit argument, we now run only the properties in the
   currently *focused module*.  This is a change in behavior, because previously
   we used to run all properties in the currently opened *file*.  This change
-  is only noticable when working with nested modules.  The new behavior works
+  is only noticeable when working with nested modules.  The new behavior works
   better when these commands are used from docstrings (e.g., with the
   new behavior, writing `:check` on a submodule, will only check the properties
   in that submodule, as expected).  
@@ -36,7 +84,7 @@
 
 ## Bug fixes
 
-* Fix a discrepency between the behavior of `:check-docstrings` when run
+* Fix a discrepancy between the behavior of `:check-docstrings` when run
   on the REPL vs. when run with a project.
   ([#1903](https://github.com/GaloisInc/cryptol/issues/1903))
 
@@ -289,7 +337,7 @@
 
 * Add `:new-seed` and `:set-seed` commands to the REPL.
   These affect random test generation,
-  and help write reproducable Cryptol scripts.
+  and help write reproducible Cryptol scripts.
 
 * Add support for the CVC5 solver, which can be selected with
   `:set prover=cvc5`. If you want to specify a What4 or SBV backend, you can
@@ -345,7 +393,7 @@
 * "Type mismatch" errors now show a context giving more information
   about the location of the error.   The context is shown when the
   part of the types match, but then some nested types do not.
-  For example, when mathching `{ a : [8], b : [8] }` with
+  For example, when matching `{ a : [8], b : [8] }` with
   `{ a : [8], b : [16] }` the error will be `8` does not match `16`
   and the context will be `{ b : [ERROR] _ }` indicating that the
   error is in the length of the sequence of field `b`.
@@ -457,7 +505,7 @@ parameters when pretty printing type signature (closes issue #1867).
 ## Language changes
 
 * The `newtype` construct, which has existed in the interpreter in an
-  incomplete and undocumented form for quite a while, is now fullly
+  incomplete and undocumented form for quite a while, is now fully
   supported. The construct is documented in section 1.22 of [Programming
   Cryptol](https://cryptol.net/files/ProgrammingCryptol.pdf). Note,
   however, that the `cryptol-remote-api` RPC server currently does not

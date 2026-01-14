@@ -14,17 +14,20 @@ Loading module Main
 
 [error] at issue1024a.cry:1:6--1:11:
   Illegal kind assigned to type variable: f`892
-  Unexpected: # -> *
+  Expected: # or *
+  Actual: # -> *
   where
   f`892 is signature variable 'f' at issue1024a.cry:1:13--1:14
 [error] at issue1024a.cry:2:6--2:13:
   Illegal kind assigned to type variable: f`893
-  Unexpected: Prop
+  Expected: # or *
+  Actual: Prop
   where
   f`893 is signature variable 'f' at issue1024a.cry:2:15--2:16
 [error] at issue1024a.cry:4:13--4:49:
   Illegal kind assigned to type variable: f`895
-  Unexpected: # -> *
+  Expected: # or *
+  Actual: # -> *
   where
   f`895 is signature variable 'f' at issue1024a.cry:4:22--4:32
 Loading module Cryptol

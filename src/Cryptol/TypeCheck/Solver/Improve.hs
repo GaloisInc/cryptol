@@ -20,7 +20,7 @@ import Cryptol.TypeCheck.Subst
 
 -- | Improvements from a bunch of propositions.
 -- Invariant:
--- the substitions should be already applied to the new sub-goals, if any.
+-- the substitutions should be already applied to the new sub-goals, if any.
 improveProps :: Bool -> Ctxt -> [Prop] -> Match (Subst,[Prop])
 improveProps impSkol ctxt ps0 = loop emptySubst ps0
   where
@@ -40,12 +40,24 @@ improveProps impSkol ctxt ps0 = loop emptySubst ps0
 
 -- | Improvements from a proposition.
 -- Invariant:
--- the substitions should be already applied to the new sub-goals, if any.
+-- the substitutions should be already applied to the new sub-goals, if any.
 improveProp :: Bool -> Ctxt -> Prop -> Match (Subst,[Prop])
 improveProp impSkol ctxt prop =
   improveEq impSkol ctxt prop <|>
-  improveLit impSkol prop
+  improveLit impSkol prop <|>
+  improveIntegral impSkol prop
   -- XXX: others
+
+-- Whenever we have `Integral [m]a`, we can learn that `a = Bit`
+improveIntegral :: Bool -> Prop -> Match (Subst,[Prop])
+improveIntegral impSkol prop =
+  do
+    t     <- aIntegral prop
+    (_,b) <- aSeq t
+    a     <- aTVar b
+    unless impSkol $ guard (isFreeTV a)
+    let su = uncheckedSingleSubst a tBit
+    return (su, [])
 
 -- Whenever we have `Literal n [m]a`,
 -- we can learn that `a = Bit`
@@ -61,7 +73,7 @@ improveLit impSkol prop =
 
 -- | Improvements from equality constraints.
 -- Invariant:
--- the substitions should be already applied to the new sub-goals, if any.
+-- the substitutions should be already applied to the new sub-goals, if any.
 improveEq :: Bool -> Ctxt -> Prop -> Match (Subst,[Prop])
 improveEq impSkol fins prop =
   do (lhs,rhs) <- (|=|) prop

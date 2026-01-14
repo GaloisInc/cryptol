@@ -214,6 +214,7 @@ instance TraverseNames NominalType where
       <*> pure (ntKind nt)
       <*> traverseNamesIP (ntConstraints nt)
       <*> traverseNamesIP (ntDef nt)
+      <*> traverse traverseNamesIP (ntDeriving nt)
       <*> pure (ntFixity nt)
       <*> pure (ntDoc nt)
 

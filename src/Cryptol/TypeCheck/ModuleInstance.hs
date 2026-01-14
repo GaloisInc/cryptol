@@ -111,6 +111,7 @@ instance ModuleInstance NominalType where
             , ntKind        = ntKind nt
             , ntConstraints = moduleInstance (ntConstraints nt)
             , ntDef         = moduleInstance (ntDef nt)
+            , ntDeriving    = moduleInstance <$> ntDeriving nt
             , ntFixity      = ntFixity nt
             , ntDoc         = ntDoc nt
             }

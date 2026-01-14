@@ -34,3 +34,11 @@ anyJust2 f g (a,b) =
     (Just x , Nothing) -> Just (x, b)
     (Nothing, Just y ) -> Just (a, y)
     (Just x , Just y ) -> Just (x, y)
+
+-- | Apply functions to all 3 elements of a triple.
+-- Returns 'Nothing' if nothing changed, and @Just triple@ otherwise.
+anyJust3 :: (a -> Maybe a) -> (b -> Maybe b) -> (c -> Maybe c)
+         -> (a, b, c) -> Maybe (a, b, c)
+anyJust3 f g h (a, b, c) = do
+  (a', (b', c')) <- anyJust2 f (anyJust2 g h) (a, (b, c))
+  pure (a', b', c')

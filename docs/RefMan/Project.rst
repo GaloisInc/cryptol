@@ -28,14 +28,14 @@ For each module, which is processed, we report a line like this:
   Successes: X, No fences: Y, Failures: Z
 
 where:
-  * ``X`` is the nubmer of docstring tests which completed successfully,
+  * ``X`` is the number of docstring tests which completed successfully,
   * ``Y`` is the number of declarations that have no docstring tests, and
-  * ``Z`` is the number of dcostring tests which resulted in an error.
+  * ``Z`` is the number of docstring tests which resulted in an error.
 
 Note that these are only reported for modules that are actually checked
 (i.e., either they were not checked before, or something changed).
 
-After all modules are processed we also report a summay of the form:
+After all modules are processed we also report a summary of the form:
 
 .. code:: shell
 
@@ -49,25 +49,34 @@ where:
 At present we do not run tests for built-in modules (e.g., ``Cryptol`` or
 ``Float``), so almost always there will be at least 1 "missing" module.
 
+
+Project Result Caching
+----------------------
+
 After loading a project the cache information is saved into a Cryptol-
 managed file in the project root directory ``.cryproject/loadcache.toml``.
 
-Example:
+By default, when loading a project, Cryptol will consult the cache for
+files that have not changed (and their dependencies have not changed),
+so it will not revalidate them. It will try to validate files that have not
+changed since last time, but were not validated (e.g., because the validation
+process got interrupted).
 
-.. code:: shell
+The following flags may be used to specify different cache behavior:
 
-   cryptol -p myproject/
+  * ``--refresh-project`` loads and validates the project without consulting
+     the cache.
 
-To discard the previous cached results and reload a whole project use
-``--refresh-project``. This can be useful when versions of external
-tools have changed or simply to get confidence that everything is still
-in a working state.
+  * ``--modified-project`` will only check files that have changed since
+    the last validation.  In particular, it will not try to validate modules
+    that have not changed, even if they have not been previously validated.
+    This is mostly useful for interactive use, to focus validation on a small
+    set of modules that are being worked on.
 
-Example:
-
-.. code:: shell
-
-   cryptol -p myproject/ --refresh-project
+  * ``--unsuccessful-project`` will check all modules that have not been successfully
+    verified.  This includes modules that failed validation during a previous
+    run and have not changed since.  This is mostly useful when trying validation
+    in a different environment (e.g., when using different versions of solvers).
 
 
 ``cryproject.toml`` Format

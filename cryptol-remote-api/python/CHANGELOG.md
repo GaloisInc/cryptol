@@ -2,7 +2,12 @@
 
 ## next -- TBA
 
-Nothing yet.
+* Python 3.8, which is EOL, is no longer supported.
+
+## 3.4.0 -- 2025-11-07
+
+* The v3.4.0 release is made in tandem with the Cryptol 3.4.0 release. See the
+  Cryptol 3.4.0 release notes for relevant Cryptol changes.
 
 ## 3.3.0 -- 2025-03-21
 

@@ -327,6 +327,13 @@ data NominalType = NominalType
   , ntKind        :: !Kind             -- ^ Result kind
   , ntConstraints :: [Prop]
   , ntDef         :: NominalTypeDef
+  , ntDeriving    :: Map PC [Prop]
+    -- ^ Derived classes and their conditions (which may contain type
+    -- variables).
+    --
+    -- For instance, if we have @enum Maybe a = Nothing | Just a deriving (Eq)@,
+    -- this map would be @{Eq -> [Eq a]}@, since the derived instance is
+    -- @instance (Eq a) => Eq (Maybe a)@.
   , ntFixity      :: !(Maybe Fixity)
   , ntDoc         :: Maybe Text
   } deriving (Show, Generic, NFData)
@@ -456,9 +463,17 @@ superclassSet :: Prop -> Set Prop
 superclassSet (TCon (PC PPrime) [n]) =
   Set.fromList [ pFin n, n >== tTwo ]
 
-superclassSet (TCon (PC p0) [t]) = go p0
+superclassSet (TCon (PC p0) [t]) =
+  Set.map (\p -> TCon (PC p) [t]) (typeSuperclassSet p0)
+
+superclassSet _ = mempty
+
+-- | Given a typeclass of kind @* -> Prop@, compute the set of all transitive
+-- superclasses of kind @* -> Prop@.
+typeSuperclassSet :: PC -> Set PC
+typeSuperclassSet = go
   where
-  super p = Set.insert (TCon (PC p) [t]) (go p)
+  super p = Set.insert p (go p)
 
   go PRing      = super PZero
   go PLogic     = super PZero
@@ -468,8 +483,6 @@ superclassSet (TCon (PC p0) [t]) = go p0
   go PCmp       = super PEq
   go PSignedCmp = super PEq
   go _ = mempty
-
-superclassSet _ = mempty
 
 
 nominalTypeConTypes :: NominalType -> [(Name,Schema)]
