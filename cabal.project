@@ -13,3 +13,4 @@ source-repository-package
 
 allow-newer: hgmp:base
 allow-newer: hgmp:ghc-prim
+allow-newer: entropy:setup.Cabal
