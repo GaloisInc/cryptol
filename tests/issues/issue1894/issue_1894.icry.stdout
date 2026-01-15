@@ -1,14 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-Submodules
-==========
-    
-  From Main
-  ---------
-       
-    S
-     
 Type Synonyms
 =============
     
@@ -244,13 +236,7 @@ Symbols
   From Main
   ---------
        
-    _f : ()
     foobar : {n} [n]
     foobar(n != 1) : {n} (n != 1) => [n]
     foobar(n == 1) : {n} (n == 1) => [n]
-     
-  From Main::S
-  ------------
-       
-    S::a : Bit
      
