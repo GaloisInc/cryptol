@@ -1,0 +1,6 @@
+f = ()
+  where
+    [q] = 0b1
+
+submodule S where
+  [a] = 0b0
