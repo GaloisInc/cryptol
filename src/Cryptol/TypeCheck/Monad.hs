@@ -39,7 +39,7 @@ import           MonadLib hiding (mapM)
 
 import           Cryptol.ModuleSystem.Name
                     (FreshM(..),Supply,mkLocal,asLocal
-                    , nameInfo, NameInfo(..),NameSource(..), nameTopModule)
+                    , nameInfo, NameInfo(..),NameSource(..),nameTopModule)
 import           Cryptol.ModuleSystem.NamingEnv.Types
 import qualified Cryptol.ModuleSystem.Interface as If
 import           Cryptol.Parser.Position

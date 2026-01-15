@@ -176,7 +176,7 @@ qualify :: ModName -> NamingEnv -> NamingEnv
 qualify pfx (NamingEnv env) = NamingEnv (Map.mapKeys toQual <$> env)
   where
   toQual (Qual mn n) = Qual (prependChunks pfx' mn) n
-  toQual (UnQual n)  = Qual pfx n
+  toQual (UnQual' n _ns)  = Qual pfx n
   toQual n@NewName{} = n
 
   -- | prependChunks - add ChunksText to start of ModName
@@ -214,14 +214,20 @@ findAmbig env =
   NamingEnv ns = consToValues env
 
 -- | Get the subset of the first environment that shadows something
--- in the second one.
-findShadowing :: NamingEnv -> NamingEnv -> [ (PName,Name,[Name]) ]
-findShadowing (NamingEnv lhs) rhs =
-  [ (p, anyOne xs, namesToList ys)
-  | (ns,mp) <- Map.toList lhs
-  , (p,xs) <- Map.toList mp
-  , Just ys <- [ lookupNS ns p rhs ]
-  ]
+-- in the second one. We only consider UserNames in the second enviornment.
+findShadowing :: NamingEnv -> NamingEnv -> [(PName, Name, [Name])]
+findShadowing (NamingEnv lhs) rhs = res
+  where
+    res =
+      [ (p, x, ysList)
+        | (ns, mp) <- Map.toList lhs,
+          (p, xs) <- Map.toList mp,
+          let x = anyOne xs,
+          Just ys <- [lookupNS ns p rhs],
+          let ysList = filter isUser (namesToList ys),
+          not (null ysList)
+      ]
+    isUser z = nameSrc z == UserName
 
 -- | Do an arbitrary choice for ambiguous names.
 -- We do this to continue checking afetr we've reported an ambiguity error.
@@ -255,7 +261,7 @@ modParamNamesNamingEnv T.ModParamNames { .. } =
                                map fromTy (Map.elems mpnTypes))
     ]
   where
-  toPName n = mkUnqual (nameIdent n)
+  toPName n = UnQual' (nameIdent n) (nameSrc n)
 
   fromTy tp = let nm = T.mtpName tp
               in (toPName nm, One nm)
@@ -276,7 +282,7 @@ unqualifiedEnv :: IfaceDecls -> NamingEnv
 unqualifiedEnv IfaceDecls { .. } =
   mconcat [ exprs, tySyns, ntTypes, ntExprs, mods, sigs ]
   where
-  toPName n = mkUnqual (nameIdent n)
+  toPName n = UnQual' (nameIdent n) (nameSrc n)
 
   exprs   = mconcat [ singletonNS NSValue (toPName n) n
                     | n <- Map.keys ifDecls ]

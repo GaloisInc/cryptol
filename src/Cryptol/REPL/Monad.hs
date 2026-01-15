@@ -104,8 +104,10 @@ import Cryptol.Eval (EvalErrorEx, Unsupported, WordTooWide,EvalOpts(..))
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Name as M
+import qualified Cryptol.ModuleSystem.Names as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)
+import Cryptol.Parser.Name (NameSource(..))
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
 import Cryptol.Parser.Position (emptyRange, Range(from))
@@ -136,7 +138,7 @@ import Data.Char (isSpace, toLower)
 import Data.IORef
     (IORef,newIORef,readIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, isJust)
 import Data.Ord (comparing)
 import Data.Tuple (swap)
 import Data.Typeable (Typeable)
@@ -534,8 +536,6 @@ setLoadedMod n = do
 getLoadedMod :: REPL (Maybe LoadedModule)
 getLoadedMod  = eLoadedMod `fmap` getRW
 
-
-
 -- | Set the path for the ':e' command.
 -- Note that this does not change the focused module (i.e., what ":r" reloads)
 setEditPath :: FilePath -> REPL ()
@@ -659,14 +659,19 @@ getFocusedEnv :: REPL M.ModContext
 getFocusedEnv  = M.focusedEnv <$> getModuleEnv
 
 -- | Get visible variable names.
--- This is used for command line completition.
+-- This is used for command line completion.
 getExprNames :: REPL [String]
 getExprNames =
-  do fNames <- M.mctxNames <$> getFocusedEnv
-     return (map (show . pp) (Map.keys (M.namespaceMap M.NSValue fNames)))
+  do 
+      fNames <- M.mctxNames <$> getFocusedEnv
+      let mnames = M.namespaceMap M.NSValue fNames
+      let userNamesMap = 
+                Map.filterWithKey (\_k v -> isJust (M.filterNames (\n -> UserName == M.nameSrc n) v)) mnames
+      return (map (show . pp) (Map.keys userNamesMap))
+
 
 -- | Get visible type signature names.
--- This is used for command line completition.
+-- This is used for command line completion.
 getTypeNames :: REPL [String]
 getTypeNames  =
   do fNames <- M.mctxNames <$> getFocusedEnv
@@ -788,7 +793,7 @@ uniqify name =
 
 -- | Generate a fresh name using the given index. The name will reside within
 -- the "<interactive>" namespace.
-freshName :: I.Ident -> M.NameSource -> REPL M.Name
+freshName :: I.Ident -> NameSource -> REPL M.Name
 freshName i sys =
   M.liftSupply (M.mkDeclared I.NSValue mpath sys i Nothing emptyRange)
   where mpath = M.TopModule I.interactiveName
