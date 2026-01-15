@@ -214,16 +214,20 @@ findAmbig env =
   NamingEnv ns = consToValues env
 
 -- | Get the subset of the first environment that shadows something
--- in the second one.
+-- in the second one. We only consider UserNames in the second enviornment.
 findShadowing :: NamingEnv -> NamingEnv -> [(PName, Name, [Name])]
 findShadowing (NamingEnv lhs) rhs = res
   where
     res =
-      [ (p, anyOneUserName xs, namesToList ys)
+      [ (p, x, ysList)
         | (ns, mp) <- Map.toList lhs,
           (p, xs) <- Map.toList mp,
-          Just ys <- [lookupNS ns p rhs]
+          let x = anyOne xs,
+          Just ys <- [lookupNS ns p rhs],
+          let ysList = filter isUser (namesToList ys),
+          not (null ysList)
       ]
+    isUser z = nameSrc z == UserName
 
 -- | Do an arbitrary choice for ambiguous names.
 -- We do this to continue checking afetr we've reported an ambiguity error.

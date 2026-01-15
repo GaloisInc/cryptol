@@ -356,10 +356,8 @@ checkShadowing :: NamingEnv -> NamingEnv -> RenameM ()
 checkShadowing envNew envOld =
   mapM_
     recordWarning
-    [SymbolShadowed p x xs' | (p, x, xs) <- findShadowing envNew envOld, let xs' = keepUserNames xs, checkUserName x && not (null xs')]
-  where
-    keepUserNames = filter (\n -> nameSrc n == UserName)
-    checkUserName n = nameSrc n == UserName
+    [ SymbolShadowed p x xs | (p, x, xs) <- findShadowing envNew envOld
+    ]
 
 
 -- | Shadow the current naming environment with some more names.
