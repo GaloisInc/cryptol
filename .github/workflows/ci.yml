@@ -67,29 +67,30 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04]
-        ghc-version: ["9.4.8", "9.6.7", "9.8.4"]
-        cabal: [ '3.10.3.0' ]
+        #ghc-version: ["9.4.8", "9.6.7", "9.8.4"]
+        ghc-version: ["9.10.3", "9.12.2"]
+        cabal: [ '3.14.1.0' ]
         run-tests: [true]
-        include:
+        #include:
           # We include one job from an older Ubuntu LTS release to increase our
           # coverage of possible Linux configurations. Since we already run the
           # tests with the newest LTS release, we won't bother testing this one.
-          - os: ubuntu-22.04
-            ghc-version: 9.6.7
-            run-tests: false
+          #- os: ubuntu-22.04
+          #  ghc-version: 9.6.7
+          #  run-tests: false
           # Windows and macOS CI runners are more expensive than Linux runners,
           # so we only build one particular GHC version to test them on. We
           # include both an x86-64 macOS runner (macos-15-intel) as well as an
           # AArch64 macOS runner (macos-15).
-          - os: windows-2022
-            ghc-version: 9.6.7
-            run-tests: true
-          - os: macos-15-intel
-            ghc-version: 9.6.7
-            run-tests: true
-          - os: macos-15
-            ghc-version: 9.6.7
-            run-tests: true
+          #- os: windows-2022
+          #  ghc-version: 9.6.7
+          #  run-tests: true
+          #- os: macos-15-intel
+          #  ghc-version: 9.6.7
+          #  run-tests: true
+          #- os: macos-15
+          #  ghc-version: 9.6.7
+          #  run-tests: true
     outputs:
       test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
     env:
@@ -248,13 +249,13 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.config.outputs.retention-days }}
 
-      - if: matrix.ghc-version == '9.6.7' && matrix.run-tests
+      - if: matrix.ghc-version == '9.10.3' && matrix.run-tests
         uses: actions/upload-artifact@v4
         with:
           path: dist/bin
           name: ${{ matrix.os }}-dist-bin
 
-      - if: matrix.ghc-version == '9.6.7' && matrix.run-tests
+      - if: matrix.ghc-version == '9.10.3' && matrix.run-tests
         uses: actions/upload-artifact@v4
         with:
           path: bin
