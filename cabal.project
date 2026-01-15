@@ -4,3 +4,9 @@ packages:
     language-server
     tests
     deps/argo/argo
+
+-- temporary
+source-repository-package
+    type: git
+    location: https://github.com/GaloisInc/test-lib
+    tag: cc8e8737748ea9c2d89f5949959f695f6f7e683f
