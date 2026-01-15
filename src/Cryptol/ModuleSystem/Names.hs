@@ -23,26 +23,20 @@ namesToList xs =
     One x -> [x]
     Ambig ns -> Set.toList ns
 
+-- | Returns a UserName if one is available, otherwise it returns
+-- | a SystemName.
 anyOne :: Names -> Name
 anyOne xs =
   case xs of
     One x -> x
     Ambig ns
-      |  Set.null ns
-      -> panic "anyOne" ["Ambig with no names"]
-      |  otherwise
-      -> Set.elemAt 0 ns
-
--- | Returns a UserName if one is available, otherwise it returns
--- | the a anyOne SystemName.
-anyOneUserName::Names -> Name
-anyOneUserName xs = 
-    case l of
-      [] -> anyOne xs
-      x:_xs -> x
-      where 
-        l = [ x | x <- namesToList xs, nameSrc x == UserName]
-
+      | Set.null ns ->
+          panic "anyOne" ["Ambig with no names"]
+      | Set.null l -> Set.elemAt 0 ns
+      | otherwise -> Set.elemAt 0 l
+      where
+        l = Set.filter (\x -> nameSrc x == UserName) ns
+        
 instance Semigroup Names where
   xs <> ys =
     case (xs,ys) of
@@ -103,4 +97,3 @@ diffNames x y =
       ys = case y of
              One z    -> Set.delete z xs
              Ambig zs -> Set.difference xs zs
-
