@@ -30,7 +30,7 @@ module Cryptol.TypeCheck
 import Data.Map(Map)
 
 import           Cryptol.ModuleSystem.Name
-                    (liftSupply,mkDeclared,ModPath(..))
+                    (liftSupply,mkDeclared,NameSource(..),ModPath(..))
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range,emptyRange)
 import           Cryptol.TypeCheck.AST
@@ -52,7 +52,6 @@ import Cryptol.TypeCheck.PP(WithNames(..),NameMap)
 import Cryptol.Utils.Ident (exprModName,packIdent,Namespace(..))
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Parser.Name (NameSource(SystemName))
 
 
 

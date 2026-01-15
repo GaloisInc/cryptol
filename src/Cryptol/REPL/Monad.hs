@@ -138,7 +138,7 @@ import Data.Char (isSpace, toLower)
 import Data.IORef
     (IORef,newIORef,readIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
-import Data.Maybe (catMaybes, isJust, isNothing)
+import Data.Maybe (catMaybes, isJust)
 import Data.Ord (comparing)
 import Data.Tuple (swap)
 import Data.Typeable (Typeable)
