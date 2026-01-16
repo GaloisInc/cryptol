@@ -142,7 +142,6 @@ zip_dist_with_solvers() {
   name="${name:-"cryptol-$VERSION-$OS_TAG-$ARCH_TAG"}"
   sname="${name}-with-solvers"
   cp "$(which abc)"        dist/bin/
-  cp "$(which cvc4)"       dist/bin/
   cp "$(which cvc5)"       dist/bin/
   cp "$(which yices)"      dist/bin/
   cp "$(which yices-smt2)" dist/bin/

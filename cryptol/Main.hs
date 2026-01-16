@@ -236,7 +236,7 @@ displayHelp errs = do
             , "via the `:edit` command"
             ]
           )
-        , ( "SBV_{ABC,BITWUZLA,BOOLECTOR,CVC4,CVC5,MATHSAT,YICES,Z3}_OPTIONS"
+        , ( "SBV_{ABC,BITWUZLA,BOOLECTOR,CVC5,MATHSAT,YICES,Z3}_OPTIONS"
           , [ "A string of command-line arguments to be passed to the"
             , "corresponding solver invoked for `:sat` and `:prove`"
             , "when using a prover via SBV"
