@@ -86,8 +86,7 @@ doSBVEval m =
 
 proverConfigs :: [(String, SBV.SMTConfig)]
 proverConfigs =
-  [ ("cvc4"     , SBV.cvc4     )
-  , ("cvc5"     , SBV.cvc5     )
+  [ ("cvc5"     , SBV.cvc5     )
   , ("yices"    , SBV.yices    )
   , ("z3"       , SBV.z3       )
   , ("bitwuzla" , SBV.bitwuzla )
@@ -97,7 +96,6 @@ proverConfigs =
   , ("offline"  , SBV.defaultSMTCfg )
   , ("any"      , SBV.defaultSMTCfg )
 
-  , ("sbv-cvc4"     , SBV.cvc4     )
   , ("sbv-cvc5"     , SBV.cvc5     )
   , ("sbv-yices"    , SBV.yices    )
   , ("sbv-z3"       , SBV.z3       )
@@ -129,11 +127,7 @@ setTimeoutSecs s cfg = case SBV.name (SBV.solver cfg) of
 
   -- NOTE: Once Cryptol requires sbv 11.1.5 as a minimum, we
   -- can use the new 'SetTimeOut' option for all solvers and
-  -- the special cases for CVC4 and CVC5 can be dropped.
-  SBV.CVC4 -> cfg'
-    { SBV.extraArgs =
-      ["--tlimit-per", show (toInteger s * 1000)] ++
-      SBV.extraArgs cfg' }
+  -- the special case for CVC5 can be dropped.
   SBV.CVC5 -> cfg'
     { SBV.extraArgs =
       ["--tlimit-per", show (toInteger s * 1000)] ++

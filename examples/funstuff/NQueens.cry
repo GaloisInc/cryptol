@@ -8,10 +8,9 @@
   :sat nQueens : (Solution n)
   where n is the board-size
 
-  You may find that cvc4 takes a long time for solutions bigger than 5.
-  For those sizes, we have had good luck with both Yices and Z3.
+  For larger board sizes, we have had good luck with both Yices and Z3.
 
-  To do that,
+  To do that:
 
   :set prover=Z3
   or
