@@ -2,7 +2,7 @@
 
 :check
 
-:set prover=w4-cvc4
+:set prover=w4-cvc5
 :prove
 
 :set prover=w4-z3

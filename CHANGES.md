@@ -4,6 +4,10 @@
 
 * The binary builds are now built with GHC 9.6 rather than 9.4.
 
+* CVC4 solver support has been removed. CVC4 has been deprecated and unmaintained
+  for years, and the CVC5 developers recommend migrating to CVC5.
+  ([#1806](https://github.com/GaloisInc/cryptol/issues/1806))
+
 ## Language changes
 
 * User-defined `newtype` and `enum` types can now derive instances for standard
