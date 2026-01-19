@@ -97,4 +97,5 @@ Testing... Passed 100 tests.
 	Q.E.D.
 :prove ceilingCorrect2
 	Q.E.D.
+Solver returned UNKNOWN
 Q.E.D.

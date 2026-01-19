@@ -5,5 +5,9 @@
 :set prover=w4-cvc5
 :prove
 
+:set prover=w4-cvc5
+:set prover-timeout=5
+:prove QordTrans
+
 :set prover=w4-z3
 :prove QordTrans
