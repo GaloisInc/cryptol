@@ -3,15 +3,12 @@
 :check
 
 :set prover=w4-cvc5
-:prove
-
-:set prover=w4-cvc5
 // cvc5 hangs forever with QordTrans problem,
 // hence we set a timeout.
 // See https://github.com/GaloisInc/cryptol/issues/1805
 // for more details.
 :set prover-timeout=5
-:prove QordTrans
+:prove
 
 :set prover=w4-z3
 :prove QordTrans
