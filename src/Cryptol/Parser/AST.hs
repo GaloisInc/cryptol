@@ -154,7 +154,7 @@ type Rec e = RecordMap Ident (Range, e)
 newtype Program name = Program [TopDecl name]
                        deriving (Show)
 
-{- | A module for the pre-typechecker phasese. The two parameters are:
+{- | A module for the pre-typechecker phases. The two parameters are:
 
   * @mname@ the type of module names. This is because top-level and nested
     modules use different types to identify a module.
@@ -176,7 +176,7 @@ data ModuleG mname name = Module
   } deriving (Show, Generic, NFData)
 
 
--- | Different flavours of module we have.
+-- | Different flavours of modules we have.
 data ModuleDefinition name =
     NormalModule [TopDecl name]
 

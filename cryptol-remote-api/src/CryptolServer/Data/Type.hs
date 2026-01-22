@@ -281,7 +281,7 @@ instance JSON.FromJSON JSONPType where
       typeField o fname = (o .: fname) >>= getType
       typeListField o fname = (o .: fname) >>= traverse getType
 
-      name = C.UnQual . mkIdent
+      name = C.mkUnqual . mkIdent
 
       asProp "==" = binPropF "==" "left" "right"
       asProp "!=" = binPropF "!=" "left" "right"

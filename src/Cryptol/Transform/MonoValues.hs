@@ -79,7 +79,7 @@
 module Cryptol.Transform.MonoValues (rewModule) where
 
 import Cryptol.ModuleSystem.Name
-        (SupplyT,liftSupply,Supply,mkDeclared,NameSource(..),ModPath(..))
+        (SupplyT,liftSupply,Supply,mkDeclared,ModPath(..), NameSource(..))
 import Cryptol.Parser.Position (emptyRange)
 import Cryptol.TypeCheck.AST hiding (splitTApp) -- XXX: just use this one
 import Cryptol.TypeCheck.TypeMap

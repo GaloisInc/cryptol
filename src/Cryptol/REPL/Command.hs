@@ -112,6 +112,7 @@ import           Cryptol.Utils.PP hiding ((</>))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.RecordMap
 import qualified Cryptol.Parser.AST as P
+import           Cryptol.Parser.Name (mkUnqual)
 import qualified Cryptol.Project as Proj
 import qualified Cryptol.Transform.Specialize as S
 import Cryptol.Symbolic
@@ -1845,7 +1846,7 @@ bindItVariable ty expr = do
                     }
   liftModuleCmd (M.evalDecls [T.NonRecursive decl])
   denv <- getDynEnv
-  let nenv' = M.singletonNS M.NSValue (P.UnQual itIdent) freshIt
+  let nenv' = M.singletonNS M.NSValue (mkUnqual itIdent) freshIt
                            `M.shadowing` M.deNames denv
   setDynEnv $ denv { M.deNames = nenv' }
   return freshIt

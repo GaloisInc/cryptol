@@ -12,6 +12,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
@@ -55,6 +56,7 @@ import Cryptol.Utils.Ident( packModName,packIdent,modNameChunks
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 import Cryptol.Utils.RecordMap
+import Cryptol.Parser.Name (pattern UnQual, mkUnqualSystem)
 
 
 parseString :: Config -> ParseM a -> String -> Either ParseError a
@@ -195,14 +197,6 @@ expected :: String -> ParseM a
 expected x = P $ \cfg _ s ->
                     Left (HappyUnexpected (cfgSource cfg) (sPrevTok s) x)
 
-
-
-
-
-
-
-
-
 mkModName :: [Text] -> ModName
 mkModName = packModName
 
@@ -222,7 +216,7 @@ mkModParamName lsig qual =
                                $ modNameToNormalModName t
         ImpNested nm ->
           case nm of
-            UnQual i -> i
+            UnQual' i _ -> i
             Qual _ i -> i
             NewName {} -> panic "mkModParamName" ["Unexpected NewName",show lsig]
     Just m -> packIdent (last (modNameChunks (thing m)))
@@ -599,7 +593,6 @@ mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
              | otherwise                  = NamedInst x
 
-
 mkTParam :: Located Ident -> Maybe Kind -> ParseM (TParam PName)
 mkTParam Located { srcRange = rng, thing = n } k
   | n == widthIdent = errorMessage rng ["`width` is not a valid type parameter name."]
@@ -653,6 +646,7 @@ mkEnumDecl thead def derivs =
 
       _ -> pure ()
 
+-- | This function handles constructor declarations
 mkConDecl ::
   Maybe (Located Text) -> ExportType ->
   Type PName -> ParseM (TopLevel (EnumCon PName))
@@ -665,9 +659,9 @@ mkConDecl mbDoc expT ty =
       TLocated t1 r -> go (Just r) t1
       TUser n ts ->
         case thing n of
-          UnQual i
+          UnQual' i ns 
             | isUpperIdent i ->
-              pure EnumCon { ecName = Located (srcRange n) (UnQual i)
+              pure EnumCon { ecName = Located (srcRange n) (UnQual' i ns)
                            , ecFields = ts
                            }
             | otherwise ->
@@ -1138,6 +1132,7 @@ mkModule nm ds = Module { mName = nm
                         , mDocTop = Nothing
                         }
 
+-- | Make a nested module, i.e. when you have a module inside a module.
 mkNested :: Module PName -> ParseM (NestedModule PName)
 mkNested m =
   case modNameChunks (thing nm) of
@@ -1418,8 +1413,11 @@ instance MkAnon ModName where
                     AnonIfaceMod -> modNameIfaceMod
   toImpName     = ImpTop
 
+-- | Make anonymous names, i.e. a thing without a user visible name.
+--   Anonymous names are used when we desugar some things related to the module system  
+--   (e.g. parameter blocks become interface modules).
 instance MkAnon PName where
-  mkAnon what   = mkUnqual
+  mkAnon what   = mkUnqualSystem
                 . case what of
                     AnonArg l c  -> const (identAnonArg l c)
                     AnonIfaceMod -> identAnonIfaceMod
@@ -1567,7 +1565,7 @@ desugarInstImport i inst =
   origMod = iModule (thing i)
 
   iname = Located {
-    thing =mkUnqual
+    thing = mkUnqualSystem
         $ let pos = from (srcRange i)
           in identAnonInstImport (line pos) (col pos),
     srcRange = srcRange origMod
@@ -1583,6 +1581,5 @@ desugarInstImport i inst =
                        , tlDoc    = Nothing
                        , tlValue  = NestedModule m
                        }
-
 
 
