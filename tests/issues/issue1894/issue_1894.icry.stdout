@@ -237,6 +237,4 @@ Symbols
   ---------
        
     foobar : {n} [n]
-    foobar(n != 1) : {n} (n != 1) => [n]
-    foobar(n == 1) : {n} (n == 1) => [n]
      

@@ -31,7 +31,7 @@ import qualified MonadLib as M
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident(allNamespaces)
 import Cryptol.Parser.Position
-import Cryptol.Parser.Name(isGeneratedName)
+import Cryptol.Parser.Name(isSystemName)
 import Cryptol.Parser.AST
 import Cryptol.ModuleSystem.Exports(exportedDecls,exported)
 import Cryptol.ModuleSystem.Renamer.Error
@@ -434,7 +434,7 @@ newTop ::
   FreshM m => Namespace -> ModPath -> PName -> Maybe Fixity -> Range -> m Name
 newTop ns m thing fx rng =
   liftSupply (mkDeclared ns m src (getIdent thing) fx rng)
-  where src = if isGeneratedName thing then SystemName else UserName
+  where src = if isSystemName thing then SystemName else UserName
 
 newLocal :: FreshM m => Namespace -> PName -> Range -> m Name
 newLocal ns thing rng = liftSupply (mkLocalPName ns thing rng)

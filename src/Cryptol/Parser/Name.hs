@@ -20,7 +20,7 @@ module Cryptol.Parser.Name (
   , origNameToDefPName
   , getModName
   , getIdent
-  , isGeneratedName
+  , isSystemName
   , pattern UnQual
   ) where
 
@@ -100,11 +100,16 @@ getIdent (NewName p i) = packIdent ("__" ++ pass ++ show i)
            MonoValues         -> "mv"
            ExpandPropGuards _ -> "epg"
 
-isGeneratedName :: PName -> Bool
-isGeneratedName x =
+
+
+isSystemName :: PName -> Bool
+isSystemName x =
   case x of
-    NewName {} -> True
-    _          -> False
+    UnQual' _id ns ->   case ns of
+                          SystemName -> True
+                          UserName -> False
+    Qual _md _id -> False
+    NewName _p _i -> True
 
 instance PP PName where
   ppPrec _ = ppPrefixName
