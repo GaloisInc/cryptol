@@ -1,6 +1,6 @@
 # Revision history for `cryptol-remote-api` and `cryptol-eval-server`
 
-## next -- TBA
+## 3.5.0 -- 2026-01-27
 
 * For loading projects, `untested` corresponds to Cryptol's `--project`,
   `modified` corresponds to `--modified-project`, `refresh` corresponds to
