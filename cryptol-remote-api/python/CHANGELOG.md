@@ -1,5 +1,7 @@
 # Revision history for `cryptol` Python package
 
+## next
+
 ## 3.4.1 -- 2026-01-27
 
 * Python 3.8, which is EOL, is no longer supported.
