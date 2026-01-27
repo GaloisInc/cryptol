@@ -36,7 +36,7 @@ author = 'The Cryptol Team'
 # The short X.Y version
 version = ''
 # The full version, including alpha/beta/rc tags
-release = '3.5.0'
+release = '3.5.0.99'
 
 
 # -- General configuration ---------------------------------------------------
