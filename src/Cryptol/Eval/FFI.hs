@@ -9,34 +9,30 @@ module Cryptol.Eval.FFI
   , evalForeignDecls
   ) where
 
-import Cryptol.Eval.FFI.ForeignSrc
-    ( ForeignSrc)
-#ifdef FFI_ENABLED
-import Cryptol.Eval.FFI.ForeignSrc
-    (ForeignImpl, loadForeignImpl )
-#else
-import Cryptol.Parser.AST (ForeignMode)
-#endif
-import Cryptol.Eval.FFI.Error ( FFILoadError )
-import Cryptol.Eval (Eval, EvalEnv )
-import Cryptol.TypeCheck.AST
-    ( FFI(..), TVar(TVBound), findForeignDecls )
-import Cryptol.TypeCheck.FFI.FFIType ( FFIFunType(..) )
+import Cryptol.Eval.FFI.ForeignSrc (ForeignSrc)
+import Cryptol.Eval.FFI.Error (FFILoadError)
+import Cryptol.Eval (Eval, EvalEnv)
+import Cryptol.ModuleSystem.Name (Name)
+import Cryptol.TypeCheck.AST (FFI(..), findForeignDecls)
 
 #ifdef FFI_ENABLED
 
-import           Data.Either(partitionEithers)
-import           Data.Traversable(for)
-import           Cryptol.Backend.Concrete
-import           Cryptol.Backend.Monad
-import           Cryptol.Eval.Env
-import           Cryptol.Eval.Prims
-import           Cryptol.Eval.Type
-import           Cryptol.Eval.Value
-import           Cryptol.ModuleSystem.Name
-import           Cryptol.Utils.Ident
-import           Cryptol.Eval.FFI.C(callForeignC)
-import           Cryptol.Eval.FFI.Abstract(callForeignAbstract)
+import           Data.Either (partitionEithers)
+import           Data.Traversable (for)
+
+import           Cryptol.Backend.Concrete (Concrete)
+import           Cryptol.Backend.Monad (io)
+import           Cryptol.Eval.Env (bindVarDirect)
+import           Cryptol.Eval.FFI.Abstract (callForeignAbstract)
+import           Cryptol.Eval.FFI.C (callForeignC)
+import           Cryptol.Eval.FFI.ForeignSrc (ForeignImpl, loadForeignImpl)
+import           Cryptol.Eval.Prims (Prim(..))
+import           Cryptol.Eval.Type (TypeEnv, bindTypeVar)
+import           Cryptol.Eval.Value (GenValue, Backend(SEval))
+import           Cryptol.ModuleSystem.Name (nameIdent)
+import           Cryptol.TypeCheck.AST (TVar(TVBound))
+import           Cryptol.TypeCheck.FFI.FFIType (FFIFunType(..))
+import           Cryptol.Utils.Ident (unpackIdent)
 
 #endif
 
