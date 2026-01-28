@@ -47,7 +47,7 @@ flag ffi
 library
   Default-language:
     Haskell2010
-  Build-depends:       base              >= 4.9 && < 5,
+  Build-depends:       base              >= 4.9 && < 4.20,
                        aeson             >= 2.0 && < 2.3,
                        arithmoi          >= 0.12,
                        async             >= 2.2 && < 2.3,
