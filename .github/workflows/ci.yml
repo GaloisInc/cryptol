@@ -67,7 +67,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04]
-        ghc-version: ["9.4.8", "9.6.7", "9.8.4"]
+        ghc-version: ["9.4.8", "9.6.7", "9.8.4", "9.10.3", "9.12.2"]
         cabal: [ '3.14.1.0' ]
         run-tests: [true]
         include:
