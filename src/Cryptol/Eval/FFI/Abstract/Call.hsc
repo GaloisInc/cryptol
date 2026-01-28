@@ -57,14 +57,14 @@ runFFI ::
 runFFI args ty k =
   allocaBytes #{size struct CryValImporter} $ \robj ->
   allocaBytes #{size struct CryValExporter} $ \aobj ->
-  
+
   do expS <- cryStartExport args
      #{poke struct CryValExporter, self}            aobj expS
      #{poke struct CryValExporter, recv_u8}         aobj cry_recv_u8_addr
      #{poke struct CryValExporter, recv_u64}        aobj cry_recv_u64_addr
      #{poke struct CryValExporter, recv_double}     aobj cry_recv_double_addr
      #{poke struct CryValExporter, recv_u64_digits} aobj cry_recv_u64_digits_addr
-     impS <- cryStartImport ty 
+     impS <- cryStartImport ty
      #{poke struct CryValImporter, self}               robj impS
      #{poke struct CryValImporter, send_bool}          robj cry_bool_addr
      #{poke struct CryValImporter, send_small_uint}    robj cry_small_uint_addr
@@ -74,7 +74,7 @@ runFFI args ty k =
      #{poke struct CryValImporter, send_new_large_int} robj cry_large_int_addr
      #{poke struct CryValImporter, send_sign}          robj cry_sign_addr
      callForeignImpl k [SomeFFIArg aobj, SomeFFIArg robj] :: IO ()
-     
+
      -- callFFI k retVoid [argPtr aobj, argPtr robj]
      cryEndExport expS
      cryFinishImport impS

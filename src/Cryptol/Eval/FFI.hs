@@ -70,7 +70,7 @@ foreignPrimPoly cc name impl =
 foreignPrim ::
   FFIFunType t ->
   (TypeEnv -> [(t,GenValue s)] -> SEval s (GenValue s)) ->
-  Prim s 
+  Prim s
 foreignPrim ft k = buildNumPoly (ffiTParams ft) mempty
   where
   buildNumPoly (tp:tps) tenv = PNumPoly \n ->
