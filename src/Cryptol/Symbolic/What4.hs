@@ -86,7 +86,6 @@ import qualified What4.SWord as SW
 import           What4.Solver
 import qualified What4.Solver.Bitwuzla as W4
 import qualified What4.Solver.Boolector as W4
-import qualified What4.Solver.CVC4 as W4
 import qualified What4.Solver.CVC5 as W4
 import qualified What4.Solver.ExternalABC as W4
 import qualified What4.Solver.Yices as W4
@@ -202,8 +201,7 @@ adapters cfg = case cfg of
 
 proverConfigs :: [(String, W4ProverConfig)]
 proverConfigs =
-  [ ("w4-cvc4"      , W4ProverConfig cvc4OnlineAdapter)
-  , ("w4-cvc5"      , W4ProverConfig cvc5OnlineAdapter)
+  [ ("w4-cvc5"      , W4ProverConfig cvc5OnlineAdapter)
   , ("w4-yices"     , W4ProverConfig yicesOnlineAdapter)
   , ("w4-z3"        , W4ProverConfig z3OnlineAdapter)
   , ("w4-bitwuzla"  , W4ProverConfig bitwuzlaOnlineAdapter)
@@ -226,11 +224,6 @@ yicesOnlineAdapter =
   AnOnlineAdapter "Yices" W4.yicesDefaultFeatures W4.yicesOptions (configTimeoutSeconds W4.yicesGoalTimeout)
          (Proxy :: Proxy W4.Connection)
 
-cvc4OnlineAdapter :: AnAdapter
-cvc4OnlineAdapter =
-  AnOnlineAdapter "CVC4" W4.cvc4Features W4.cvc4Options (configTimeoutMilliSeconds W4.cvc4Timeout)
-         (Proxy :: Proxy (W4.Writer W4.CVC4))
-
 cvc5OnlineAdapter :: AnAdapter
 cvc5OnlineAdapter =
   AnOnlineAdapter "CVC5" W4.cvc5Features W4.cvc5Options (configTimeoutMilliSeconds W4.cvc5Timeout)
@@ -249,8 +242,7 @@ boolectorOnlineAdapter =
 allSolvers :: W4ProverConfig
 allSolvers = W4Portfolio
   $ z3OnlineAdapter :|
-  [ cvc4OnlineAdapter
-  , cvc5OnlineAdapter
+  [ cvc5OnlineAdapter
   , bitwuzlaOnlineAdapter
   , boolectorOnlineAdapter
   , yicesOnlineAdapter
