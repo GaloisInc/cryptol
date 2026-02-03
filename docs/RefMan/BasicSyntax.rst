@@ -45,7 +45,7 @@ actual ``if`` statement:
   
   len' : {n, a} (fin n) => [n]a -> Integer
   len' xs = if `n > 0
-              then 1 + len (drop `{1} xs)
+              then 1 + len' (drop `{1} xs)
               else 0
 
 The definition of ``len'`` is rejected, because the *value based* ``if``
