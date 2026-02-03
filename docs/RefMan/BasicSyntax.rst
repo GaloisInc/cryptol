@@ -28,9 +28,9 @@ numeric type parameters.  For example:
 
 .. code-block:: cryptol
 
-  len : {n} (fin n) => [n]a -> Integer
-  len xs | n == 0 => 0
-         | n >  0 => 1 + len (drop `{1} xs)
+  len : {n, a} (fin n) => [n]a -> Integer
+  len xs | n >  0 => 1 + len (drop `{1} xs)
+         | n == 0 => 0
 
 Each behavior starts with ``|`` and lists some constraints on the numeric
 parameters to a declaration.  When applied, the function will use the first
@@ -43,12 +43,13 @@ actual ``if`` statement:
 
 .. code-block:: cryptol
   
-  len' : {n} (fin n) => [n]a -> Integer
-  len' xs = if `n == 0 => 0
-             | `n >  0 => 1 + len (drop `{1} xs)
+  len' : {n, a} (fin n) => [n]a -> Integer
+  len' xs = if `n > 0
+              then 1 + len' (drop `{1} xs)
+              else 0
 
 The definition of ``len'`` is rejected, because the *value based* ``if``
-expression does provide the *type based* fact ``n >= 1`` which is
+expression does not provide the *type based* fact ``n >= 1`` which is
 required by ``drop `{1} xs``, while in ``len``, the type-checker
 locally-assumes the constraint ``n > 0`` in that constraint-guarded branch
 and so it can in fact determine that ``n >= 1``.
