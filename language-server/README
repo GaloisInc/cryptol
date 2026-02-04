@@ -1,12 +1,12 @@
 This extension provides language support for Cryptol specifications.
 
-The extension relies on a language server which needs to be installed
+The extension relies on a language server, which needs to be installed
 separately.
 
 Packaging and Installing the VSCode Client
 ==========================================
 
-The source code for teh client is in the `client` subdirectory.
+The source code for the client is in the `client` subdirectory.
 You'll need `node` already installed.
 
 Install dependencies:
@@ -20,7 +20,8 @@ Build a VSCode package:
 
     client> npm run package
 
-If everything went OK you should see a file called `cryptol-0.0.1.vsix`
+If everything went OK you should see a file called
+`cryptol-language-server-`X.Y.Z`.vsix`.
 
 To install the extension in VSCode, open the extensions tab, and from
 the menu (three little dots) select "Install from VSIX".  Once the extension
@@ -46,8 +47,8 @@ You'll need to provide your personal access token when asked.
 Installing the Language Server
 ==============================
 
-To build the server run the `./build` script.  If successful, there
-should be a bonary called `cryptol-language-server` in a `bin` subdirectory.
-The location of the server in VSCode should point to this binary.
-
+The `cryptol-language-server` binary is included in the Cryptol
+release distribution, and may also be built locally by running
+the `./build` script, which deposits the binary into the `bin`
+subdirectory.
 
