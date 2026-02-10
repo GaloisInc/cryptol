@@ -277,33 +277,46 @@ instance Monoid ModContext where
                       , mctxNameDisp = R.toNameDisp mempty
                       }
 
-findEnv :: Name -> Iface -> T.ModuleG a -> Maybe (R.NamingEnv, Set Name)
-findEnv n iface m
+findEnv :: IfaceDecls -> Name -> Iface -> T.ModuleG a -> Maybe ModContext
+findEnv loaded n iface m
   | Just sm <- Map.lookup n (T.mSubmodules m) =
-      Just (T.smInScope sm, ifsPublic (T.smIface sm))
+    let localNames = T.smInScope sm in
+    Just
+      ModContext
+        { mctxParams   = NoParams
+        , mctxExported = ifsPublic (T.smIface sm)
+        , mctxDecls    = loaded
+        , mctxNames    = localNames
+        , mctxNameDisp = R.toNameDisp localNames
+        }
+
   | Just fn <- Map.lookup n (T.mFunctors m) =
       case Map.lookup n (ifFunctors (ifDefines iface)) of
         Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
-        Just d -> Just (T.mInScope fn, ifsPublic (ifNames d))
-  | otherwise = asum (fmap (findEnv n iface) (Map.elems (T.mFunctors m)))
+        Just d ->
+          let localNames = T.mInScope fn in
+          Just
+            ModContext
+              { mctxParams   = FunctorParams (ifParams d)
+              , mctxExported = ifsPublic (ifNames d)
+              , mctxDecls    = ifDefines d <> loaded
+              , mctxNames    = localNames
+              , mctxNameDisp = R.toNameDisp localNames
+              }
+
+  | otherwise = asum (fmap (findEnv loaded n iface) (Map.elems (T.mFunctors m)))
 
 modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
 modContextOf (ImpNested name) me =
   do -- find the top module:
      mname <- nameTopModuleMaybe name
      lm <- lookupModule mname me
-
-     (localNames, exported) <- findEnv name (lmInterface lm) (lmModule lm)
-     let -- XXX: do we want only public ones here?
-         loadedDecls = map (ifDefines . lmInterface)
+     let
+        loadedDecls = map (ifDefines . lmInterface)
                      $ getLoadedModules (meLoadedModules me)
-     pure ModContext
-       { mctxParams   = NoParams
-       , mctxExported = exported
-       , mctxDecls    = mconcat (ifDefines (lmInterface lm) : loadedDecls)
-       , mctxNames    = localNames
-       , mctxNameDisp = R.toNameDisp localNames
-       }
+        loaded = mconcat (ifDefines (lmInterface lm) : loadedDecls)
+     findEnv loaded name (lmInterface lm) (lmModule lm)
+
   -- TODO: support focusing inside a submodule signature to support browsing?
 modContextOf (ImpTop mname) me =
   do lm <- lookupModule mname me

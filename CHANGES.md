@@ -1,5 +1,11 @@
 # next
 
+## Bug fixes
+
+* Fix incorrect module context computation for nested functors.
+  ([#1872](https://github.com/GaloisInc/cryptol/issues/1872))
+  
+
 # 3.5.0 -- 2026-01-27
 
 ## Administrative changes

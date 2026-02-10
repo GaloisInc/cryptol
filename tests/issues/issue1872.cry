@@ -1,0 +1,5 @@
+submodule F where
+  parameter
+    type T: *
+    x: T
+  y = x
