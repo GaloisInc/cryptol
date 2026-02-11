@@ -386,7 +386,6 @@ jobs:
           chmod +x bin/test-runner
           .github/ci.sh install_system_deps
           .github/ci.sh deps bin/abc*
-          .github/ci.sh deps bin/cvc4*
           .github/ci.sh deps bin/cvc5*
           .github/ci.sh deps bin/yices-smt2*
           .github/ci.sh deps bin/z3*

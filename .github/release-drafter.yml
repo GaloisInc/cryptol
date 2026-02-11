@@ -23,8 +23,8 @@ replacers:
     replace: "[Z3 $1.$2.$3](https://github.com/Z3Prover/z3/releases/tag/z3-$1.$2.$3)"
   - search: '/yices (\d+)\.(\d+)\.(\d+)/ig'
     replace: "[Yices $1.$2.$3](https://yices.csl.sri.com/release-notes.html)"
-  - search: '/cvc(4?) (\d+)\.(\d+)\.(\d+)/ig'
-    replace: "[CVC4 $3.$4](https://github.com/CVC4/CVC4/releases/tag/$3.$4)"
+  - search: '/cvc5 (\d+)\.(\d+)\.(\d+)/ig'
+    replace: "[CVC5 $1.$2.$3](https://github.com/cvc5/cvc5/releases/tag/cvc5-$1.$2.$3)"
 
 template: |
   ## Cryptol $NEXT_PATCH_VERSION
