@@ -1,5 +1,10 @@
 # next
 
+## Language changes
+
+* Allow comma separate parameters in functor `parameter` blocks
+  ([#556](https://github.com/GaloisInc/cryptol/issues/556))
+
 ## Bug fixes
 
 * Fix incorrect module context computation for nested functors.

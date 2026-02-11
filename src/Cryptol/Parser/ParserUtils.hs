@@ -225,6 +225,18 @@ mkModParamName lsig qual =
 mkSchema :: [TParam PName] -> [Prop PName] -> Type PName -> Schema PName
 mkSchema xs ps t = Forall xs ps t Nothing
 
+getTypeName :: Type PName -> ParseM LPName
+getTypeName = check Nothing
+  where
+  check loc ty =
+    case ty of
+      TUser x [] | UnQual {} <- thing x -> pure x
+      TLocated t r -> check (Just r) t
+      _ ->
+        case loc of
+          Just r -> errorMessage r ["Expected a type name"]
+          Nothing -> panic "getTypeName" ["Type without location"]
+
 getName :: Located Token -> PName
 getName l = case thing l of
               Token (Ident [] x) _ -> mkUnqual (mkIdent x)
