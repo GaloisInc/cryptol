@@ -1,0 +1,3 @@
+:load issue1872.cry
+:focus submodule F
+:type y

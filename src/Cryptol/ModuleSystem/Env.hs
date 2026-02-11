@@ -26,7 +26,7 @@ import Cryptol.Eval (EvalEnv)
 import qualified Cryptol.IR.FreeVars as T
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
-import Cryptol.ModuleSystem.Name (Name,NameInfo(..),Supply,emptySupply,nameInfo,nameTopModuleMaybe)
+import Cryptol.ModuleSystem.Name (Name,Supply,emptySupply,nameTopModuleMaybe,nameIdent,asOrigName)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
@@ -277,33 +277,48 @@ instance Monoid ModContext where
                       , mctxNameDisp = R.toNameDisp mempty
                       }
 
-findEnv :: Name -> Iface -> T.ModuleG a -> Maybe (R.NamingEnv, Set Name)
-findEnv n iface m
+-- | 'IfaceDecls` should contain enough information so that we can check
+-- and evalute everything in scope.  At the moment we just pass all loaded
+-- things here. See 'modContextOf'.
+findEnv :: IfaceDecls -> Name -> Iface -> T.ModuleG a -> Maybe ModContext
+findEnv loaded n iface m
   | Just sm <- Map.lookup n (T.mSubmodules m) =
-      Just (T.smInScope sm, ifsPublic (T.smIface sm))
+    let localNames = T.smInScope sm in
+    Just
+      ModContext
+        { mctxParams   = NoParams
+        , mctxExported = ifsPublic (T.smIface sm)
+        , mctxDecls    = loaded
+        , mctxNames    = localNames
+        , mctxNameDisp = R.toNameDisp localNames
+        }
+
   | Just fn <- Map.lookup n (T.mFunctors m) =
       case Map.lookup n (ifFunctors (ifDefines iface)) of
         Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
-        Just d -> Just (T.mInScope fn, ifsPublic (ifNames d))
-  | otherwise = asum (fmap (findEnv n iface) (Map.elems (T.mFunctors m)))
+        Just d ->
+          let localNames = T.mInScope fn in
+          Just
+            ModContext
+              { mctxParams   = FunctorParams (ifParams d)
+              , mctxExported = ifsPublic (ifNames d)
+              , mctxDecls    = ifDefines d <> loaded
+              , mctxNames    = localNames
+              , mctxNameDisp = R.toNameDisp localNames
+              }
+
+  | otherwise = asum (fmap (findEnv loaded n iface) (Map.elems (T.mFunctors m)))
 
 modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
 modContextOf (ImpNested name) me =
   do -- find the top module:
-     mname <- nameTopModuleMaybe name
-     lm <- lookupModule mname me
+    mname <- nameTopModuleMaybe name
+    lm <- lookupModule mname me
+    let loadedDecls = map (ifDefines . lmInterface)
+                    $ getLoadedModules (meLoadedModules me)
+        loaded = mconcat (ifDefines (lmInterface lm) : loadedDecls)
+    findEnv loaded name (lmInterface lm) (lmModule lm)
 
-     (localNames, exported) <- findEnv name (lmInterface lm) (lmModule lm)
-     let -- XXX: do we want only public ones here?
-         loadedDecls = map (ifDefines . lmInterface)
-                     $ getLoadedModules (meLoadedModules me)
-     pure ModContext
-       { mctxParams   = NoParams
-       , mctxExported = exported
-       , mctxDecls    = mconcat (ifDefines (lmInterface lm) : loadedDecls)
-       , mctxNames    = localNames
-       , mctxNameDisp = R.toNameDisp localNames
-       }
   -- TODO: support focusing inside a submodule signature to support browsing?
 modContextOf (ImpTop mname) me =
   do lm <- lookupModule mname me
@@ -568,25 +583,39 @@ isLoadedStrict :: ImpName Name -> String -> LoadedModules -> Bool
 isLoadedStrict mn modId lm =
   isLoaded mn lm && modId `Set.member` getLoadedIds lm
 
--- | Is this a loaded parameterized module.
-isLoadedParamMod :: ImpName Name -> LoadedModules -> Bool
-isLoadedParamMod (ImpTop mn) lm = any ((mn ==) . lmName) (lmLoadedParamModules lm)
-isLoadedParamMod (ImpNested n) lm =
-  any (check1 . lmModule) (lmLoadedModules lm) ||
-  any (check2 . lmModule) (lmLoadedParamModules lm)
+-- | Does the given module path refer something with parameters.
+-- Note that it is possible that the thing itself is not parameterized
+-- explicitly, but it resides within a parameterized entity.
+isLoadedParamModPath :: I.ModPath -> LoadedModules -> Bool
+isLoadedParamModPath pa lms = isParam pa
   where
-    -- We haven't crossed into a parameterized functor yet
-    check1 m = Map.member n (T.mFunctors m)
-            || any check2 (T.mFunctors m)
+  roots = Set.fromList (topParam ++ topNonParam)
+  topParam = map (I.TopModule . T.mName . lmModule) (lmLoadedParamModules lms)
+  topNonParam =
+    [ I.Nested top (nameIdent f)
+    | m <- lmLoadedModules lms,
+      let mo  = lmModule m
+          top = I.TopModule (T.mName mo)
+    , f <- Map.keys (T.mFunctors mo)
+    ]
+  isParam x =
+    (x `Set.member` roots) ||
+    case x of
+      I.Nested mo _ -> isParam mo
+      I.TopModule _ -> False
 
-    -- We're inside a parameterized module and are finished as soon as we have containment
-    check2 :: T.ModuleG a -> Bool
-    check2 m =
-      Map.member n (T.mSubmodules m) ||
-      Map.member n (T.mSignatures m) ||
-      Map.member n (T.mFunctors m) ||
-      any check2 (T.mFunctors m)
-
+-- | Is this a loaded parameterized module.
+-- Assumes that the name was referring to a module to start with.
+isLoadedParamMod :: ImpName Name -> LoadedModules -> Bool
+isLoadedParamMod nm =
+  isLoadedParamModPath $
+    case nm of
+      ImpTop x -> I.TopModule x
+      ImpNested n ->
+        case asOrigName n of
+          Just yes -> I.Nested (I.ogModule yes) (I.ogName yes)
+          Nothing -> panic "isLoadedParamMod" ["Missing OG name"]
+  
 -- | Is this a loaded interface module.
 isLoadedInterface :: ImpName Name -> LoadedModules -> Bool
 isLoadedInterface (ImpTop mn) ln = any ((mn ==) . lmName) (lmLoadedSignatures ln)
@@ -613,13 +642,8 @@ loadedParamModDeps lm a = (badTs, bad)
     badTs   = T.tyParams ds
 
     badName nm bs =
-      case nameInfo nm of
-
-        -- XXX: Changes if focusing on nested modules
-        GlobalName _ I.OrigName { ogModule = I.TopModule m }
-          | isLoadedParamMod (ImpTop m) lm -> Set.insert nm bs
-          | isLoadedInterface (ImpTop m) lm -> Set.insert nm bs
-
+      case asOrigName nm of
+        Just og | isLoadedParamModPath (I.ogModule og) lm -> Set.insert nm bs
         _ -> bs
 
 

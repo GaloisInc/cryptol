@@ -1,0 +1,8 @@
+interface submodule I where
+  type T : *
+
+submodule M where
+  import interface submodule I
+
+  b : Bit
+  b = True
