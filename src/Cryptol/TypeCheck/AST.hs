@@ -95,9 +95,9 @@ data ModuleG mname =
                        -- ^ Parameters grouped by "import".
 
                      , mFunctors         :: Map Name (ModuleG Name)
-                       -- ^ Functors directly nested in this module.
-                       -- Things further nested are in the modules in the
-                       -- elements of the map.
+                       -- ^ Functors in this module, and from nested non
+                       -- functor module.  Things nested in functors are in the 
+                       -- odules in the elements of the map.
 
 
                      , mNested           :: !(Set Name)

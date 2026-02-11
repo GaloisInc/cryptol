@@ -1,0 +1,6 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+Expression depends on definitions from a parameterized module:
+  Main::M::b

@@ -1,0 +1,3 @@
+:load issue1989.cry
+:focus submodule M
+b
