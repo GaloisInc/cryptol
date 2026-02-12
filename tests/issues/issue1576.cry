@@ -1,0 +1,16 @@
+module issue1576 where
+  interface submodule I where
+    type Value : *
+    value: Value
+
+  submodule F where
+    import interface submodule I
+
+    eq_self : Eq Value => Bool
+    property eq_self = value == value
+
+  submodule P where
+    type Value = [16]
+    value = 0xe641
+
+  import submodule F { submodule P } as FP

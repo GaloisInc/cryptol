@@ -127,7 +127,7 @@ data ProverResult = AllSatResult [SatResult] -- LAZY
 
 predArgTypes :: QueryType -> Schema -> Either Doc [FinType]
 predArgTypes qtype schema@(Forall ts ps ty)
-  | null ts && null ps =
+  | null ts && all pIsTrue ps = -- We could have `True` constraints due to module instantiations (see #1576)
     case evalType mempty ty of
       Left _ -> Left "Predicate needs to be of kind *"
       Right tval ->
