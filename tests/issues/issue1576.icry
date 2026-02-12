@@ -1,0 +1,2 @@
+:load issue1576.cry
+:prove FP::eq_self
