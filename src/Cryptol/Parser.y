@@ -241,19 +241,14 @@ mbAs                       :: { Maybe (Located ModName) }
   : 'as' modName              { Just $2 }
   | {- empty -}               { Nothing }
 
-mbImportSpec               :: { Maybe (Located ImportSpec) }
-  : mbHiding '(' name_list ')'{ Just Located
+mbImportSpec              :: { Maybe (Located ImportSpec) }
+  : mbHiding '(' vars_comma ')'{ Just Located
                                   { srcRange = case $3 of
                                       { [] -> emptyRange
                                       ; xs -> rCombs (map srcRange xs) }
-                                  , thing    = $1 (reverse (map thing $3))
+                                  , thing    = $1 (reverse (map (getIdent . thing) $3))
                                   } }
   | {- empty -}               { Nothing }
-
-name_list                  :: { [LIdent] }
-  : name_list ',' var         { fmap getIdent $3 : $1 }
-  | var                       { [fmap getIdent $1]    }
-  | {- empty -}               { []                    }
 
 mbHiding                   :: { [Ident] -> ImportSpec }
   : 'hiding'                  { Hiding }
@@ -345,15 +340,22 @@ parameter_decls         :: { TopDecl PName }
 
 -- Reversed
 par_decls                            :: { [ParamDecl PName] }
-  : par_decl                            { [$1] }
-  | par_decls ';'  par_decl             { $3 : $1 }
-  | par_decls 'v;' par_decl             { $3 : $1 }
+  : par_decl                            { $1 }
+  | par_decls ';'  par_decl             { $3 ++ $1 }
+  | par_decls 'v;' par_decl             { $3 ++ $1 }
 
-par_decl                         :: { ParamDecl PName }
-  : mbDoc        name ':' schema    { mkParFun $1 $2 $4 }
-  | mbDoc 'type' name ':' kind      {% mkParType $1 $3 $5 }
-  | mbDoc typeOrPropSyn             { mkIfacePropSyn (thing `fmap` $1) $2 }
-  | mbDoc topTypeConstraint         { DParameterConstraint (ParameterConstraint (distrLoc $2) $1) }
+par_decl                             :: { [ParamDecl PName] }
+  : mbDoc        vars_comma ':' schema    { map (\x -> mkParFun $1 x $4) $2 }
+  | mbDoc 'type' type_vars_comma ':' kind {% mapM (\x -> mkParType $1 x $5) $3 }
+  | mbDoc typeOrPropSyn                   { [mkIfacePropSyn (thing `fmap` $1) $2] }
+  | mbDoc topTypeConstraint               { [DParameterConstraint (ParameterConstraint (distrLoc $2) $1)] }
+
+-- We only expect names here, but to avoid reduce/reduce conflicts
+-- due to 1 look-ahead we parse a whole type, and then check that it was
+-- indeed just a nme.
+type_vars_comma ::                      { [ LPName ] }
+  : type                                {% fmap (: []) (getTypeName $1) }
+  | type_vars_comma ',' type            {% fmap (: $1) (getTypeName $3) }
 
 
 doc                     :: { Located Text }

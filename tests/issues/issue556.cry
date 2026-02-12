@@ -1,0 +1,8 @@
+module issue556 where
+
+parameter
+  type m,n : #
+  x,y:[m][n]
+
+f: ([m][n],[m][n])
+f = (x,y)
