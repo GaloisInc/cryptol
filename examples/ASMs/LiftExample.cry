@@ -1,0 +1,38 @@
+/*
+ * @title       "Correct Lift Control ASM Example"
+ * @description "Demonstrates execution of a single lift over multiple floors."
+ * @author      "Joe Kiniry"
+ * @copyright   "Galois, Free & Fair, Joseph Kiniry, 2025"
+ * @license     "Licensed under the Apache License, Version 2.0"
+ * @version     "0.1.0"
+ */
+
+module LiftExample where
+import CorrectLiftControlASM where
+  type n = 1
+  type m = 3
+
+// Define a single lift initially at floor 1 with a destination of 3
+exampleLift0 : Lift
+exampleLift0 = {
+  name = "           LiftA",
+  state = {
+    status = Halting,
+    direction = Up,
+    floor = 1,
+    destination = 3
+  }
+}
+
+// Manually step through floors: 1 → 2 → 3 → 2 → 1
+exampleLift1 = moveLift exampleLift0                            // to floor 2
+exampleLift2 = moveLift exampleLift1                            // to floor 3
+exampleLift3 = { exampleLift2 | state.destination = 2 }         // change dest to 2
+exampleLift4 = moveLift exampleLift3                            // to floor 2
+exampleLift5 = { exampleLift4 | state.destination = 1 }         // change dest to 1
+exampleLift6 = moveLift exampleLift5                            // to floor 1
+
+exampleTrace : [7]Lift
+exampleTrace = [ exampleLift0, exampleLift1, exampleLift2
+               , exampleLift3, exampleLift4, exampleLift5
+               , exampleLift6 ]
