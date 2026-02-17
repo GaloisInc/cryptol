@@ -51,6 +51,8 @@ data Mod a = Mod
   { modImports   :: [ ImportG (ImpName PName) ]
   , modKind      :: ModKind
   , modInstances :: Map Name (ImpName PName, ModuleInstanceArgs PName)
+    -- ^ Modules defined as module instances
+
   , modMods      :: Map Name (Mod a) -- ^ this includes signatures
 
   , modDefines   :: NamingEnv
@@ -66,7 +68,7 @@ data Mod a = Mod
     {- ^ Used in the import loop to track the current state of processing.
          The reason this is here, rather than just having a pair in the
          other algorithm is because this type is recursive (for nested modules)
-         and it is conveninet to keep track for all modules at once -}
+         and it is convenient to keep track for all modules at once -}
   }
 
 modNested :: Mod a -> Set Name
@@ -335,38 +337,56 @@ instance BindsNames (InModule (TopDecl PName)) where
 
 
 instance BindsNames (InModule (NestedModule PName)) where
-  namingEnv (InModule ~(Just m) (NestedModule mdef)) = BuildNamingEnv $
-    do let pnmame = mName mdef
-       nm   <- newTop NSModule m (thing pnmame) Nothing (srcRange pnmame)
-       pure (singletonNS NSModule (thing pnmame) nm)
+  namingEnv (InModule mb (NestedModule mdef)) =
+    case mb of
+      Just m -> BuildNamingEnv $
+        do
+          let pnmame = mName mdef
+          nm   <- newTop NSModule m (thing pnmame) Nothing (srcRange pnmame)
+          pure (singletonNS NSModule (thing pnmame) nm)
+      Nothing -> panic "BindsNames InModule (NestedModule PName))" ["Nothing"]
 
 instance BindsNames (InModule (PrimType PName)) where
-  namingEnv (InModule ~(Just m) PrimType { .. }) =
-    BuildNamingEnv $
-      do let Located { .. } = primTName
-         nm <- newTop NSType m thing primTFixity srcRange
-         pure (singletonNS NSType thing nm)
+  namingEnv (InModule mb PrimType { .. }) =
+    case mb of
+      Just m ->
+        BuildNamingEnv $
+          do let Located { .. } = primTName
+             nm <- newTop NSType m thing primTFixity srcRange
+             pure (singletonNS NSType thing nm)
+      Nothing -> panic "BindsNames InModule (PrimType PName))" ["Nothing"]
 
 instance BindsNames (InModule (ParameterFun PName)) where
-  namingEnv (InModule ~(Just ns) ParameterFun { .. }) = BuildNamingEnv $
-    do let Located { .. } = pfName
-       ntName <- newTop NSValue ns thing pfFixity srcRange
-       return (singletonNS NSValue thing ntName)
+  namingEnv (InModule mb ParameterFun { .. }) =
+    case mb of
+      Just ns -> BuildNamingEnv $
+        do
+          let Located { .. } = pfName
+          ntName <- newTop NSValue ns thing pfFixity srcRange
+          return (singletonNS NSValue thing ntName)
+      Nothing -> panic "BindsNames InModule (ParameterFun PName))" ["Nothing"]
 
 instance BindsNames (InModule (ParameterType PName)) where
-  namingEnv (InModule ~(Just ns) ParameterType { .. }) = BuildNamingEnv $
-    -- XXX: we don't seem to have a fixity environment at the type level
-    do let Located { .. } = ptName
-       ntName <- newTop NSType ns thing Nothing srcRange
-       return (singletonNS NSType thing ntName)
+  namingEnv (InModule mb ParameterType { .. }) =
+    case mb of
+      Just ns -> BuildNamingEnv $
+        -- XXX: we don't seem to have a fixity environment at the type level
+        do
+          let Located { .. } = ptName
+          ntName <- newTop NSType ns thing Nothing srcRange
+          return (singletonNS NSType thing ntName)
+      Nothing -> panic "BindsNames InModule (ParameterType PName))" ["Nothing"]
 
 instance BindsNames (InModule (Newtype PName)) where
-  namingEnv (InModule ~(Just ns) Newtype { .. }) = BuildNamingEnv $
-    do let Located { .. } = nName
-       ntName    <- newTop NSType  ns thing Nothing srcRange
-       ntConName <- newTop NSConstructor ns thing Nothing srcRange
-       return (singletonNS NSType thing ntName `mappend`
-               singletonNS NSConstructor thing ntConName)
+  namingEnv (InModule mb Newtype { .. }) =
+    case mb of
+      Just ns -> BuildNamingEnv $
+        do let Located { .. } = nName
+           ntName    <- newTop NSType  ns thing Nothing srcRange
+           ntConName <- newTop NSConstructor ns thing Nothing srcRange
+           return (singletonNS NSType thing ntName `mappend`
+                   singletonNS NSConstructor thing ntConName)
+      Nothing -> panic "BindsNames InModule (Newtype PName))" ["Nothing"]
 
 instance BindsNames (InModule (EnumDecl PName)) where
   namingEnv (InModule (Just ns) EnumDecl { .. }) = BuildNamingEnv $

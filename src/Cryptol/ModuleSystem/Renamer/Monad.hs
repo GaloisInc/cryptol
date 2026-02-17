@@ -40,7 +40,7 @@ import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Renamer.Imports
   (ResolvedLocal,rmodKind,rmodDefines,rmodNested)
 
--- | Indicates if a name is in a binding poisition or a use site
+-- | Indicates if a name is in a binding position or a use site
 data NameType = NameBind | NameUse
 
 -- | Information needed to do some renaming.

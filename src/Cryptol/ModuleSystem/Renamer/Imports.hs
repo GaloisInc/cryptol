@@ -3,14 +3,14 @@
 This module deals with imports of nested modules (@import submodule@).
 This is more complex than it might seem at first because to resolve a
 declaration like @import submodule X@ we need to resolve what @X@
-referes to before we know what it will import.
+refers to before we know what it will import.
 
-Even triciker is the case for functor instantiations:
+Even trickier is the case for functor instantiations:
 
   module M = F { X }
   import M
 
-In this case, even if we know what `M` referes to, we first need to
+In this case, even if we know what `M` refers to, we first need to
 resolve `F`, so that we can generate the instantiation and generate
 fresh names for names defined by `M`.
 

@@ -170,7 +170,7 @@ data ModuleG mname name = Module
     -- ^ Names in scope inside this module, filled in by the renamer.
     --   Also, for the 'FunctorInstance' case this is not the final result of
     --   the names in scope. The typechecker adds in the names in scope in the
-    --   functor, so this will just contain the names in the enclosing scope.
+    --   functor, so after renaming, this will contain only the names in the enclosing scope.
   , mDocTop   :: Maybe (Located Text)
   -- ^ only used for top-level modules
   } deriving (Show, Generic, NFData)
@@ -188,7 +188,7 @@ data ModuleDefinition name =
   | InterfaceModule (Signature name)
     deriving (Show, Generic, NFData)
 
-{- | Maps names in the original functor with names in the instnace.
+{- | Maps names in the original functor with names in the instance.
 Does *NOT* include the parameters, just names for the definitions.
 This *DOES* include entries for all the name in the instantiated functor,
 including names in modules nested inside the functor. -}

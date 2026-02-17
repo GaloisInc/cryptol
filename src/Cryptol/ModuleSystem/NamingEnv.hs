@@ -230,7 +230,7 @@ findShadowing (NamingEnv lhs) rhs = res
     isUser z = nameSrc z == UserName
 
 -- | Do an arbitrary choice for ambiguous names.
--- We do this to continue checking afetr we've reported an ambiguity error.
+-- We do this to continue checking after we've reported an ambiguity error.
 forceUnambig :: NamingEnv -> NamingEnv
 forceUnambig (NamingEnv mp) = NamingEnv (fmap (One . anyOne) <$> mp)
 

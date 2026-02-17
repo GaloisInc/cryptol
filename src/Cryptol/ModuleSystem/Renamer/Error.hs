@@ -53,14 +53,11 @@ data RenamerError
   | MultipleModParams Ident [Range]
     -- ^ Module parameters with the same name
 
-  | InvalidFunctorImport (ImpName Name)
-    -- ^ Can't import functors directly
-
   | UnexpectedNest Range PName
     -- ^ Nested modules were not supposed to appear here
 
   | ModuleKindMismatch Range (ImpName Name) ModKind ModKind
-    -- ^ Exepcted one kind (first one) but found the other (second one)
+    -- ^ Expected one kind (first one) but found the other (second one)
 
     deriving (Show, Generic, NFData, Eq, Ord)
 
@@ -79,7 +76,7 @@ data DepName = NamedThing Name
                     reporting but to distinguish module parameters with
                     the same name (e.g., in nested functors) -}
              | ConstratintAt Range
-               -- ^ Identifed by location in source
+               -- ^ Identified by location in source
                deriving (Eq,Ord,Show,Generic,NFData)
 
 depNameLoc :: DepName -> Maybe Range
@@ -177,10 +174,6 @@ instance PP RenamerError where
     MultipleModParams x rs ->
       hang ("[error] Multiple parameters with name" <+> backticks (pp x))
          4 (vcat [ "•" <+> pp r | r <- rs ])
-
-    InvalidFunctorImport x ->
-      hang ("[error] Invalid import of functor" <+> backticks (pp x))
-        4 "• Functors need to be instantiated before they can be imported."
 
     UnexpectedNest s x ->
       hang ("[error] at" <+> pp s)
