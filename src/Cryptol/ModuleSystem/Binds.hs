@@ -18,6 +18,7 @@ module Cryptol.ModuleSystem.Binds
   , ifaceSigToMod
   , modToMap
   , defsOf
+  , defsOfSig
   ) where
 
 import Data.Map(Map)
@@ -237,7 +238,7 @@ declsToMod mbPath ds =
 
 -- | These are the names "owned" by the signature.  These names are
 -- used when resolving the signature.  They are also used to figure out what
--- names to instantuate when the signature is used.
+-- names to instantiate when the signature is used.
 signatureDefs :: ModPath -> Signature PName -> BuildNamingEnv
 signatureDefs m sig =
      mconcat [ namingEnv (InModule loc p) | p <- sigTypeParams sig ]
@@ -245,6 +246,9 @@ signatureDefs m sig =
   <> mconcat [ namingEnv (InModule loc p) | p <- sigDecls sig ]
   where
   loc = Just m
+
+defsOfSig :: ModPath -> Signature PName -> Supply -> (NamingEnv,Supply)
+defsOfSig m sig = buildNamingEnv (signatureDefs m sig)
 --------------------------------------------------------------------------------
 
 

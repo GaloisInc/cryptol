@@ -10,6 +10,7 @@ module Cryptol.ModuleSystem.Renamer2.Monad
     -- * Modules
   , lookupMod
   , addResolvedMod
+  , addInstMod
   , recordTopImport
   , getExternalDeps
   , Mod(..)
@@ -24,7 +25,8 @@ module Cryptol.ModuleSystem.Renamer2.Monad
   , inSubmodule
 
     -- * Name generation
-  , withSupply
+  , mkFakeName
+  , isFakeName
 
     -- * Error reporting
   , recordError
@@ -33,10 +35,10 @@ module Cryptol.ModuleSystem.Renamer2.Monad
   , located
   , withLoc
   , reportUnboundName
-  , mkFakeName
   ) where
 
 import MonadLib
+import Data.Maybe(fromMaybe)
 import Data.Set(Set)
 import Data.Set qualified as Set
 import Data.Map(Map)
@@ -58,6 +60,15 @@ import Cryptol.TypeCheck.Type(ModParamNames)
 
 newtype RenameM a = R (ReaderT RO (ExceptionT () (StateT RW Lift)) a)
   deriving (Functor,Applicative,Monad)
+
+instance FreshM RenameM where
+  liftSupply f =
+    R (sets \rw ->
+      case f (newNames rw) of
+        (a,s1) -> (a, rw1)
+          where !rw1 = rw { newNames = s1 })
+
+
 
 -- | Information needed to do some renaming.
 data RenamerInfo = RenamerInfo
@@ -170,13 +181,36 @@ data Mod = Mod
   , modPublic    :: !(Set Name)         -- ^ These are the exported names
   }
 
-lookupMod :: ImpName Name -> RenameM Mod
-lookupMod nm =
+-- | A dummy module to use as placeholder for error situations
+emptyMod :: ModKind -> Mod
+emptyMod k = Mod {
+  modKind = k,
+  modDefines = mempty,
+  modPublic = mempty
+}
+
+
+-- | Lookup a known module
+lookupMod :: ImpName Name -> Maybe ModKind -> RenameM Mod
+lookupMod nm mbExpected =
   do
     rw <- R get
     case Map.lookup nm (knownMods rw) of
-      Just mo -> pure mo
-      Nothing -> panic "lookupMod" ["Missing module"]
+      Just mo ->
+        case mbExpected of
+          Nothing -> pure mo
+          Just expected
+            | expected == actual -> pure mo
+            | otherwise ->
+              do
+                loc <- getCurLoc
+                recordError (ModuleKindMismatch loc nm expected actual)
+                pure (emptyMod expected)
+              where actual = modKind mo
+
+      Nothing -> pure (emptyMod (fromMaybe AModule mbExpected))
+      -- This could happen because we are looking up a fake name
+      -- generated due to undefined name
 
 recordTopImport :: ModName -> RenameM ()
 recordTopImport m =
@@ -230,6 +264,11 @@ ifaceSigToMod ps = Mod
   where
   env = modParamNamesNamingEnv ps
 
+-- | Add a module that was generated when instantiating a functor
+addInstMod :: Name -> Mod -> RenameM ()
+addInstMod x y =
+  R (sets_ \rw -> rw { knownMods = Map.insert (ImpNested x) y (knownMods rw) })
+
 addResolvedMod :: ModuleG Name Name -> RenameM ()
 addResolvedMod mo =
   do
@@ -248,15 +287,13 @@ addResolvedMod mo =
             
         FunctorInstance f _ inst ->
           do
-            fmo <- lookupMod (thing f)
+            fmo <- lookupMod (thing f) (Just AFunctor)
             let remap x = case Map.lookup x inst of
                             Just y -> y
                             Nothing -> panic "addResolvedMod" ["remap failed"]
             pure Mod {
               modKind = AModule,
               modDefines = env,
-                -- NOTE: XXX: revisit, if curDefs is not defined we can get
-                -- this from fmo
               modPublic = Set.map remap (modPublic fmo)
             }
               
@@ -331,13 +368,6 @@ inSubmodule x (R m) = R
 -- Name generation
 --------------------------------------------------------------------------------
 
--- | Do something that require name generation.
-withSupply :: (Supply -> (a,Supply)) -> RenameM a
-withSupply f = R (sets \rw ->
-  case f (newNames rw) of
-    (a,s1) -> (a, rw1)
-      where !rw1 = rw { newNames = s1 })
-
 
 --------------------------------------------------------------------------------
 -- Error reporting
@@ -388,6 +418,15 @@ reportUnboundName expected qn scope =
 mkFakeName :: Namespace -> PName -> RenameM Name
 mkFakeName ns pn =
   do loc <- getCurLoc
-     withSupply (mkDeclared ns (TopModule undefinedModName)
+     liftSupply (mkDeclared ns (TopModule undefinedModName)
                                SystemName (getIdent pn) Nothing loc)
 
+-- | Check if this is a placeholder name we made up with `mkFakeName`.
+isFakeName :: ImpName Name -> Bool
+isFakeName m =
+  case m of
+    ImpTop x -> x == undefinedModName
+    ImpNested x ->
+      case nameTopModuleMaybe x of
+        Just y  -> y == undefinedModName
+        Nothing -> False

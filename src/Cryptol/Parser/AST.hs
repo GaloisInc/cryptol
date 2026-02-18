@@ -291,10 +291,10 @@ data ParamDecl name =
 -- | All arguments in a functor instantiation
 data ModuleInstanceArgs name =
     DefaultInstArg (Located (ModuleInstanceArg name))
-    -- ^ Single parameter instantitaion
+    -- ^ Single parameter instantiations
 
   | DefaultInstAnonArg [TopDecl name]
-    -- ^ Single parameter instantitaion using this anonymous module.
+    -- ^ Single parameter instantiations using this anonymous module.
     -- (parser only)
 
   | NamedInstArgs  [ModuleInstanceNamedArg name]
