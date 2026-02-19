@@ -20,11 +20,16 @@ module Cryptol.ModuleSystem.Renamer2.Monad
   , getCurDefs
   , getCurScope
   , setThisModuleDefs
+  , addModParams
   , addImported
   , addLocals
+
+    -- * Scopes
   , inSubmodule
+  , inLocalScope
 
     -- * Name generation
+  , doDefGroup
   , mkFakeName
   , isFakeName
 
@@ -60,14 +65,6 @@ import Cryptol.TypeCheck.Type(ModParamNames)
 
 newtype RenameM a = R (ReaderT RO (ExceptionT () (StateT RW Lift)) a)
   deriving (Functor,Applicative,Monad)
-
-instance FreshM RenameM where
-  liftSupply f =
-    R (sets \rw ->
-      case f (newNames rw) of
-        (a,s1) -> (a, rw1)
-          where !rw1 = rw { newNames = s1 })
-
 
 
 -- | Information needed to do some renaming.
@@ -110,6 +107,7 @@ runRenamer info (R m) = (res, renWarnings rwFin)
       defEnv = mempty,
       impEnv = mempty,
       outEnv = mempty,
+      modParamEnv = mempty,
       externalDeps = mempty,
       newNames = renSupply info,
       renErrors = [],
@@ -152,6 +150,9 @@ data RW = RW {
 
   defEnv :: NamingEnv,
   -- ^ Things defined in the current module
+
+  modParamEnv :: NamingEnv,
+  -- ^ Names from module parameters
 
   impEnv :: NamingEnv,
   -- ^ Things imported in the current scope
@@ -328,12 +329,26 @@ getCurScope = R
     pure $
       localsEnv rw `shadowing`
       defEnv    rw `shadowing`
+      modParamEnv rw `shadowing`
       impEnv    rw `shadowing`
       outEnv    rw
 
 -- | Set the definition for the current module.
 setThisModuleDefs :: NamingEnv -> RenameM ()
 setThisModuleDefs env = R (sets_ \rw -> rw { defEnv = env })
+
+-- | Add names from module parameters to the current scope.
+addModParams :: NamingEnv -> RenameM ()
+addModParams env =
+  do
+    errs <- R (sets upd)
+    mapM_ (recordError . OverlappingSyms) errs
+  where
+    upd rw =
+      let newEnv = env <> modParamEnv rw
+          errs   = findAmbig newEnv
+      in (errs, rw { modParamEnv = forceUnambig newEnv })
+-- XXX: Warn about shadowing.
 
 -- | Add some names that came from an import.
 addImported :: NamingEnv -> RenameM ()
@@ -344,6 +359,16 @@ addLocals :: NamingEnv -> RenameM ()
 addLocals env = R (sets_ \rw -> rw { localsEnv = env <> localsEnv rw })
 -- XXX: Warn about shadowing
 
+-- | Do something that will only modify the local scope, and restore
+-- it after the computation.
+inLocalScope :: RenameM a -> RenameM a
+inLocalScope (R m) = R
+  do
+    old <- localsEnv <$> get
+    a <- m
+    sets \rw -> (a, rw { localsEnv = old })
+    
+
 -- | Do some renaming in the context of a nested module.
 inSubmodule :: Ident -> RenameM a -> RenameM a
 inSubmodule x (R m) = R
@@ -351,22 +376,19 @@ inSubmodule x (R m) = R
     let upd ro = ro { curModPath = Nested (curModPath ro) x }
     rw <- get
     let defs = defEnv rw
+        pars = modParamEnv rw
         imps = impEnv rw
         outs = outEnv rw
         -- there should be no locals
     set rw {
-      defEnv     = mempty,
-      impEnv     = mempty,
-      outEnv     = defs `shadowing` imps `shadowing` outs
+      defEnv      = mempty,
+      impEnv      = mempty,
+      modParamEnv = mempty,
+      outEnv      = defs `shadowing` pars `shadowing` imps `shadowing` outs
       }
     a <- mapReader upd m
-    sets_ \rw1 -> rw1 { defEnv = defs, impEnv = imps, outEnv = outs } 
+    sets_ \rw1 -> rw1 { defEnv = defs, modParamEnv = pars, impEnv = imps, outEnv = outs } 
     pure a
-
-
---------------------------------------------------------------------------------
--- Name generation
---------------------------------------------------------------------------------
 
 
 --------------------------------------------------------------------------------
@@ -412,6 +434,27 @@ reportUnboundName expected qn scope =
        [] -> recordError (UnboundName expected nm)
 
      mkFakeName expected qn
+
+
+--------------------------------------------------------------------------------
+-- Name generation
+--------------------------------------------------------------------------------
+
+instance FreshM RenameM where
+  liftSupply f =
+    R (sets \rw ->
+      case f (newNames rw) of
+        (a,s1) -> (a, rw1)
+          where !rw1 = rw { newNames = s1 })
+
+-- | Make names for a bunch of things defined together.
+-- Check that they all have distinct names.
+doDefGroup :: (Supply -> (NamingEnv, Supply)) -> RenameM NamingEnv
+doDefGroup m =
+  do
+    env <- liftSupply m
+    mapM_ (recordError . OverlappingSyms) (findAmbig env)
+    pure (forceUnambig env)
 
 -- | Assuming an error has been recorded already, construct a fake name that's
 -- not expected to make it out of the renamer.
