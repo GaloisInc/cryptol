@@ -511,8 +511,16 @@ doModParam mp =
 -- Implicit Imports
 --------------------------------------------------------------------------------
 
+-- | Compute what implicit imports we should add for the given name.
+-- Note that the second argument in the pair is just there to make the types
+-- fit---we place an empty set there, which will be replaced when the imports
+-- are resolved.
 implicitImports :: Located Name -> RenameM [(TopDecl PName, Set Name)]
-implicitImports = undefined
+implicitImports lname =
+  do
+    nts <- nestedModNames (thing lname)
+    let imps = concatMap (nameTreeToImports (srcRange lname) []) nts
+    pure [ (DImport lname { thing = i },Set.empty) | i <- imps ]
 
 data NameTree = NameTree Name [NameTree]
 
@@ -527,10 +535,10 @@ nestedModNames mo =
             [x | x <- Set.toList (modPublic info), nameNamespace x == NSModule ]
       _ -> pure []
 
-nameTreeToImports :: Range -> [Ident] -> NameTree -> [ ImportG PName ]
+nameTreeToImports :: Range -> [Ident] -> NameTree -> [ ImportG (ImpName PName) ]
 nameTreeToImports rng qs (NameTree x subs) =
   Import {
-    iModule = Located { srcRange = rng, thing = nm },
+    iModule = Located { srcRange = rng, thing = ImpNested nm },
     iAs     = Just (isToQual (reverse (i : qs))),
     iSpec   = Nothing,
     iInst   = Nothing,
