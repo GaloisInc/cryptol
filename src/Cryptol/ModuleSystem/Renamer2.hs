@@ -2,9 +2,13 @@
 module Cryptol.ModuleSystem.Renamer2 where
 
 import Data.List(partition,foldl',find)
+import Data.Maybe(mapMaybe)
+import Data.Set(Set)
 import Data.Set qualified as Set
 import Data.Map qualified as Map
 import Control.Monad(forM,mapAndUnzipM,foldM_)
+import Data.Graph(SCC(..), graphFromEdges', flattenSCC)
+import Data.Graph.SCC(sccGraph, stronglyConnComp)
 
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident
@@ -154,8 +158,8 @@ instance Rename Signature where
       mo          <- getCurModPath
       env         <- doDefGroup (defsOfSig mo sig)
       setThisModuleDefs env
-      newTopImps  <- mapM doImport topImps
-      newNestImps <- mapM doImport nestImps
+      newTopImps  <- mapM (fmap fst . doImport) topImps
+      newNestImps <- mapM (fmap fst . doImport) nestImps
 
       funPs       <- mapM rename (sigFunParams sig)
       tyPs        <- mapM rename (sigTypeParams sig)
@@ -179,7 +183,7 @@ instance Rename Signature where
 
 
 --------------------------------------------------------------------------------
--- Processing Declarations
+-- Processing Top-level Declarations
 --------------------------------------------------------------------------------
 
 -- | Rename the top-level declarations of a module.
@@ -187,11 +191,10 @@ renameTopDecls :: [TopDecl PName] -> RenameM [TopDecl Name]
 renameTopDecls decls =
   do
     mp  <- getCurModPath
-    env <- doDefGroup (defsOf (map (InModule (Just mp)) decls))
+    mapM_ rename topImps
+    (env,defs) <- doDefOrdGroup (map (InModule (Just mp)) otherDecls)
     setThisModuleDefs env
-    mapM_ doImportOrModParamDecl topImps
-    renameDeclBlocks otherDecls
-    -- XXX: reorder in dependency order
+    renameAndReorderTopDecls (zip otherDecls defs)
   where
   (topImps,otherDecls) = partition isTopImp decls
   isTopImp d =
@@ -203,30 +206,215 @@ renameTopDecls decls =
       _ -> False
 
 
-
--- | Rename top-level declarations, assuming we've processed top-level imports.
-renameDeclBlocks :: [TopDecl PName] -> RenameM [TopDecl Name]
-renameDeclBlocks ds =
-  -- XXX: also break on module to optionally add implicit imports
-  case break isImport ds of
-    (as,rest) ->
-      do
-        as' <- mapM rename as
-        case rest of
-          [] -> pure as'
-          imp : more ->
-            do
-              imp' <- doImportOrModParamDecl imp
-              more' <- renameDeclBlocks more
-              pure (imp' : more')
+-- | Rename declarations and order the in dependency order.  Also, we preserve
+-- the order of interface constraints as it they were written in the file,
+-- but we move them as early as possible (i.e., immediately after all of
+-- their dependencies.
+renameAndReorderTopDecls :: [(TopDecl PName,Set Name)] -> RenameM [TopDecl Name]
+renameAndReorderTopDecls xs =
+  do
+    gr0 <- go (0 :: Int) [] xs
+    let nodeMap = Map.fromList [ (k,d) | (k,d,_,_) <- gr0 ]
+        declFromKey k =
+          case Map.lookup k nodeMap of
+            Just d -> d
+            Nothing -> panic "renameAndReorderTopDecls" ["missing node"]
+        defMap        = Map.fromList
+                        [ (x,k) | (k,_,defs,_) <- gr0, x <- Set.toList defs ]
+        edges         = [ (d, k, mapMaybe (`Map.lookup` defMap) (Set.toList deps))
+                        | (k,d,_,deps) <- gr0 ]
+        compG         = sccGraph (fst (graphFromEdges' edges))
+        ifaceCtrKeys  = [ k | (k,d,_,_) <- gr0, isIfaceCtr d ]
+        ordered       = reorderTopDecls ifaceCtrKeys compG
+        result        = map (fmap declFromKey) ordered
+    concat <$> mapM validateTopRecDep result
   where
-  -- We assume that top-level imports were already processed,
-  -- see `findTopImports`.  We find both local and parameter imports.
-  isImport d =
+  isIfaceCtr d =
     case d of
-      DImport {}    -> True
-      DModParam {}  -> True
-      _             -> False
+      DInterfaceConstraint {} -> True
+      _ -> False
+
+  -- This does the actual renaming, and assigns each declaration a unique id.
+  -- Things earlier in the file order get small ids, which is used when
+  -- ordering module level constraints (see `ifaceCtrKeys`)
+  go !curId gr ds =
+    case ds of
+      [] -> pure gr
+      (d,bdefs) : more ->
+        case d of
+          DImport imp ->
+            do
+              ((newI,defs),deps) <- getDeps (doImport imp)
+              go (curId + 1) ((curId,DImport newI,defs,deps) : gr) more
+          DModParam p ->
+            do
+              ((par,defs),deps) <- getDeps (doModParam p) 
+              go (curId + 1) ((curId,DModParam par,defs,deps) : gr) more
+          DModule {} ->
+            do
+              (d',deps) <- getDeps (rename d)
+              -- We add implicit imports of all modules nested in this,
+              -- as long as the following declaration is not a user specified
+              -- import of this module.
+              implicit <-
+                case more of
+                  (DImport imp, _) : _
+                    | ImpNested y <- thing (iModule (thing imp))
+                    , y == thing (getDModName d) -> pure []
+                  _ -> implicitImports (getDModName d')
+              go (curId + 1) ((curId,d',bdefs,deps) : gr) (implicit ++ more)
+          _ ->
+            do
+              (d',deps) <- getDeps (rename d)
+              go (curId + 1) ((curId,d',bdefs,deps) : gr) more
+  
+  getDModName td =
+    case td of
+      DModule md
+        | NestedModule mo <- tlValue md -> mName mo
+      _ -> panic "renameAndReorderTopDecls" ["Not a module decl"]
+
+
+-- | This computes a topological sort of the SCCs.  We do it manually to
+-- enforce some additional constraints: we'd like the top-level module
+-- constraints to go as early in the file as possible, and stay in the order
+-- they were written in the file.
+reorderTopDecls ::
+  [Int] {- ^ Keys for top-level constraint declarations.
+             Note that the these are the keys *in* the SCC, not the key *of*
+            the SCC (i.e., the keys in the graph before its has been quotient-ed) -}->
+  [(SCC Int, Int, [Int])] {- ^ Quotient graph -} ->
+  [SCC Int]
+reorderTopDecls priority grlist = reverse (go Set.empty [] allTodo)
+  where
+  allTodo = map getUnq priority ++ Map.keys qgraph
+  -- The priority elements are in the list twice, but the extra copies will
+  -- be skipped by the "visited" check.
+
+  go visited res todo =
+    case todo of
+      [] -> res
+      x : more ->
+        case postOrder (visited,res) x of
+          (visited1,res1) -> go visited1 res1 more
+
+  postOrder s@(visited,res) k
+    | k `Set.member` visited = s
+    | otherwise =
+      let (v,deps) = getQ k 
+          visited1 = Set.insert k visited
+          -- There should be no cycles so it doesn't matter if we do this now
+          -- or later but we do it sooner to avoid looping if there's a bug.
+          (visited2,res1) = foldl' postOrder (visited1,res) deps
+      in (visited2, v : res1)
+
+  -- Map nodes in the quotient graph to their declaration and
+  -- dependencies (in the quotient graph)
+  qgraph = Map.fromList [ (k,(v,deps)) | (v,k,deps) <- grlist ]
+  getQ x =
+    case Map.lookup x qgraph of
+      Just v -> v
+      Nothing -> panic "reorderTopDecls" ["missing Q"]
+
+  -- Maps nodes in the original graph to nodes in the quotient graph
+  unq    = Map.fromList [ (v,k) | (c,k,_) <- grlist, v <- flattenSCC c ]
+  getUnq x =
+    case Map.lookup x unq of
+      Just v -> v
+      Nothing -> panic "reorderTopDecls" ["missing unQ"]
+
+
+--------------------------------------------------------------------------------
+-- Validate Recursive Dependencies
+--------------------------------------------------------------------------------
+
+-- | Report errors for invalid recursive dependencies.
+validateTopRecDep :: SCC (TopDecl Name) -> RenameM [TopDecl Name]
+validateTopRecDep sc =
+  case sc of
+    AcyclicSCC x -> pure [x]
+    CyclicSCC tds ->
+      case mapM isDecl tds of
+        Nothing ->
+          do
+            recordError (InvalidDependency (map topDeclName tds))
+            pure tds
+        Just ds ->
+          do
+            newDs <- validateRecDep (CyclicSCC (map tlValue ds))
+            pure [Decl TopLevel {
+              tlValue = d',
+              tlDoc = Nothing,
+              tlExport =
+                if all ((== Private) . tlExport) ds then Private else Public
+              -- XXX: This is wrong: it should be possible to have 
+              -- recursive declarations where one of the things is public
+              -- and the rest are private.  We have no way to represent this
+              -- at the moment. Old renamer set this to `Public` always.
+            } | d' <- newDs ]
+  where
+  -- Only decls may be recursive at present.  This would have to change,
+  -- if, for example, we allowed recursive `enum`.
+  isDecl d =
+    case d of
+      Decl tl -> Just tl
+      _       -> Nothing
+      
+validateRecDep :: SCC (Decl Name) -> RenameM [Decl Name]
+validateRecDep sc =
+  case sc of
+    AcyclicSCC d -> pure [d]
+    CyclicSCC ds ->
+      case mapM recOk ds of
+        Just bs -> pure [DRec bs]
+        Nothing ->
+          do
+            recordError (InvalidDependency (map (NamedThing . declName) ds))
+            pure ds
+      where
+      recOk d =
+        case d of
+          DLocated d' _ -> recOk d'
+          DBind b -> pure b
+          _ -> Nothing
+
+
+declName :: Decl Name -> Name
+declName decl =
+  case decl of
+    DLocated d _            -> declName d
+    DBind b                 -> thing (bName b)
+    DType (TySyn x _ _ _)   -> thing x
+    DProp (PropSyn x _ _ _) -> thing x
+
+    DSignature {}           -> bad "DSignature"
+    DFixity {}              -> bad "DFixity"
+    DPragma {}              -> bad "DPragma"
+    DPatBind {}             -> bad "DPatBind"
+    DRec {}                 -> bad "DRec"
+  where
+  bad x = panic "declName" [x]
+
+topDeclName :: TopDecl Name -> DepName
+topDeclName topDecl =
+  case topDecl of
+    Decl d                  -> NamedThing (declName (tlValue d))
+    DPrimType d             -> NamedThing (thing (primTName (tlValue d)))
+    TDNewtype d             -> NamedThing (thing (nName (tlValue d)))
+    TDEnum d                -> NamedThing (thing (eName (tlValue d)))
+    DModule d               -> NamedThing (thing (mName m))
+      where NestedModule m = tlValue d
+
+    DInterfaceConstraint _ ds -> ConstratintAt (srcRange ds)
+    DImport i               -> ImportAt (srcRange i)
+    DModParam m             -> ModParamName (srcRange (mpSignature m)) (mpName m)
+
+    Include {}              -> bad "Include"
+    DParamDecl {}           -> bad "DParamDecl"
+  where
+  bad x         = panic "topDeclName" [x]
+
+
 
 
 --------------------------------------------------------------------------------
@@ -247,13 +435,17 @@ resolveNameUse ns p =
       _ -> reportUnboundName ns p scope
   where
   found names =
-    case names of
-      One x -> pure x
-      Ambig xs ->
-        do
-          p' <- located p
-          recordError (MultipleSyms p' (Set.toList xs))
-          pure (anyOne names)
+    do
+      x <-
+        case names of
+          One x -> pure x
+          Ambig xs ->
+            do
+              p' <- located p
+              recordError (MultipleSyms p' (Set.toList xs))
+              pure (anyOne names)
+      recordNameUses (Set.singleton x)
+      pure x
 
 
 -- | Resolve the name for a top-level definition.
@@ -281,39 +473,76 @@ resolveModName k x =
 -- Importing Stuff
 --------------------------------------------------------------------------------
 
-doImportOrModParamDecl :: TopDecl PName -> RenameM (TopDecl Name)
-doImportOrModParamDecl d =
-  case d of
-    DImport imp -> DImport <$> doImport imp
-    DModParam p -> DModParam <$> rename p
-    _ -> panic "doImport" ["Not an import."]
+
 
 -- | The declaration should be an import. Add the names coming through
 -- the import the current scope.
 doImport ::
-  Located (ImportG (ImpName PName)) -> RenameM (Located (ImportG (ImpName Name)))
-doImport = rnLocated \imp ->
+  Located (ImportG (ImpName PName)) ->
+  RenameM (Located (ImportG (ImpName Name)), Set Name)
+doImport limp =
+  withLoc (srcRange limp)
   do
+    let imp   = thing limp
     let lname = iModule imp
     (resMo,mo) <- withLoc (srcRange lname) (resolveModName AModule (thing lname))
     let isPub x = x `Set.member` modPublic mo
-    addImported (interpImportEnv imp (filterUNames isPub (modDefines mo)))
-    pure imp { iModule = (iModule imp) { thing = resMo } }
+        newNames = interpImportEnv imp (filterUNames isPub (modDefines mo))
+    addImported newNames
+    pure ( limp { thing = imp { iModule = (iModule imp) { thing = resMo } } },
+           namingEnvNames newNames
+        )
 
-instance Rename ModParam where
-  rename mp =
-    do
-      x   <- rnLocated (resolveModName ASignature) (mpSignature mp)
-      let mo  = snd (thing x)
-          rng = srcRange x
-          nm  = mpName mp
-      mpath <- getCurModPath
-      env <- travNamingEnv (newModParam mpath nm rng) (modDefines mo)
-      addModParams env
-      let ren = zipByTextName (modDefines mo) env
-      pure mp { mpSignature = fst <$> x, mpRenaming = ren }
+doModParam :: ModParam PName -> RenameM (ModParam Name, Set Name)
+doModParam mp =
+  do
+    x   <- rnLocated (resolveModName ASignature) (mpSignature mp)
+    let mo  = snd (thing x)
+        rng = srcRange x
+        nm  = mpName mp
+    mpath <- getCurModPath
+    env <- travNamingEnv (newModParam mpath nm rng) (modDefines mo)
+    addModParams env
+    let ren = zipByTextName (modDefines mo) env
+    pure (mp { mpSignature = fst <$> x, mpRenaming = ren }, namingEnvNames env)
 
 
+--------------------------------------------------------------------------------
+-- Implicit Imports
+--------------------------------------------------------------------------------
+
+implicitImports :: Located Name -> RenameM [(TopDecl PName, Set Name)]
+implicitImports = undefined
+
+data NameTree = NameTree Name [NameTree]
+
+nestedModNames :: Name -> RenameM [NameTree]
+nestedModNames mo =
+  do
+    info <- lookupMod (ImpNested mo) Nothing
+    case modKind info of
+      AModule ->
+        pure . NameTree mo . concat <$>
+          mapM nestedModNames
+            [x | x <- Set.toList (modPublic info), nameNamespace x == NSModule ]
+      _ -> pure []
+
+nameTreeToImports :: Range -> [Ident] -> NameTree -> [ ImportG PName ]
+nameTreeToImports rng qs (NameTree x subs) =
+  Import {
+    iModule = Located { srcRange = rng, thing = nm },
+    iAs     = Just (isToQual (reverse (i : qs))),
+    iSpec   = Nothing,
+    iInst   = Nothing,
+    iDoc    = Nothing
+  } : concatMap (nameTreeToImports rng (i : qs)) subs
+  where
+  i           = nameIdent x
+  isToQual is = packModName (map identText is)
+  nm =
+    case reverse qs of
+      []  -> mkUnqual i
+      qs' -> mkQual (isToQual qs') i
 
 
 --------------------------------------------------------------------------------
@@ -338,11 +567,13 @@ instance Rename TopDecl where
       TDEnum n          -> TDEnum    <$> traverse rename n
       Include n         -> return (Include n)
       DModule m         -> DModule <$> traverse rename m
-      DImport {}        -> panic "Rename TopDecl" ["DImport"]
-      DModParam {}      -> panic "Rename TopDecl" ["DModParam"]
       DInterfaceConstraint d ds ->
         DInterfaceConstraint d <$> rnLocated (mapM rename) ds
-      DParamDecl {} -> panic "rename" ["DParamDecl"]
+      DParamDecl {}     -> panic "rename" ["DParamDecl"]
+      DImport {}        -> panic "rename" ["DImport"]
+      DModParam {}      -> panic "rename" ["DModParam"]
+
+
 
 -- | Rename local declarations (e.g., from `where`), adds them to the local scope.
 renameDecls :: [Decl PName] -> RenameM [Decl Name]
@@ -350,7 +581,13 @@ renameDecls decls =
   do
     env <- doDefGroup (defsOf (map (InModule Nothing) decls))
     addLocals env
-    mapM rename decls
+    gr <- forM decls \d ->
+      do
+        (d1,xs) <- getDeps (rename d)
+        pure (d1, declName d1, Set.toList xs)
+    concat <$> mapM validateRecDep (stronglyConnComp gr)
+    -- XXX: which way is the topo sort?
+  
 
 instance Rename Decl where
   rename d      = case d of

@@ -77,6 +77,9 @@ data DepName = NamedThing Name
                     the same name (e.g., in nested functors) -}
              | ConstratintAt Range
                -- ^ Identified by location in source
+
+             | ImportAt Range
+               -- ^ Identifies an import
                deriving (Eq,Ord,Show,Generic,NFData)
 
 depNameLoc :: DepName -> Maybe Range
@@ -86,6 +89,7 @@ depNameLoc x =
     ConstratintAt r -> Just r
     ModParamName r _ -> Just r
     ModPath {} -> Nothing
+    ImportAt r -> Just r
 
 
 data ModKind = AFunctor | ASignature | AModule
@@ -201,6 +205,7 @@ instance PP DepName where
         case modPathSplit mp of
           (m,[]) -> "module" <+> pp m
           (_,is) -> "submodule" <+> hcat (intersperse "::" (map pp is))
+      ImportAt r -> "import at" <+> pp r
 
 
 

@@ -17,7 +17,8 @@ module Cryptol.ModuleSystem.Renamer2.Monad
 
     -- * The current module
   , getCurModPath
-  , getCurDefs
+  , getCurTopDefs
+  , getCurBinds
   , getCurScope
   , setThisModuleDefs
   , addModParams
@@ -27,19 +28,26 @@ module Cryptol.ModuleSystem.Renamer2.Monad
     -- * Scopes
   , inSubmodule
   , inLocalScope
+  , inLocalBindScope
 
     -- * Name generation
   , doDefGroup
+  , doDefOrdGroup
   , mkFakeName
   , isFakeName
 
     -- * Error reporting
   , recordError
+  , addWarning
   , quit
   , getCurLoc
   , located
   , withLoc
   , reportUnboundName
+
+    -- * Dependency tracking
+  , recordNameUses
+  , getDeps
   ) where
 
 import MonadLib
@@ -104,6 +112,7 @@ runRenamer info (R m) = (res, renWarnings rwFin)
 
     rw0 = RW {
       localsEnv = mempty,
+      localBindEnv = mempty,
       defEnv = mempty,
       impEnv = mempty,
       outEnv = mempty,
@@ -112,6 +121,7 @@ runRenamer info (R m) = (res, renWarnings rwFin)
       newNames = renSupply info,
       renErrors = [],
       renWarnings = [],
+      usedNames = Set.empty,
       knownMods =
         Map.unions [  
           case ent of
@@ -148,6 +158,9 @@ data RW = RW {
   localsEnv :: NamingEnv,
   -- ^ Variables local to a function.
 
+  localBindEnv :: NamingEnv,
+  -- ^ Used to resolve the names of local bindings.
+
   defEnv :: NamingEnv,
   -- ^ Things defined in the current module
 
@@ -166,8 +179,12 @@ data RW = RW {
   renErrors :: [RenamerError],
   -- ^ Errors we found
 
-  renWarnings :: [RenamerWarning]
+  renWarnings :: [RenamerWarning],
   -- ^ Warnings we'd like to emit.
+
+  usedNames :: Set Name
+  -- ^ Every time we resove a name use we record it here.
+  -- In this way we can determine the dependencies of things.
 }
 
 --------------------------------------------------------------------------------
@@ -273,7 +290,7 @@ addInstMod x y =
 addResolvedMod :: ModuleG Name Name -> RenameM ()
 addResolvedMod mo =
   do
-    env <- getCurDefs
+    env <- getCurTopDefs
     let nm = ImpNested (thing (mName mo))
     summary <-
       case mDef mo of
@@ -317,8 +334,17 @@ getCurModPath :: RenameM ModPath
 getCurModPath = R (curModPath <$> ask)
 
 -- | Get just the things defined in the current module
-getCurDefs :: RenameM NamingEnv
-getCurDefs = R (defEnv <$> get)
+getCurTopDefs :: RenameM NamingEnv
+getCurTopDefs = R (defEnv <$> get)
+
+-- | Get things defined in the current module, and any local bindings in scope.
+-- Used for resolving name definitions
+getCurBinds :: RenameM NamingEnv
+getCurBinds = R
+  do
+    rw <- get
+    pure (localBindEnv rw <> defEnv rw)
+
 
 -- | Compute the current scope, including local definitions, outer environment
 -- and imports.
@@ -356,8 +382,17 @@ addImported env = R (sets_ \rw -> rw { impEnv = env <> impEnv rw })
 -- XXX: Warn about shadowing
 
 addLocals :: NamingEnv -> RenameM ()
-addLocals env = R (sets_ \rw -> rw { localsEnv = env <> localsEnv rw })
+addLocals env = R (sets_ \rw -> rw { localsEnv = env `shadowing` localsEnv rw })
 -- XXX: Warn about shadowing
+
+-- | Set the names of bindings for the duration of a computation.
+inLocalBindScope :: NamingEnv -> RenameM a -> RenameM a
+inLocalBindScope env (R m) = R
+  do
+    old <- sets \rw -> (localBindEnv rw, rw { localBindEnv = env })
+    a <- m
+    sets \rw -> (a, rw { localBindEnv = old })
+
 
 -- | Do something that will only modify the local scope, and restore
 -- it after the computation.
@@ -397,6 +432,9 @@ inSubmodule x (R m) = R
 
 recordError :: RenamerError -> RenameM ()
 recordError e = R (sets_ \rw -> rw { renErrors = e : renErrors rw })
+
+addWarning :: RenamerWarning -> RenameM ()
+addWarning e = R (sets_ \rw -> rw { renWarnings = e : renWarnings rw })
 
 quit :: RenameM a
 quit = R (raise ())
@@ -449,6 +487,20 @@ instance FreshM RenameM where
 
 -- | Make names for a bunch of things defined together.
 -- Check that they all have distinct names.
+-- We also return the names defined by each entry.
+-- This is useful for when we need to rearrange the entries in dependency
+-- order.
+doDefOrdGroup :: BindsNames a => [a] -> RenameM (NamingEnv,[Set Name])
+doDefOrdGroup as =
+  do
+    envs <- mapM (liftSupply . defsOf) as
+    let env = mconcat envs
+    mapM_ (recordError . OverlappingSyms) (findAmbig env)
+    pure (forceUnambig env, map namingEnvNames envs)
+
+
+-- | Make names for a bunch of things defined together.
+-- Check that they all have distinct names.
 doDefGroup :: (Supply -> (NamingEnv, Supply)) -> RenameM NamingEnv
 doDefGroup m =
   do
@@ -473,3 +525,22 @@ isFakeName m =
       case nameTopModuleMaybe x of
         Just y  -> y == undefinedModName
         Nothing -> False
+
+
+--------------------------------------------------------------------------------
+-- Dependency Tracking
+--------------------------------------------------------------------------------
+
+-- | Collect all names used while running the given computation.
+-- Note that the names of the sub-computation are *NOT* added to the dependencies.
+getDeps :: RenameM a -> RenameM (a, Set Name)
+getDeps (R m) = R
+  do
+    curUses <- sets \rw -> (usedNames rw, rw { usedNames = Set.empty })
+    a <- m
+    sets \rw -> ((a,usedNames rw), rw { usedNames = curUses })
+
+-- | Add some dependencies for the current thing we are working on.
+recordNameUses :: Set Name -> RenameM ()
+recordNameUses xs =
+  R (sets_ \rw -> rw { usedNames = Set.union xs (usedNames rw) })

@@ -330,15 +330,13 @@ instance BindsNames (InModule (TopDecl PName)) where
       DPrimType d      -> namingEnv (InModule ns (tlValue d))
       TDNewtype d      -> namingEnv (InModule ns (tlValue d))
       TDEnum d         -> namingEnv (InModule ns (tlValue d))
-      DParamDecl {}    -> mempty
+      DParamDecl {}    -> mempty -- shouldn't happen
       Include {}       -> mempty
-      DImport {}       -> mempty -- see 'openLoop' in the renamer
+      DImport {}       -> mempty -- Handled in renamer
       DModule m        -> namingEnv (InModule ns (tlValue m))
-      DModParam {}     -> mempty -- shouldn't happen
+      DModParam {}     -> mempty -- Handled in renamer
       DInterfaceConstraint {} -> mempty
-        -- handled in the renamer as we need to resolve
-        -- the signature name first (similar to import)
-
+      
 
 instance BindsNames (InModule (NestedModule PName)) where
   namingEnv (InModule mb (NestedModule mdef)) =
