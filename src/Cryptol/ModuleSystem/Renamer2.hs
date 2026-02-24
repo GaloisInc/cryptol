@@ -75,11 +75,12 @@ renameModule :: Module PName -> RenameM RenamedModule
 renameModule m =
   do
     let lnm = mName m
-    mo  <- withLoc (srcRange lnm) (renameModuleDef (mDef m))
+    md  <- withLoc (srcRange lnm) (renameModuleDef (mDef m))
     env <- getCurTopDefs
     ids <- getExternalDeps
+    scope <- getCurScope
     pure RenamedModule {
-      rmModule = m { mDef = mo },
+      rmModule = m { mDef = md, mInScope = scope },
       rmDefines = env,
       rmImported = ids
     }
@@ -105,7 +106,8 @@ instance Rename NestedModule where
       defs <-
         withLoc (srcRange lnm)
           (inSubmodule (nameIdent nm) (renameModuleDef (mDef mo)))
-      let newMo = mo { mName = lnm, mDef = defs }
+      scope <- getCurScope
+      let newMo = mo { mName = lnm, mDef = defs, mInScope = scope }
       addResolvedMod newMo
       pure (NestedModule newMo)
 
