@@ -68,7 +68,11 @@ instance PP RenamedModule where
            , pp (rmDefines rn)
            , "// -- Module -------------------------------"
            , pp (rmModule rn)
-           , "// -----------------------------------------"
+           -- , "// -- DEPS -------------------------------------"
+           -- , vcat [ pp x | 
+           --    (x,y) <- Map.toList (ifDecls (rmImported rn))
+           --   ]
+            , "// -----------------------------------------"
            ]
 
 -- | Entry point. This is used for renaming a top-level module.
@@ -551,6 +555,9 @@ doImport limp =
     (resMo,mo) <- withLoc (srcRange lname) (resolveModName AModule (thing lname))
     let isPub x = x `Set.member` modPublic mo
         newNames = interpImportEnv imp (filterUNames isPub (modDefines mo))
+    case thing lname of
+      ImpTop x -> recordTopImport x
+      _ -> pure ()
     addImported newNames
     pure ( limp { thing = imp { iModule = (iModule imp) { thing = resMo } } },
            namingEnvNames newNames

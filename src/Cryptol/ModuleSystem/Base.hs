@@ -671,7 +671,7 @@ checkModule isrc m = do
 
 
   -- {- dump renamed
-  unless (False && thing (mName (R.rmModule renMod)) == preludeName)
+  unless (thing (mName (R.rmModule renMod)) == preludeName)
        do (io $ print (T.pp renMod))
           -- io $ exitSuccess
   --}
