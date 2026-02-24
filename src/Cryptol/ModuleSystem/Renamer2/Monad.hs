@@ -561,7 +561,7 @@ getDeps (R m) = R
   do
     curUses <- sets \rw -> (usedNames rw, rw { usedNames = Set.empty })
     a <- m
-    sets \rw -> ((a,usedNames rw), rw { usedNames = curUses })
+    sets \rw -> ((a,usedNames rw), rw { usedNames = usedNames rw <> curUses })
 
 -- | Add some dependencies for the current thing we are working on.
 recordNameUses :: Set Name -> RenameM ()
