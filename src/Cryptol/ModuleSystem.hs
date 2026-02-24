@@ -49,7 +49,7 @@ import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Monad
 import           Cryptol.ModuleSystem.Name (Name,PrimMap,nameTopModule)
-import qualified Cryptol.ModuleSystem.Renamer as R
+import qualified Cryptol.ModuleSystem.Renamer2 as R
 import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.Parser.AST        as P
 import           Cryptol.Parser.Name (PName)

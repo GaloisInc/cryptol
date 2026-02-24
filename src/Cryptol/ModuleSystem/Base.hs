@@ -66,7 +66,7 @@ import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
 import           Cryptol.Eval.FFI
 import qualified Cryptol.ModuleSystem.NamingEnv as R
-import qualified Cryptol.ModuleSystem.Renamer as R
+import qualified Cryptol.ModuleSystem.Renamer2 as R
 import qualified Cryptol.Parser               as P
 import qualified Cryptol.Parser.Unlit         as P
 import Cryptol.Parser.AST as P
@@ -670,8 +670,8 @@ checkModule isrc m = do
   renMod <- renameModule epgm
 
 
-  {- dump renamed
-  unless (thing (mName (R.rmModule renMod)) == preludeName)
+  -- {- dump renamed
+  unless (False && thing (mName (R.rmModule renMod)) == preludeName)
        do (io $ print (T.pp renMod))
           -- io $ exitSuccess
   --}

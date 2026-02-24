@@ -23,18 +23,17 @@ module Cryptol.ModuleSystem.Renamer2.Monad
   , setThisModuleDefs
   , addModParams
   , addImported
-  , addLocals
 
     -- * Scopes
   , inSubmodule
   , inLocalScope
   , inLocalBindScope
+  , doBind
+  , getLastBindDefs
 
     -- * Name generation
   , doDefGroup
   , doDefOrdGroup
-  , mkFakeName
-  , isFakeName
 
     -- * Error reporting
   , recordError
@@ -70,7 +69,6 @@ import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Exports
 import Cryptol.TypeCheck.Type(ModParamNames)
 
-
 newtype RenameM a = R (ReaderT RO (ExceptionT () (StateT RW Lift)) a)
   deriving (Functor,Applicative,Monad)
 
@@ -91,15 +89,16 @@ runRenamer ::
   RenamerInfo ->
   RenameM a ->
   (Either [RenamerError] (a,Supply), [RenamerWarning])
-runRenamer info (R m) = (res, renWarnings rwFin)
+runRenamer info (R m) = (res, reverse (renWarnings rwFin))
     where
     (mres, rwFin) = runLift (runStateT rw0 (runExceptionT (runReaderT ro0 m)))
     res =
-      case mres of
-        Left () -> Left (renErrors rwFin)
-        Right a -> Right (a, newNames rwFin)
+      case renErrors rwFin of
+        [] | Right a <- mres -> Right (a, newNames rwFin)
+        es -> Left (reverse es)
 
     ro0 = RO {
+      lastBindsEnv = mempty,
       curModPath = renContext info,
       curLoc = emptyRange, -- XXX?
       loadedIfaces =
@@ -140,10 +139,20 @@ data RO = RO {
   curLoc :: Range,
   -- ^ The source location where we are doing something
 
-  loadedIfaces :: Map ModName Iface
+  loadedIfaces :: Map ModName Iface,
   -- ^ Interfaces for external loaded modules.
   -- We keep this so then if one of the modules is imported, we can
   -- collect its definitions in `externalDeps` to give the typechecker.
+
+  lastBindsEnv :: NamingEnv
+  -- ^ This is the last environment that introduced function bindings.
+  -- It is basically the value of `getCurBinds` at the point we start
+  -- resolving a binding.  We need this, because during `NoPat`, we desugar
+  -- bindings with arguments, into lambdas, but those lambdas are annotated
+  -- with the name of the function that gave rice to them.  We use this
+  -- environment to avoid resolve this name, thus avoiding confusion with
+  -- the parameters of the function.
+
 }
 
 data RW = RW {
@@ -156,14 +165,16 @@ data RW = RW {
   -- We track this so we can give it to the type checker.
   
   localsEnv :: NamingEnv,
-  -- ^ Variables local to a function.
+  -- ^ Variables local to a function. These are variables from outside the
+  -- current binding scope.
 
   localBindEnv :: NamingEnv,
-  -- ^ Used to resolve the names of local bindings.
+  -- ^ Used to resolve the names of definitions in the current scope.
 
   defEnv :: NamingEnv,
   -- ^ Things defined in the current module
 
+  
   modParamEnv :: NamingEnv,
   -- ^ Names from module parameters
 
@@ -354,6 +365,7 @@ getCurScope = R
     rw <- get
     pure $
       localsEnv rw `shadowing`
+      localBindEnv rw `shadowing`
       defEnv    rw `shadowing`
       modParamEnv rw `shadowing`
       impEnv    rw `shadowing`
@@ -381,27 +393,44 @@ addImported :: NamingEnv -> RenameM ()
 addImported env = R (sets_ \rw -> rw { impEnv = env <> impEnv rw })
 -- XXX: Warn about shadowing
 
-addLocals :: NamingEnv -> RenameM ()
-addLocals env = R (sets_ \rw -> rw { localsEnv = env `shadowing` localsEnv rw })
--- XXX: Warn about shadowing
+-- | Capture the `getCurBinds` at this point.  See the comment
+-- on `lastBindsEnv` for more info.
+doBind :: RenameM a -> RenameM a
+doBind (R m) =
+  do
+    env <- getCurBinds
+    R (mapReader (\ro -> ro { lastBindsEnv = env }) m)
+
+getLastBindDefs :: RenameM NamingEnv
+getLastBindDefs = R (lastBindsEnv <$> ask)
 
 -- | Set the names of bindings for the duration of a computation.
+-- XXX: Shadowing
 inLocalBindScope :: NamingEnv -> RenameM a -> RenameM a
 inLocalBindScope env (R m) = R
   do
-    old <- sets \rw -> (localBindEnv rw, rw { localBindEnv = env })
+    (bs,ls) <- sets \rw ->
+      let bs = localBindEnv rw
+          ls = localsEnv rw
+      in ((bs,ls), rw { localBindEnv = env, localsEnv = bs `shadowing` ls })
     a <- m
-    sets \rw -> (a, rw { localBindEnv = old })
+    sets \rw -> (a, rw { localBindEnv = bs, localsEnv = ls })
 
 
 -- | Do something that will only modify the local scope, and restore
--- it after the computation.
-inLocalScope :: RenameM a -> RenameM a
-inLocalScope (R m) = R
+-- it after the computation.  Usually we use `inLocalBindScope`, but
+-- we use this for list comprehensions, because the binders in the arms
+-- need to be combined when processing the "head" of the comprehension.
+-- XXX: Shadowing
+inLocalScope :: NamingEnv -> RenameM a -> RenameM a
+inLocalScope env (R m) = R
   do
-    old <- localsEnv <$> get
+    old <- sets \rw ->
+      let ls = localsEnv rw
+      in (ls, rw { localsEnv = env `shadowing` ls })
     a <- m
     sets \rw -> (a, rw { localsEnv = old })
+
     
 
 -- | Do some renaming in the context of a nested module.
@@ -512,19 +541,13 @@ doDefGroup m =
 -- not expected to make it out of the renamer.
 mkFakeName :: Namespace -> PName -> RenameM Name
 mkFakeName ns pn =
-  do loc <- getCurLoc
-     liftSupply (mkDeclared ns (TopModule undefinedModName)
+  do
+    loc <- getCurLoc
+    nm <-
+      liftSupply (mkDeclared ns (TopModule undefinedModName)
                                SystemName (getIdent pn) Nothing loc)
-
--- | Check if this is a placeholder name we made up with `mkFakeName`.
-isFakeName :: ImpName Name -> Bool
-isFakeName m =
-  case m of
-    ImpTop x -> x == undefinedModName
-    ImpNested x ->
-      case nameTopModuleMaybe x of
-        Just y  -> y == undefinedModName
-        Nothing -> False
+    R (sets_ \rw -> rw { defEnv = singletonNS ns pn nm `shadowing` defEnv rw })
+    pure nm 
 
 
 --------------------------------------------------------------------------------

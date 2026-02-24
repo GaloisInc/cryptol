@@ -1,5 +1,21 @@
-{-# Language BlockArguments, BangPatterns, ImportQualifiedPost #-}
-module Cryptol.ModuleSystem.Renamer2 where
+{-# Language BlockArguments, BangPatterns, ImportQualifiedPost, OverloadedStrings #-}
+{-# LANGUAGE InstanceSigs #-}
+module Cryptol.ModuleSystem.Renamer2 (
+    NamingEnv(), shadowing
+  , BindsNames, InModule(..)
+  -- , shadowNames
+  , Rename(..), runRenamer, RenameM()
+  , RenamerError(..)
+  , RenamerWarning(..)
+  , resolveNameUse
+  , renameModule
+  , renameVar
+  , renameType
+  , renameTopDecls
+  , RenamerInfo(..)
+  , NameType(..)
+  , RenamedModule(..)
+  ) where
 
 import Data.List(partition,foldl',find)
 import Data.Maybe(mapMaybe)
@@ -12,16 +28,27 @@ import Data.Graph.SCC(sccGraph, stronglyConnComp)
 
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident
+import Cryptol.Utils.PP
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector
 import Cryptol.Parser.AST
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Interface
-import Cryptol.ModuleSystem.Binds(defsOf, defsOfSig, InModule(..), newFunctorInst, newModParam)
+import Cryptol.ModuleSystem.Binds(defsOf, defsOfSig, InModule(..), newFunctorInst, newModParam, BindsNames)
 import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Renamer2.Monad
+
+-- XXX: TM
+data NameType = NameBind | NameUse
+renameVar :: NameType -> PName -> RenameM Name
+renameVar _ = resolveNameUse NSValue
+
+renameType :: NameType -> PName -> RenameM Name
+renameType _ = resolveNameUse NSType
+
+
 
 -- | The result of renaming a module
 data RenamedModule = RenamedModule
@@ -32,9 +59,20 @@ data RenamedModule = RenamedModule
     -- names (used by the type-checker).
   }
 
+instance PP RenamedModule where
+  ppPrec _ rn = updPPCfg (\cfg -> cfg { ppcfgShowNameUniques = True }) doc
+    where
+    doc =
+      vcat [ "// --- Defines -----------------------------"
+           , pp (rmDefines rn)
+           , "// -- Module -------------------------------"
+           , pp (rmModule rn)
+           , "// -----------------------------------------"
+           ]
+
 -- | Entry point. This is used for renaming a top-level module.
-renameTopModule :: Module PName -> RenameM RenamedModule
-renameTopModule m =
+renameModule :: Module PName -> RenameM RenamedModule
+renameModule m =
   do
     let lnm = mName m
     mo  <- withLoc (srcRange lnm) (renameModuleDef (mDef m))
@@ -45,6 +83,19 @@ renameTopModule m =
       rmDefines = env,
       rmImported = ids
     }
+
+{- | Entry point. Rename a list of top-level declarations.
+This is used for declaration that don't live in a module
+(e.g., define on the command line.)
+
+We assume that these declarations do not contain any nested modules.
+-}
+renameTopDecls :: unused -> [TopDecl PName] -> RenameM (NamingEnv,[TopDecl Name])
+renameTopDecls xxx ds0 =
+  do
+    mo <- renameModTopDecls ds0
+    env <- getCurTopDefs
+    pure (env,mo)
 
 instance Rename NestedModule where
   rename (NestedModule mo) =
@@ -62,7 +113,7 @@ instance Rename NestedModule where
 renameModuleDef :: ModuleDefinition PName -> RenameM (ModuleDefinition Name)
 renameModuleDef def =
   case def of
-    NormalModule decls -> NormalModule <$> renameTopDecls decls
+    NormalModule decls -> NormalModule <$> renameModTopDecls decls
     FunctorInstance fun args _ -> makeFunctorInstance fun args
     InterfaceModule sig -> InterfaceModule <$> rename sig 
 
@@ -187,8 +238,8 @@ instance Rename Signature where
 --------------------------------------------------------------------------------
 
 -- | Rename the top-level declarations of a module.
-renameTopDecls :: [TopDecl PName] -> RenameM [TopDecl Name]
-renameTopDecls decls =
+renameModTopDecls :: [TopDecl PName] -> RenameM [TopDecl Name]
+renameModTopDecls decls =
   do
     mp  <- getCurModPath
     mapM_ rename topImps
@@ -455,7 +506,16 @@ resolveNameDef ns p =
     defs <- getCurBinds
     case lookupNS ns p defs of
       Just names -> pure (anyOne names) -- there should be only one
-      Nothing -> panic "resolveNameDef" ["Missing def"]
+      Nothing ->
+        getCurLoc >>= \l ->
+        panic "resolveNameDef"
+          [ "Missing def"
+          , "Location: " ++ show (pp l)
+          , "Namespace: " ++ show ns
+          , "Name: " ++ show (pp p)
+          , "Defs: "
+          , show (pp defs)
+          ]
 
 resolveModName :: ModKind -> ImpName PName -> RenameM (ImpName Name, Mod)
 resolveModName k x =
@@ -584,17 +644,19 @@ instance Rename TopDecl where
 
 
 -- | Rename local declarations (e.g., from `where`), adds them to the local scope.
-renameDecls :: [Decl PName] -> RenameM [Decl Name]
-renameDecls decls =
+renameDecls :: [Decl PName] -> ([Decl Name] -> RenameM a) -> RenameM a
+renameDecls decls k =
   do
     env <- doDefGroup (defsOf (map (InModule Nothing) decls))
-    addLocals env
-    gr <- forM decls \d ->
+    inLocalBindScope env
       do
-        (d1,xs) <- getDeps (rename d)
-        pure (d1, declName d1, Set.toList xs)
-    concat <$> mapM validateRecDep (stronglyConnComp gr)
-    -- XXX: which way is the topo sort?
+        gr <- forM decls \d ->
+          do
+            (d1,xs) <- getDeps (rename d)
+            pure (d1, declName d1, Set.toList xs)
+        ds' <- concat <$> mapM validateRecDep (stronglyConnComp gr)
+        -- XXX: which way is the topo sort?
+        k ds'
   
 
 instance Rename Decl where
@@ -617,7 +679,7 @@ instance Rename PrimType where
     do
       x <- rnLocated (resolveNameDef NSType) (primTName pt)
       let (as,ps) = primTCts pt
-      (_,cts) <- renameQual as ps \as' ps' -> pure (as',ps')
+      cts <- renameQual as ps \as' ps' -> pure (as',ps')
       pure pt { primTCts = cts, primTName = x }
 
 
@@ -626,7 +688,7 @@ instance Rename Newtype where
     do
       nameT <- rnLocated (resolveNameDef NSType) (nName n)
       nameC <- resolveNameDef NSConstructor (nConName n)
-      snd <$> withTParams (nParams n) \ps' ->
+      withTParams (nParams n) \ps' ->
         do
           body'     <- traverse (traverse rename) (nBody n)
           deriving' <- traverse (rnLocated (resolveNameUse NSType)) (nDeriving n)
@@ -650,7 +712,7 @@ instance Rename EnumDecl where
           nameC <- rnLocated (resolveNameDef NSConstructor) (ecName con)             
           pure (nameC,tlEc)
 
-      snd <$> withTParams (eParams n) \ps' ->
+      withTParams (eParams n) \ps' ->
         do
           cons <- forM nameCs \(c,tlEc) ->
             do
@@ -669,14 +731,14 @@ instance Rename TySyn where
   rename (TySyn n f ps ty) =
     do
       n' <- rnLocated (resolveNameDef NSType) n
-      snd <$> withTParams ps \ps' ->
+      withTParams ps \ps' ->
         TySyn n' f ps' <$> rename ty
 
 instance Rename PropSyn where
   rename (PropSyn n f ps cs) =
     do
       n' <- rnLocated (resolveNameDef NSType) n  
-      snd <$> withTParams ps \ps' ->
+      withTParams ps \ps' ->
         PropSyn n' f ps' <$> mapM rename cs
 
 
@@ -694,8 +756,8 @@ instance Rename ParameterFun where
   rename a =
     do
       n   <- rnLocated (resolveNameDef NSValue) (pfName a)
-      sig <- renameSchema (pfSchema a)
-      pure a { pfName = n, pfSchema = snd sig }
+      renameSchema (pfSchema a) \sig ->
+        pure a { pfName = n, pfSchema = sig }
 
 instance Rename SigDecl where
   rename decl =
@@ -711,45 +773,41 @@ instance Rename SigDecl where
 
 
 -- | Rename something with local type parameters.
--- We return the type environment, so that it can be used in other places
--- (e.g., the type vars from a type signature are in scope in its associated
--- definition).
 withTParams ::
   [TParam PName] ->
   ([TParam Name] -> RenameM a) ->
-  RenameM (NamingEnv, a)
+  RenameM a
 withTParams as k =
   do
     env <- doDefGroup (defsOf as)
-    res <- inLocalScope
+    inLocalBindScope env
       do
-        as' <- traverse renameTP as
+        as' <- traverse (renameTP env) as
         k as'
-    pure (env,res)
+
   where
-  renameTP tp =
-    do
-      n <- resolveNameDef NSType (tpName tp)
-      pure tp { tpName = n }
+  renameTP env tp =
+    case lookupNS NSType (tpName tp) env of
+      Just (One n) -> pure tp { tpName = n }
+      _ -> panic "withTParams" ["Missing/ambiguous name"]
+      
 
 -- | Rename a qualified thing.
 renameQual :: [TParam PName] -> [Prop PName] ->
               ([TParam Name] -> [Prop Name] -> RenameM a) ->
-              RenameM (NamingEnv, a)
+              RenameM a
 renameQual as ps k =
   withTParams as \as' ->
     do
       ps' <- traverse rename ps
       k as' ps'
 
--- | Rename a schema, assuming that the type variables have already been brought
--- into scope.
-renameSchema :: Schema PName -> RenameM (NamingEnv,Schema Name)
-renameSchema (Forall ps p ty loc) =
+renameSchema :: Schema PName -> (Schema Name -> RenameM a) -> RenameM a
+renameSchema (Forall ps p ty loc) k =
   renameQual ps p \ps' p' ->
     do
       ty' <- rename ty
-      pure (Forall ps' p' ty' loc)
+      k (Forall ps' p' ty' loc)
 
 
 
@@ -876,19 +934,22 @@ maybeLoc mb e =
 -- | Rename a binding.
 instance Rename Bind where
   rename b =
+    doBind
     do
       n'    <- rnLocated (resolveNameDef NSValue) (bName b)
-      mbSig <- traverse (traverse renameSchema) (bSignature b)
-      inLocalScope
+      let checkSig k =
+            case bSignature b of
+              Nothing -> k Nothing
+              Just ls -> renameSchema (thing ls) \s' -> k (Just ls { thing = s' }) 
+      checkSig \mbSig ->
+        renameBindParams (bParams b) \ps ->
         do
-          mapM_ (addLocals . fst . thing) mbSig
-          ps <- rename (bParams b)
           e' <- rnLocated rename (bDef b)
           pure b {
             bName      = n',
             bParams    = ps,
             bDef       = e',
-            bSignature = fmap snd `fmap` mbSig,
+            bSignature = mbSig,
             bPragmas   = bPragmas b
           }
 
@@ -940,12 +1001,12 @@ instance Rename Expr where
       EInfFrom a b    -> EInfFrom<$> rename a  <*> traverse rename b
 
       EComp e' bs ->
-        inLocalScope
         do
           (envs,newArms) <- mapAndUnzipM renameArm bs
-          addLocals (mconcat envs)
-          newE <- rename e'
-          pure (EComp newE newArms)
+          inLocalScope (mconcat envs)
+            do
+              newE <- rename e'
+              pure (EComp newE newArms)
 
       EApp f x        -> EApp    <$> rename f  <*> rename x
       EAppT f ti      -> EAppT   <$> rename f  <*> traverse rename ti
@@ -953,20 +1014,17 @@ instance Rename Expr where
       ECase e as      -> ECase   <$> rename e  <*> traverse rename as
 
       EWhere e' ds    ->
-        inLocalScope
+        renameDecls ds \ds' ->
         do
-          newDs <- renameDecls ds -- these add definitions to the local scope
           newE  <- rename e'
-          pure (EWhere newE newDs)
+          pure (EWhere newE ds')
 
       ETyped e' ty    -> ETyped  <$> rename e' <*> rename ty
       ETypeVal ty     -> ETypeVal<$> rename ty
       EFun desc ps e' ->
-        inLocalScope
         do
           desc' <- rename desc
-          newPs <- renamePats ps
-          EFun desc' newPs <$> rename e'
+          renamePats ps \newPs -> EFun desc' newPs <$> rename e'
 
       ELocated e' r   -> withLoc r (ELocated <$> rename e' <*> pure r)
 
@@ -982,7 +1040,11 @@ instance Rename Expr where
 instance Rename FunDesc where
   rename (FunDesc nm offset) =
     do
-      nm' <- traverse (resolveNameDef NSValue) nm
+      env <- getLastBindDefs
+      nm' <- forM nm \x ->
+        case lookupNS NSValue x env of
+          Just a -> pure (anyOne a)
+          Nothing -> panic "Rename FunDesc" ["Missing"]
       pure (FunDesc nm' offset)
 
 
@@ -1055,73 +1117,72 @@ checkLabels = foldM_ check [] . map labs
 -- Does not affect the locals.
 renameArm :: [Match PName] -> RenameM (NamingEnv,[Match Name])
 renameArm ms =
-  inLocalScope
-  do
-    (envs,newMs) <- mapAndUnzipM renameMatch ms
-    let newEnv = foldl' (flip shadowing) mempty envs
-    pure (newEnv, newMs)
+  case ms of
+    m : more ->
+      renameMatch m \env m' ->
+        do
+          (env',moreMs) <- renameArm more
+          pure (env' `shadowing` env, m' : moreMs)
+    [] -> pure (mempty, [])
 
 -- | The name environment generated by a single match.
 -- The env is also added to the local environment, but we return it
 -- so that we can compute the scope in the head of the comprehension.
-renameMatch :: Match PName -> RenameM (NamingEnv, Match Name)
-renameMatch ma =
+renameMatch :: Match PName -> (NamingEnv -> Match Name -> RenameM a) -> RenameM a
+renameMatch ma k =
   case ma of
     Match p e ->
       do
         e' <- rename e
         env <- liftSupply (defsOf p)
-        p' <- renamePat env p
-        addLocals env
-        pure (env, Match p' e')
+        inLocalBindScope env
+          do p' <- rename p
+             k env (Match p' e')
 
     MatchLet b ->
       do
         env <- liftSupply (defsOf (InModule Nothing b))
-        b'  <- inLocalBindScope env (rename b)
-        addLocals env
-        pure (env, MatchLet b')
+        inLocalBindScope env
+          do
+            b' <- rename b
+            k env (MatchLet b')
 
 
 --------------------------------------------------------------------------------
 -- Patterns
 --------------------------------------------------------------------------------
 
-instance Rename BindParams where
-  rename bps =
-    case bps of
-      DroppedParams x y -> pure (DroppedParams x y)
-      PatternParams ps  -> PatternParams <$> renamePats ps
+renameBindParams :: BindParams PName -> (BindParams Name -> RenameM a) -> RenameM a
+renameBindParams bps k =
+  case bps of
+    DroppedParams x y -> k (DroppedParams x y)
+    PatternParams ps  -> renamePats ps \ps' -> k (PatternParams ps')
 
 instance Rename CaseAlt where
   rename (CaseAlt p e) =
-    inLocalScope
     do
       env <- liftSupply (defsOf p)
-      newP <- renamePat env p
-      addLocals env
-      CaseAlt newP <$> rename e
+      inLocalBindScope env (CaseAlt <$> rename p <*> rename e)
 
 -- | Rename a group of patterns from the same place and add their names
 -- to the local environment.
-renamePats :: [Pattern PName] -> RenameM [Pattern Name]
-renamePats ps =
+renamePats :: [Pattern PName] -> ([Pattern Name] -> RenameM a) -> RenameM a
+renamePats ps k =
   do
     env <- doDefGroup (defsOf ps)
-    addLocals env
-    mapM (renamePat env) ps
+    inLocalBindScope env
+      do
+        ps' <- mapM rename ps
+        k ps'
 
-renamePat :: NamingEnv -> Pattern PName -> RenameM (Pattern Name)
-renamePat defs pat =
-  case pat of
-    PVar x ->
-      case lookupNS NSValue (thing x) defs of
-        Just (One y) -> pure (PVar x { thing = y })
-        _ -> panic "renamePat" ["Missing/ambiguous pattern variable"]
-    PCon c xs ->
-      PCon
-        <$> rnLocated (resolveNameUse NSConstructor) c
-        <*> mapM (renamePat defs) xs
-    PLocated p r  -> withLoc r (renamePat defs p)
-    PTyped p t    -> PTyped <$> renamePat defs p <*> rename t
-    _ -> panic "renamePat" ["Unexpected pattern"]
+instance Rename Pattern where
+  rename pat =
+    case pat of
+      PVar x -> PVar <$> rnLocated (resolveNameDef NSValue) x
+      PCon c xs ->
+        PCon
+          <$> rnLocated (resolveNameUse NSConstructor) c
+          <*> mapM rename xs
+      PLocated p r  -> withLoc r (rename p)
+      PTyped p t    -> PTyped <$> rename p <*> rename t
+      _ -> panic "renamePat" ["Unexpected pattern"]
