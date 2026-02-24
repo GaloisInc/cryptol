@@ -670,7 +670,7 @@ checkModule isrc m = do
   renMod <- renameModule epgm
 
 
-  -- {- dump renamed
+  {- dump renamed
   unless (thing (mName (R.rmModule renMod)) == preludeName)
        do (io $ print (T.pp renMod))
           -- io $ exitSuccess
