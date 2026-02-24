@@ -19,6 +19,7 @@ module Cryptol.ModuleSystem.Renamer2 (
 
 import Data.List(partition,foldl',find)
 import Data.Maybe(mapMaybe)
+import Data.Either(partitionEithers)
 import Data.Set(Set)
 import Data.Set qualified as Set
 import Data.Map qualified as Map
@@ -244,19 +245,19 @@ renameModTopDecls :: [TopDecl PName] -> RenameM [TopDecl Name]
 renameModTopDecls decls =
   do
     mp  <- getCurModPath
-    mapM_ rename topImps
+    mapM_ doImport topImps
     (env,defs) <- doDefOrdGroup (map (InModule (Just mp)) otherDecls)
     setThisModuleDefs env
     renameAndReorderTopDecls (zip otherDecls defs)
   where
-  (topImps,otherDecls) = partition isTopImp decls
+  (topImps,otherDecls) = partitionEithers (map isTopImp decls)
   isTopImp d =
     case d of
       DImport limp ->
         case thing (iModule (thing limp)) of
-          ImpTop {} -> True
-          _         -> False
-      _ -> False
+          ImpTop {} -> Left limp
+          _         -> Right d
+      _ -> Right d
 
 
 -- | Rename declarations and order the in dependency order.  Also, we preserve
