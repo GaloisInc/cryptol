@@ -1143,7 +1143,7 @@ instance (Show name, PPName name) => PP (EnumCon name) where
   ppPrec _ c = pp (ecName c) <+> hsep (map (ppPrec 1) (ecFields c))
 
 instance (PP mname) => PP (ImportG mname) where
-  ppPrec _ d = vcat [ text "import" <+> sep ([pp (iModule d)] ++ mbInst ++
+  ppPrec _ d = vcat [ text "import" <+> sep ([pp (thing (iModule d))] ++ mbInst ++
                                                       mbAs ++ mbSpec)
                     , indent 2 mbWhere
                     ]
