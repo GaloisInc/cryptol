@@ -563,6 +563,7 @@ doImport limp =
            namingEnvNames newNames
         )
 
+-- | Add the names from module parameters to the current scope
 doModParam :: ModParam PName -> RenameM (ModParam Name, Set Name)
 doModParam mp =
   do
@@ -573,7 +574,7 @@ doModParam mp =
     mpath <- getCurModPath
     env <- travNamingEnv (newModParam mpath nm rng) (modDefines mo)
     addModParams env
-    let ren = zipByTextName (modDefines mo) env
+    let ren = zipByTextName env (modDefines mo)
     pure (mp { mpSignature = fst <$> x, mpRenaming = ren }, namingEnvNames env)
 
 
