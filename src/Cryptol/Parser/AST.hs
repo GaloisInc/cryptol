@@ -1019,7 +1019,7 @@ instance (Show name, PPName name) => PP (ModuleInstanceArg name) where
     case arg of
       ModuleArg x    -> pp x
       ParameterArg i -> "parameter" <+> pp i
-      AddParams      -> "{}"
+      AddParams      -> "_"
 
 
 instance (Show name, PPName name) => PP (Program name) where
