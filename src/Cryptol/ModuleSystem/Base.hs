@@ -19,7 +19,7 @@
 module Cryptol.ModuleSystem.Base where
 
 import qualified Control.Exception as X
-import Control.Monad (unless,forM)
+import Control.Monad (unless,when,forM)
 import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.Maybe (fromMaybe)
@@ -59,7 +59,8 @@ import Cryptol.ModuleSystem.Env ( DynamicEnv(..),FileInfo(..),fileInfo
                                 , meCoreLint, CoreLint(..)
                                 , ModContext(..), ModContextParams(..)
                                 , ModulePath(..), modulePathLabel
-                                , EvalForeignPolicy (..))
+                                , EvalForeignPolicy (..)
+                                , PassName(..), DebugOpts(..))
 import           Cryptol.Eval.FFI.ForeignSrc
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Concrete as Concrete
@@ -655,6 +656,13 @@ checkModule ::
   ModuleM (R.NamingEnv,T.TCTopEntity, Module Name)
 checkModule isrc m = do
 
+  dbgOpts <- getDebugOpts
+  let prelOk = dbgIncludePrelude dbgOpts || thing (mName m) /= preludeName
+      dump nm dbg =
+        when (prelOk && (nm `Set.member` dbgDumpAfter dbgOpts)) (io (print dbg))
+
+  dump PassParser (pp m) 
+
   -- check that the name of the module matches expectations
   let nm = importedModule isrc
   unless (modNamesMatch nm (thing (P.mName m)))
@@ -662,20 +670,15 @@ checkModule isrc m = do
 
   -- remove pattern bindings
   npm <- noPat m
+  dump PassNoPat (pp m) 
 
   -- run expandPropGuards
   epgm <- expandPropGuards npm
+  dump PassPropGuards (pp epgm)
 
   -- rename everything
   renMod <- renameModule epgm
-
-
-  {- dump renamed
-  unless (thing (mName (R.rmModule renMod)) == preludeName)
-       do (io $ print (T.pp renMod))
-          -- io $ exitSuccess
-  --}
-
+  dump PassRename (pp renMod)
 
   -- when generating the prim map for the typechecker, if we're checking the
   -- prelude, we have to generate the map from the renaming environment, as we
@@ -691,10 +694,13 @@ checkModule isrc m = do
 
 
   tcm <- typecheck act (R.rmModule renMod) NoParams (R.rmImported renMod)
+  dump PassTC (pp tcm)
 
   rewMod <- case tcm of
               T.TCTopModule mo -> T.TCTopModule <$> liftSupply (`rewModule` mo)
               T.TCTopSignature {} -> pure tcm
+  dump PassREW (pp tcm)
+
   let nameEnv = case tcm of
                   T.TCTopModule mo -> T.mInScope mo
                   -- Name env for signatures does not change after typechecking

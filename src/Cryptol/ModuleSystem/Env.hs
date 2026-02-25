@@ -99,7 +99,8 @@ data ModuleEnv = ModuleEnv
 
   , meEvalForeignPolicy :: EvalForeignPolicy
     -- ^ How to evaluate @foreign@ bindings.
-
+  
+  , meDebugOpts         :: !DebugOpts
   } deriving Generic
 
 instance NFData ModuleEnv where
@@ -109,6 +110,22 @@ instance NFData ModuleEnv where
 data CoreLint = NoCoreLint        -- ^ Don't run core lint
               | CoreLint          -- ^ Run core lint
   deriving (Generic, NFData)
+
+data PassName =
+  PassParser | PassNoPat | PassPropGuards | PassRename | PassTC | PassREW
+  deriving (Eq,Ord,Enum,Bounded,Show)
+
+data DebugOpts = DebugOpts {
+  dbgIncludePrelude :: Bool, -- ^ Should we dump `Cryptol.cry`
+  dbgDumpAfter      :: Set PassName
+}
+
+noDebugOpts :: DebugOpts
+noDebugOpts = DebugOpts {
+  dbgIncludePrelude = False,
+  dbgDumpAfter      = mempty
+}
+
 
 -- | How to evaluate @foreign@ bindings.
 data EvalForeignPolicy
@@ -189,6 +206,7 @@ initialModuleEnv = do
     , meCoreLint          = NoCoreLint
     , meSupply            = emptySupply
     , meEvalForeignPolicy = defaultEvalForeignPolicy
+    , meDebugOpts         = noDebugOpts
     }
 
 -- | Try to focus a loaded module in the module environment.
