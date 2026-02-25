@@ -1567,7 +1567,7 @@ desugarInstImport i inst =
                   , mInScope = mempty
                   , mDocTop  = Nothing
                   }
-     pure (DImport (newImp <$> i) : map modTop (ms ++ [m]))
+     pure (map modTop (ms ++ [m]) ++ [DImport (newImp <$> i)])
 
   where
   origMod = iModule (thing i)
