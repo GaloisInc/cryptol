@@ -298,10 +298,9 @@ addInstMod :: Name -> Mod -> RenameM ()
 addInstMod x y =
   R (sets_ \rw -> rw { knownMods = Map.insert (ImpNested x) y (knownMods rw) })
 
-addResolvedMod :: ModuleG Name Name -> RenameM ()
-addResolvedMod mo =
+addResolvedMod :: NamingEnv -> ModuleG Name Name -> RenameM ()
+addResolvedMod env mo =
   do
-    env <- getCurTopDefs
     let nm = ImpNested (thing (mName mo))
     summary <-
       case mDef mo of

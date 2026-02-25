@@ -106,14 +106,19 @@ renameTopDecls xxx ds0 =
 instance Rename NestedModule where
   rename (NestedModule mo) =
     do
+
       lnm <- traverse (resolveNameDef NSModule) (mName mo)
       let nm = thing lnm
-      defs <-
+      (defs,env) <-
         withLoc (srcRange lnm)
-          (inSubmodule (nameIdent nm) (renameModuleDef (mDef mo)))
+          (inSubmodule (nameIdent nm)
+            do
+              d1 <- renameModuleDef (mDef mo)
+              env <- getCurTopDefs
+              pure (d1,env))
       scope <- getCurScope
       let newMo = mo { mName = lnm, mDef = defs, mInScope = scope }
-      addResolvedMod newMo
+      addResolvedMod env newMo
       pure (NestedModule newMo)
 
 -- | Rename the definition of a module.
@@ -203,7 +208,7 @@ instance Rename ModuleInstanceArg where
         do 
           (nm,_) <- resolveModName AModule m
           pure (ModuleArg nm)
-      ParameterArg i -> pure (ParameterArg i) -- XXX: Add proper names for module parameters
+      ParameterArg i -> pure (ParameterArg i)
       AddParams -> pure AddParams
 
 --------------------------------------------------------------------------------
