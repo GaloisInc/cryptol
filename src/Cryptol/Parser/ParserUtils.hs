@@ -1473,79 +1473,75 @@ desugarMod mo =
     _ -> pure (mo, [])
 
 
+data AnonParamBlock mname name =
+    NoAnonParamBlock [Located (ImportG (ImpName name))]
+  | HaveAnonParamBlock Range (ModuleG mname name)
+
+
 desugarTopDs ::
   MkAnon name =>
   Located name ->
   [TopDecl PName] ->
   ParseM ([ModuleG name PName], [TopDecl PName])
-desugarTopDs ownerName = go emptySig
+desugarTopDs ownerName = go (NoAnonParamBlock [])
   where
-  isEmpty s =
-    null (sigTypeParams s) && null (sigConstraints s) && null (sigFunParams s)
+  addI i s =
+    case s of
+      NoAnonParamBlock is -> NoAnonParamBlock (i : is)
+      HaveAnonParamBlock {} -> s
 
-  emptySig = Signature
-    { sigImports      = []
-    , sigTypeParams   = []
-    , sigDecls        = []
-    , sigConstraints  = []
-    , sigFunParams    = []
-    }
-
-  jnSig s1 s2 = Signature { sigImports      = j sigImports
-                          , sigTypeParams   = j sigTypeParams
-                          , sigDecls        = j sigDecls
-                          , sigConstraints  = j sigConstraints
-                          , sigFunParams    = j sigFunParams
-                          }
-
-      where
-      j f = f s1 ++ f s2
-
-  addI i s = s { sigImports = i : sigImports s }
-
-  go sig ds =
+  go anonPs ds =
     case ds of
 
-      []
-        | isEmpty sig -> pure ([],[])
-        | otherwise ->
-          do let nm = mkAnon AnonIfaceMod <$> ownerName
-             pure ( [ Module { mName = nm
-                             , mDef = InterfaceModule sig
-                             , mInScope = mempty
-                             , mDocTop = Nothing
-                             }
-                     ]
-                  , [ DModParam
-                      ModParam
-                        { mpSignature = toImpName <$> nm
-                        , mpAs        = Nothing
-                        , mpName      = mkModParamName (toImpName <$> nm)
-                                                                        Nothing
-                        , mpDoc       = Nothing
-                        , mpRenaming  = mempty
-                        }
-                      ]
-                  )
+      [] ->
+        case anonPs of
+          NoAnonParamBlock {} -> pure ([],[])
+          HaveAnonParamBlock _ ps -> pure ([ps],[])
 
       d : more ->
         let cont emit sig' =
               do (ms,ds') <- go sig' more
                  pure (ms, emit ++ ds')
-        in
+        in 
         case d of
 
           DImport i
             | ImpTop _ <- thing (iModule (thing i))
             , Nothing  <- iInst (thing i) ->
-            cont [d] (addI i sig)
+            cont [d] (addI i anonPs)
 
           DImport i
             | Just inst <- iInst (thing i) ->
             do newDs <- desugarInstImport i inst
-               cont newDs sig
+               cont newDs anonPs
 
-          DParamDecl _ ds' -> cont [] (jnSig ds' sig)
+          DParamDecl rng ds' ->
+            case anonPs of
+              NoAnonParamBlock is ->
+                let nm = mkAnon AnonIfaceMod <$> ownerName
+                    mo =
+                      Module { mName = nm
+                             , mDef = InterfaceModule ds' { sigImports = reverse is }
+                             , mInScope = mempty
+                             , mDocTop = Nothing
+                             }
+                    imp =
+                      DModParam
+                        ModParam
+                          { mpSignature = toImpName <$> nm
+                          , mpAs        = Nothing
+                          , mpName      = mkModParamName (toImpName <$> nm) Nothing
+                          , mpDoc       = Nothing
+                          , mpRenaming  = mempty
+                          }
+               
+                in cont [imp] (HaveAnonParamBlock rng mo)
+              HaveAnonParamBlock otherBlock _ ->
+                errorMessage rng
+                  [ "Multiple `parameter` blocks.",
+                    "  The other block is here: " ++ show (pp otherBlock)
+
+                  ]
 
           DModule tl | NestedModule mo <- tlValue tl ->
             do (mo', ms) <- desugarMod mo
@@ -1555,9 +1551,9 @@ desugarTopDs ownerName = go emptySig
                           , tlDoc = Nothing -- generated modules have no docstrings
                           }
                       | m <- ms] ++ [DModule tl { tlValue = NestedModule mo' }])
-                    sig
+                    anonPs
 
-          _ -> cont [d] sig
+          _ -> cont [d] anonPs
 
 desugarInstImport ::
   Located (ImportG (ImpName PName)) {- ^ The import -} ->
