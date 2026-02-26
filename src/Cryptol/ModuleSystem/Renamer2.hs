@@ -566,7 +566,7 @@ doImport limp =
   do
     let imp   = thing limp
     let lname = iModule imp
-    (resMo,mo) <- withLoc (srcRange lname) (resolveModName AModule (thing lname))
+    (resMo,mo) <- withLoc (srcRange limp) (resolveModName AModule (thing lname))
     let isSys x = case nameSrc x of
                     SystemName -> True
                     UserName -> False
