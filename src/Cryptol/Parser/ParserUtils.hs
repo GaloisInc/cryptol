@@ -1557,7 +1557,7 @@ desugarTopDs ownerName = go (NoAnonParamBlock [])
 
 desugarInstImport ::
   Located (ImportG (ImpName PName)) {- ^ The import -} ->
-  ModuleInstanceArgs PName          {- ^ The insantiation -} ->
+  ModuleInstanceArgs PName          {- ^ The instantiation -} ->
   ParseM [TopDecl PName]
 desugarInstImport i inst =
   do (m, ms) <- desugarMod

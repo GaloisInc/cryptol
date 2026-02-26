@@ -493,19 +493,17 @@ withLoc th (R m) = R
 reportUnboundName :: Namespace -> PName -> NamingEnv -> RenameM Name
 reportUnboundName expected qn scope =
   do 
-     let others     = [ ns | ns <- allNamespaces
-                           , ns /= expected
-                           , Just _ <- [lookupNS ns qn scope] ]
-                         
-     nm <- located qn
-     case others of
-       -- name exists in a different namespace
-       actual : _ -> recordError (WrongNamespace expected actual nm)
+    let others     = [ ns | ns <- allNamespaces
+                          , ns /= expected
+                          , Just _ <- [lookupNS ns qn scope] ]
+    nm <- located qn
+    case others of
+      -- name exists in a different namespace
+      actual : _ -> recordError (WrongNamespace expected actual nm)
+      -- the value is just missing
+      [] -> recordError (UnboundName expected nm)
 
-       -- the value is just missing
-       [] -> recordError (UnboundName expected nm)
-
-     mkFakeName expected qn
+    mkFakeName expected qn
 
 
 --------------------------------------------------------------------------------
