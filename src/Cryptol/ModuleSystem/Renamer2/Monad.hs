@@ -380,11 +380,12 @@ addModParams env =
   do
     errs <- R (sets upd)
     mapM_ (recordError . OverlappingSyms) errs
+    when (not (null errs)) quit
   where
     upd rw =
       let newEnv = env <> modParamEnv rw
           errs   = findAmbig newEnv
-      in (errs, rw { modParamEnv = forceUnambig newEnv })
+      in (errs, rw { modParamEnv = newEnv })
 -- XXX: Warn about shadowing.
 
 -- | Add some names that came from an import.
@@ -523,8 +524,10 @@ doDefOrdGroup as =
   do
     envs <- mapM (liftSupply . defsOf) as
     let env = mconcat envs
-    mapM_ (recordError . OverlappingSyms) (findAmbig env)
-    pure (forceUnambig env, map namingEnvNames envs)
+        errs = findAmbig env
+    mapM_ (recordError . OverlappingSyms) errs
+    when (not (null errs)) quit
+    pure (env, map namingEnvNames envs)
 
 
 -- | Make names for a bunch of things defined together.
@@ -533,8 +536,10 @@ doDefGroup :: (Supply -> (NamingEnv, Supply)) -> RenameM NamingEnv
 doDefGroup m =
   do
     env <- liftSupply m
+    let errs = findAmbig env
     mapM_ (recordError . OverlappingSyms) (findAmbig env)
-    pure (forceUnambig env)
+    when (not (null errs)) quit
+    pure env
 
 -- | Assuming an error has been recorded already, construct a fake name that's
 -- not expected to make it out of the renamer.
