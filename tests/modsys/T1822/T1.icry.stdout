@@ -2,8 +2,6 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Test
 
-[error] at :1:1--1:1
-    Module not in scope: E
 [error]
     Overlapping symbols defined:
     (at T1.cry:3:11--3:12, Test::S)
