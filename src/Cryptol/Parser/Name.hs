@@ -121,8 +121,14 @@ instance PPName PName where
     where
     i   = getIdent n
 
-  ppPrefixName n = optParens (isInfixIdent i) (pfx <.> pp i)
+  ppPrefixName n =
+    withPPCfg (\cfg ->
+      let base = optParens (isInfixIdent i) (pfx <.> pp i)
+      in if ppcfgShowNameUniques cfg then base <.> text sys else base)
     where
+    sys = case n of
+            UnQual' _ SystemName -> "__$sys"
+            _ -> ""
     i   = getIdent n
     pfx = case getModName n of
             Just ns -> pp ns <.> text "::"

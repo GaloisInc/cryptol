@@ -659,7 +659,7 @@ checkModule isrc m = do
   dbgOpts <- getDebugOpts
   let prelOk = dbgIncludePrelude dbgOpts || thing (mName m) /= preludeName
       dump nm dbg =
-        when (prelOk && (nm `Set.member` dbgDumpAfter dbgOpts)) (io (print dbg))
+        when (prelOk && (nm `Set.member` dbgDumpAfter dbgOpts)) (io (print (T.debugShowUniques dbg)))
 
   dump PassParser (pp m) 
 

@@ -441,7 +441,14 @@ instance PP T.Text where
   ppPrec _ str = text (T.unpack str)
 
 instance PP Ident where
-  ppPrec _ i = text (T.unpack (identText i))
+  ppPrec _ i =
+    withPPCfg (\cfg ->
+      let base = text (T.unpack (identText i))
+      in
+        if ppcfgShowNameUniques cfg && not (identIsNormal i)
+          then base <.> "__!"
+          else base)
+      
 
 instance PP ModName where
   ppPrec _   = text . T.unpack . modNameToText
