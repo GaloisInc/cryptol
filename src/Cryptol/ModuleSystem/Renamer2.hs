@@ -17,7 +17,7 @@ module Cryptol.ModuleSystem.Renamer2 (
   , RenamedModule(..)
   ) where
 
-import Debug.Trace
+-- import Debug.Trace
 
 import Data.List(partition,foldl',find)
 import Data.Maybe(mapMaybe)
@@ -295,7 +295,8 @@ renameAndReorderTopDecls xs =
     concat <$> mapM validateTopRecDep result
   where
   _dbgShowEdge gr (d, k, ds) =
-    "  " ++ show k ++ ": " ++ show ds ++ ", provides " ++ unwords [ show (pp x) | (k',_,xs,_) <- gr, k' == k, x <- Set.toList xs ] ++
+    "  " ++ show k ++ ": " ++ show ds ++ ", provides " ++
+      unwords [ show (pp x) | (k',zs,_) <- gr, k' == k, x <- Set.toList zs ] ++
     "\n" ++ unlines (map ("    " ++) (lines (show (pp d))))
 
   isIfaceCtr d =
