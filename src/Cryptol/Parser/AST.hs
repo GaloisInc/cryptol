@@ -1055,7 +1055,7 @@ instance (Show name, PPName name) => PP (ParamDecl name) where
 ppInterface :: (Show name, PPName name) => Doc -> Signature name -> Doc
 ppInterface kw sig = kw $$ indent 2 (vcat (is ++ ds))
     where
-    is = map pp (sigImports sig)
+    is = map (pp . thing) (sigImports sig)
     cs = case sigConstraints sig of
            []  -> []
            cs' -> ["type constraint" <+>
