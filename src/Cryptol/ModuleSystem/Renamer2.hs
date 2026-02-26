@@ -217,7 +217,7 @@ instance Rename Signature where
       funPs       <- mapM rename (sigFunParams sig)
       tyPs        <- mapM rename (sigTypeParams sig)
       ctrs        <- mapM (rnLocated rename) (sigConstraints sig)
-      decls       <- mapM rename (sigDecls sig)
+      decls       <- renameSigDecls (sigDecls sig)
 
       pure Signature {
         sigImports      = newTopImps ++ newNestImps,
@@ -232,6 +232,51 @@ instance Rename Signature where
       case thing (iModule (thing limp)) of
         ImpTop {} -> True
         ImpNested {} -> False
+
+instance Rename ParameterType where
+  rename a =
+    do
+      n <- rnLocated (resolveNameDef NSType) (ptName a)
+      return a { ptName = n }
+
+instance Rename ParameterFun where
+  rename a =
+    do
+      n   <- rnLocated (resolveNameDef NSValue) (pfName a)
+      renameSchema (pfSchema a) \sig ->
+        pure a { pfName = n, pfSchema = sig }
+
+renameSigDecls :: [SigDecl PName] -> RenameM [SigDecl Name]
+renameSigDecls decls =
+  do
+    gr <- forM decls \d ->
+      do
+        (d1,xs) <- getDeps (rename d)
+        pure (d1, sigDeclName d1, Set.toList xs)
+    concat <$> mapM validateRecSigDep (stronglyConnComp gr)
+  
+sigDeclName :: SigDecl a -> a  
+sigDeclName d =
+  thing
+    case d of
+      SigTySyn ts _ -> tsName ts
+      SigPropSyn ps _ -> psName ps
+
+validateRecSigDep :: SCC (SigDecl Name) -> RenameM [SigDecl Name]
+validateRecSigDep sc =
+  case sc of
+    AcyclicSCC x -> pure [x]
+    CyclicSCC xs ->
+      do
+        recordError (InvalidDependency (map (NamedThing . sigDeclName) xs))
+        pure xs
+
+instance Rename SigDecl where
+  rename decl =
+    case decl of
+      SigTySyn ts mb   -> SigTySyn   <$> rename ts <*> pure mb
+      SigPropSyn ps mb -> SigPropSyn <$> rename ps <*> pure mb
+
 
 
 
@@ -689,7 +734,6 @@ renameDecls decls k =
             (d1,xs) <- getDeps (rename d)
             pure (d1, declName d1, Set.toList xs)
         ds' <- concat <$> mapM validateRecDep (stronglyConnComp gr)
-        -- XXX: which way is the topo sort?
         k ds'
   
 
@@ -776,28 +820,6 @@ instance Rename PropSyn where
         PropSyn n' f ps' <$> mapM rename cs
 
 
---------------------------------------------------------------------------------
--- Interface Modules
---------------------------------------------------------------------------------
-
-instance Rename ParameterType where
-  rename a =
-    do
-      n <- rnLocated (resolveNameDef NSType) (ptName a)
-      return a { ptName = n }
-
-instance Rename ParameterFun where
-  rename a =
-    do
-      n   <- rnLocated (resolveNameDef NSValue) (pfName a)
-      renameSchema (pfSchema a) \sig ->
-        pure a { pfName = n, pfSchema = sig }
-
-instance Rename SigDecl where
-  rename decl =
-    case decl of
-      SigTySyn ts mb   -> SigTySyn   <$> rename ts <*> pure mb
-      SigPropSyn ps mb -> SigPropSyn <$> rename ps <*> pure mb
 
 
 
