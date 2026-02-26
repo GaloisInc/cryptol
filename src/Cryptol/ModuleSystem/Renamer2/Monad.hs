@@ -49,6 +49,9 @@ module Cryptol.ModuleSystem.Renamer2.Monad
   , getDeps
   ) where
 
+-- import Debug.Trace
+-- import Cryptol.Utils.PP
+
 import MonadLib
 import Data.Maybe(fromMaybe)
 import Data.Set(Set)
@@ -502,6 +505,8 @@ reportUnboundName expected qn scope =
       actual : _ -> recordError (WrongNamespace expected actual nm)
       -- the value is just missing
       [] -> recordError (UnboundName expected nm)
+
+    -- traceM ("UNDEFINED NAME IN " ++ show (pp expected) ++ ": " ++ show (pp qn) ++ "\n" ++ show (pp scope))
 
     mkFakeName expected qn
 
