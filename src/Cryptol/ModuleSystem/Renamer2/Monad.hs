@@ -449,9 +449,14 @@ inSubmodule x (R m) = R
       impEnv      = mempty,
       modParamEnv = mempty,
       outEnv      = defs `shadowing` pars `shadowing` imps `shadowing` outs
-      }
+    }
     a <- mapReader upd m
-    sets_ \rw1 -> rw1 { defEnv = defs, modParamEnv = pars, impEnv = imps, outEnv = outs } 
+    sets_ \rw1 -> rw1 { defEnv = defs,
+                        modParamEnv = pars,
+                        impEnv = imps,
+                        outEnv = outs,
+                        usedNames   = usedNames rw1 `Set.difference` namingEnvNames (defEnv rw1)
+                      } 
     pure a
 
 
