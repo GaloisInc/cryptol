@@ -577,9 +577,13 @@ doModParam mp =
         rng = srcRange x
         nm  = mpName mp
     mpath <- getCurModPath
-    env <- travNamingEnv (newModParam mpath nm rng) (modDefines mo)
+    env' <- travNamingEnv (newModParam mpath nm rng) (modDefines mo)
+    let env =
+          case mpAs mp of
+            Nothing -> env'
+            Just q  -> qualify q env'
     addModParams env
-    let ren = zipByTextName env (modDefines mo)
+    let ren = zipByTextName env' (modDefines mo)
     pure (mp { mpSignature = fst <$> x, mpRenaming = ren }, namingEnvNames env)
 
 
