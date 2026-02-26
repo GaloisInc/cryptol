@@ -17,6 +17,8 @@ module Cryptol.ModuleSystem.Renamer2 (
   , RenamedModule(..)
   ) where
 
+import Debug.Trace
+
 import Data.List(partition,foldl',find)
 import Data.Maybe(mapMaybe)
 import Data.Either(partitionEithers)
@@ -90,18 +92,6 @@ renameModule m =
       rmImported = ids
     }
 
-{- | Entry point. Rename a list of top-level declarations.
-This is used for declaration that don't live in a module
-(e.g., define on the command line.)
-
-We assume that these declarations do not contain any nested modules.
--}
-renameTopDecls :: unused -> [TopDecl PName] -> RenameM (NamingEnv,[TopDecl Name])
-renameTopDecls xxx ds0 =
-  do
-    mo <- renameModTopDecls ds0
-    env <- getCurTopDefs
-    pure (env,mo)
 
 instance Rename NestedModule where
   rename (NestedModule mo) =
@@ -249,6 +239,17 @@ instance Rename Signature where
 -- Processing Top-level Declarations
 --------------------------------------------------------------------------------
 
+{- | Entry point. Rename a list of top-level declarations.
+This is used for declaration that don't live in a module
+(e.g., define on the command line.) -}
+renameTopDecls :: unused -> [TopDecl PName] -> RenameM (NamingEnv,[TopDecl Name])
+renameTopDecls xxx ds0 =
+  do
+    mo <- renameModTopDecls ds0
+    env <- getCurTopDefs
+    pure (env,mo)
+
+
 -- | Rename the top-level declarations of a module.
 renameModTopDecls :: [TopDecl PName] -> RenameM [TopDecl Name]
 renameModTopDecls decls =
@@ -290,8 +291,13 @@ renameAndReorderTopDecls xs =
         ifaceCtrKeys  = [ k | (k,d,_,_) <- gr0, isIfaceCtr d ]
         ordered       = reorderTopDecls ifaceCtrKeys compG
         result        = map (fmap declFromKey) ordered
+    -- traceM ("DEPS:\n" ++ unlines (map (_dbgShowEdge gr0) edges))
     concat <$> mapM validateTopRecDep result
   where
+  _dbgShowEdge gr (d, k, ds) =
+    "  " ++ show k ++ ": " ++ show ds ++ ", provides " ++ unwords [ show (pp x) | (k',_,xs,_) <- gr, k' == k, x <- Set.toList xs ] ++
+    "\n" ++ unlines (map ("    " ++) (lines (show (pp d))))
+
   isIfaceCtr d =
     case d of
       DInterfaceConstraint {} -> True
@@ -304,6 +310,7 @@ renameAndReorderTopDecls xs =
     case ds of
       [] -> pure gr
       (d,bdefs) : more ->
+        -- traceM ("RENAMING: " ++ show (pp d)) >>
         case d of
           DImport imp ->
             do
@@ -325,6 +332,7 @@ renameAndReorderTopDecls xs =
                     | ImpNested y <- thing (iModule (thing imp))
                     , y == thing (getDModName d) -> pure []
                   _ -> implicitImports (getDModName d')
+              -- traceM ("ADDING IMPLICIT:\n" ++ unlines [ "  " ++ show (pp i) | (i,_) <- implicit ])
               go (curId + 1) ((curId,d',bdefs,deps) : gr) (implicit ++ more)
           _ ->
             do
@@ -558,7 +566,10 @@ doImport limp =
     let imp   = thing limp
     let lname = iModule imp
     (resMo,mo) <- withLoc (srcRange lname) (resolveModName AModule (thing lname))
-    let isPub x = x `Set.member` modPublic mo
+    let isSys x = case nameSrc x of
+                    SystemName -> True
+                    UserName -> False
+        isPub x = not (isSys x) && (x `Set.member` modPublic mo)
         newNames = interpImportEnv imp (filterUNames isPub (modDefines mo))
     case thing lname of
       ImpTop x -> recordTopImport x
@@ -605,7 +616,8 @@ implicitImports lname =
 data NameTree = NameTree Name [NameTree]
 
 nestedModNames :: Name -> RenameM [NameTree]
-nestedModNames mo =
+nestedModNames mo
+  | identIsNormal (nameIdent mo) =
   do
     info <- lookupMod (ImpNested mo) Nothing
     case modKind info of
@@ -614,6 +626,7 @@ nestedModNames mo =
           mapM nestedModNames
             [x | x <- Set.toList (modPublic info), nameNamespace x == NSModule ]
       _ -> pure []
+  | otherwise = pure []
 
 nameTreeToImports :: Range -> [Ident] -> NameTree -> [ ImportG (ImpName PName) ]
 nameTreeToImports rng qs (NameTree x subs) =
@@ -629,7 +642,7 @@ nameTreeToImports rng qs (NameTree x subs) =
   isToQual is = packModName (map identText is)
   nm =
     case reverse qs of
-      []  -> mkUnqual i
+      []  -> mkUnqual i -- we don't import system names so this is OK here
       qs' -> mkQual (isToQual qs') i
 
 
