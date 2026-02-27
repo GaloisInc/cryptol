@@ -102,6 +102,9 @@ runRenamer info (R m) = (res, reverse (renWarnings rwFin))
 
     ro0 = RO {
       lastBindsEnv = mempty,
+      localsEnv = mempty,
+      localBindEnv = mempty,
+      outEnv = renEnv info,
       curModPath = renContext info,
       curLoc = emptyRange, -- XXX?
       loadedIfaces =
@@ -113,11 +116,8 @@ runRenamer info (R m) = (res, reverse (renWarnings rwFin))
     }
 
     rw0 = RW {
-      localsEnv = mempty,
-      localBindEnv = mempty,
       defEnv = mempty,
       impEnv = mempty,
-      outEnv = renEnv info,
       modParamEnv = mempty,
       externalDeps = mempty,
       newNames = renSupply info,
@@ -147,7 +147,7 @@ data RO = RO {
   -- We keep this so then if one of the modules is imported, we can
   -- collect its definitions in `externalDeps` to give the typechecker.
 
-  lastBindsEnv :: NamingEnv
+  lastBindsEnv :: NamingEnv,
   -- ^ This is the last environment that introduced function bindings.
   -- It is basically the value of `getCurBinds` at the point we start
   -- resolving a binding.  We need this, because during `NoPat`, we desugar
@@ -156,6 +156,15 @@ data RO = RO {
   -- environment to avoid resolve this name, thus avoiding confusion with
   -- the parameters of the function.
 
+  localBindEnv :: NamingEnv,
+  -- ^ Used to resolve the names of definitions in the current scope.
+
+  localsEnv :: NamingEnv,
+  -- ^ Variables local to a function. These are variables from outside the
+  -- current binding scope.
+
+  outEnv :: NamingEnv
+  -- ^ Things defined in an enclosing scope (for nested modules)
 }
 
 data RW = RW {
@@ -167,13 +176,6 @@ data RW = RW {
   -- ^ Interface declarations for imported external modules.
   -- We track this so we can give it to the type checker.
   
-  localsEnv :: NamingEnv,
-  -- ^ Variables local to a function. These are variables from outside the
-  -- current binding scope.
-
-  localBindEnv :: NamingEnv,
-  -- ^ Used to resolve the names of definitions in the current scope.
-
   defEnv :: NamingEnv,
   -- ^ Things defined in the current module
 
@@ -183,9 +185,7 @@ data RW = RW {
   impEnv :: NamingEnv,
   -- ^ Things imported in the current scope
 
-  outEnv :: NamingEnv,
-  -- ^ Things defined in an enclosing scope (for nested modules)
-
+  
   newNames :: !Supply,
   -- ^ Used to generate unique names when renaming
 
@@ -365,8 +365,9 @@ getCurTopDefs = R (defEnv <$> get)
 getCurBinds :: RenameM NamingEnv
 getCurBinds = R
   do
+    ro <- ask
     rw <- get
-    pure (localBindEnv rw <> defEnv rw)
+    pure (localBindEnv ro <> defEnv rw)
 
 
 -- | Compute the current scope, including local definitions, outer environment
@@ -374,14 +375,15 @@ getCurBinds = R
 getCurScope :: RenameM NamingEnv
 getCurScope = R
   do
+    ro <- ask
     rw <- get
     pure $
-      localsEnv rw `shadowing`
-      localBindEnv rw `shadowing`
+      localsEnv ro `shadowing`
+      localBindEnv ro `shadowing`
       defEnv    rw `shadowing`
       modParamEnv rw `shadowing`
       impEnv    rw `shadowing`
-      outEnv    rw
+      outEnv    ro
 
 -- | Set the definition for the current module.
 setThisModuleDefs :: NamingEnv -> RenameM ()
@@ -429,14 +431,12 @@ getLastBindDefs = R (lastBindsEnv <$> ask)
 -- | Set the names of bindings for the duration of a computation.
 -- XXX: Shadowing
 inLocalBindScope :: NamingEnv -> RenameM a -> RenameM a
-inLocalBindScope env (R m) = R
-  do
-    (bs,ls) <- sets \rw ->
-      let bs = localBindEnv rw
-          ls = localsEnv rw
-      in ((bs,ls), rw { localBindEnv = env, localsEnv = bs `shadowing` ls })
-    a <- m
-    sets \rw -> (a, rw { localBindEnv = bs, localsEnv = ls })
+inLocalBindScope env (R m) = R (mapReader upd m)
+  where
+  upd ro = ro {
+    localBindEnv = env,
+    localsEnv = localBindEnv ro `shadowing` localsEnv ro
+  }
 
 
 -- | Do something that will only modify the local scope, and restore
@@ -445,13 +445,11 @@ inLocalBindScope env (R m) = R
 -- need to be combined when processing the "head" of the comprehension.
 -- XXX: Shadowing
 inLocalScope :: NamingEnv -> RenameM a -> RenameM a
-inLocalScope env (R m) = R
-  do
-    old <- sets \rw ->
-      let ls = localsEnv rw
-      in (ls, rw { localsEnv = env `shadowing` ls })
-    a <- m
-    sets \rw -> (a, rw { localsEnv = old })
+inLocalScope env (R m) = R (mapReader upd m)
+  where
+  upd ro = ro {
+    localsEnv = env `shadowing` localsEnv ro
+  }
 
     
 
@@ -459,18 +457,21 @@ inLocalScope env (R m) = R
 inSubmodule :: Ident -> RenameM a -> RenameM a
 inSubmodule x (R m) = R
   do
-    let upd ro = ro { curModPath = Nested (curModPath ro) x }
+    
     rw <- get
     let defs = defEnv rw
         pars = modParamEnv rw
         imps = impEnv rw
-        outs = outEnv rw
-        -- there should be no locals
+        
+    let upd ro = ro {
+          curModPath = Nested (curModPath ro) x,
+          outEnv     = defs `shadowing` pars `shadowing` imps `shadowing` outEnv ro
+        }
+
     set rw {
       defEnv      = mempty,
       impEnv      = mempty,
-      modParamEnv = mempty,
-      outEnv      = defs `shadowing` pars `shadowing` imps `shadowing` outs
+      modParamEnv = mempty
     }
     a <- mapReader upd m
     sets_ \rw1 -> 
@@ -480,8 +481,7 @@ inSubmodule x (R m) = R
       in
       rw1 { defEnv = defs,
                         modParamEnv = pars,
-                        impEnv = imps,
-                        outEnv = outs,
+                        impEnv      = imps,
                         usedNames   = usedNames rw1 `Set.difference` bound
                       } 
     pure a
