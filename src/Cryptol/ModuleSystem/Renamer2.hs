@@ -339,9 +339,19 @@ renameAndReorderTopDecls xs =
     -- traceM ("DEPS:\n" ++ unlines (map (_dbgShowEdge gr0) edges))
     concat <$> mapM validateTopRecDep result
   where
-  _dbgShowEdge gr (d, k, ds) =
+  _dbgShowEdge gr (d', k, ds) =
+    let d = case d' of
+              DModule tl -> DModule (upd <$> tl)
+                where upd (NestedModule nm) = NestedModule nm { mInScope = mempty }
+              _ -> d'
+    in
+    let me = [ (prov,uses) | (k',_,prov,uses) <- gr, k == k' ] in
+    let
+        prov = [ p | (ps,_) <- me, p <- Set.toList ps ]
+        uses = [ u | (_,us) <- me, u <- Set.toList us ]
+    in
     "  " ++ show k ++ ": " ++ show ds ++ ", provides " ++
-      unwords [ show (pp x) | (k',zs,_) <- gr, k' == k, x <- Set.toList zs ] ++
+      unwords (map (show . pp) prov) ++ ", uses " ++ unwords (map (show . pp) uses) ++
     "\n" ++ unlines (map ("    " ++) (lines (show (pp d))))
 
   isIfaceCtr d =
@@ -372,12 +382,7 @@ renameAndReorderTopDecls xs =
               -- We add implicit imports of all modules nested in this,
               -- as long as the following declaration is not a user specified
               -- import of this module.
-              implicit <-
-                case more of
-                  (DImport imp, _) : _
-                    | ImpNested y <- thing (iModule (thing imp))
-                    , y == thing (getDModName d) -> pure []
-                  _ -> implicitImports (getDModName d')
+              implicit <- implicitImports (getDModName d')
               -- traceM ("ADDING IMPLICIT:\n" ++ unlines [ "  " ++ show (pp i) | (i,_) <- implicit ])
               go (curId + 1) ((curId,d',bdefs,deps) : gr) (implicit ++ more)
           _ ->
