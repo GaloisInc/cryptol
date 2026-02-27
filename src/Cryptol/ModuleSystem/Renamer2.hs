@@ -339,6 +339,12 @@ renameAndReorderTopDecls xs =
     -- traceM ("DEPS:\n" ++ unlines (map (_dbgShowEdge gr0) edges))
     concat <$> mapM validateTopRecDep result
   where
+  -- XXX: report unused top-level module declarations.
+  -- An SCC is used if:
+  --   * it is a module level constraint, or
+  --   * it is public, or
+  --   * it is private, and it is a dependency of some other used SCC
+
   _dbgShowEdge gr (d', k, ds) =
     let d = case d' of
               DModule tl -> DModule (upd <$> tl)
@@ -732,14 +738,16 @@ renameDecls :: [Decl PName] -> ([Decl Name] -> RenameM a) -> RenameM a
 renameDecls decls k =
   do
     env <- doDefGroup (defsOf (map (InModule Nothing) decls))
-    inLocalBindScope env
-      do
-        gr <- forM decls \d ->
-          do
-            (d1,xs) <- getDeps (rename d)
-            pure (d1, declName d1, Set.toList xs)
-        ds' <- concat <$> mapM validateRecDep (stronglyConnComp gr)
-        k ds'
+    do
+      ds <- inLocalBindScope False env
+              do
+                gr <- forM decls \d ->
+                  do
+                    (d1,xs) <- getDeps (rename d)
+                    pure (d1, declName d1, Set.toList xs)
+                concat <$> mapM validateRecDep (stronglyConnComp gr)
+
+      inLocalScope env (k ds)
   
 
 instance Rename Decl where
@@ -762,7 +770,10 @@ instance Rename PrimType where
     do
       x <- rnLocated (resolveNameDef NSType) (primTName pt)
       let (as,ps) = primTCts pt
-      cts <- renameQual as ps \as' ps' -> pure (as',ps')
+      cts <- renameQual as ps \as' ps' ->
+        do
+          recordNameUses (Set.fromList (map tpName as'))
+          pure (as',ps')
       pure pt { primTCts = cts, primTName = x }
 
 
@@ -841,7 +852,7 @@ withTParams ::
 withTParams as k =
   do
     env <- doDefGroup (defsOf as)
-    inLocalBindScope env
+    inLocalBindScope True env
       do
         as' <- traverse (renameTP env) as
         k as'
@@ -1196,14 +1207,14 @@ renameMatch ma k =
       do
         e' <- rename e
         env <- liftSupply (defsOf p)
-        inLocalBindScope env
+        inLocalBindScope False env
           do p' <- rename p
              k env (Match p' e')
 
     MatchLet b ->
       do
         env <- liftSupply (defsOf (InModule Nothing b))
-        inLocalBindScope env
+        inLocalBindScope False env
           do
             b' <- rename b
             k env (MatchLet b')
@@ -1223,7 +1234,7 @@ instance Rename CaseAlt where
   rename (CaseAlt p e) =
     do
       env <- liftSupply (defsOf p)
-      inLocalBindScope env (CaseAlt <$> rename p <*> rename e)
+      inLocalBindScope True env (CaseAlt <$> rename p <*> rename e)
 
 -- | Rename a group of patterns from the same place and add their names
 -- to the local environment.
@@ -1231,7 +1242,7 @@ renamePats :: [Pattern PName] -> ([Pattern Name] -> RenameM a) -> RenameM a
 renamePats ps k =
   do
     env <- doDefGroup (defsOf ps)
-    inLocalBindScope env
+    inLocalBindScope True env
       do
         ps' <- mapM rename ps
         k ps'

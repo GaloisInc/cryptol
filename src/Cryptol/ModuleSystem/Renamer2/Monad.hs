@@ -38,6 +38,7 @@ module Cryptol.ModuleSystem.Renamer2.Monad
     -- * Error reporting
   , recordError
   , addWarning
+  , reportUnused
   , quit
   , getCurLoc
   , located
@@ -58,6 +59,7 @@ import Data.Set(Set)
 import Data.Set qualified as Set
 import Data.Map(Map)
 import Data.Map qualified as Map
+import Data.Text qualified as Text
 
 import Cryptol.Utils.Panic
 import Cryptol.Utils.Ident
@@ -106,7 +108,7 @@ runRenamer info (R m) = (res, reverse (renWarnings rwFin))
       localBindEnv = mempty,
       outEnv = renEnv info,
       curModPath = renContext info,
-      curLoc = emptyRange, -- XXX?
+      curLoc = emptyRange,
       loadedIfaces =
         let hasIf x =
               case x of
@@ -439,35 +441,50 @@ getLastBindDefs :: RenameM NamingEnv
 getLastBindDefs = R (lastBindsEnv <$> ask)
 
 -- | Set the names of bindings for the duration of a computation.
--- XXX: Shadowing
-inLocalBindScope :: NamingEnv -> RenameM a -> RenameM a
-inLocalBindScope env (R m) = R (mapReader upd m)
+inLocalBindScope :: Bool -> NamingEnv -> RenameM a -> RenameM a
+inLocalBindScope checkUsed env (R m) =
+  do
+    a <- R (mapReader upd m)
+    used <- R (usedNames <$> get)
+    let unused = namingEnvNames env `Set.difference` used
+    when checkUsed (mapM_ reportUnused unused)
+    pure a
   where
   upd ro = ro {
     localBindEnv = env,
     localsEnv = localBindEnv ro `shadowing` localsEnv ro
   }
 
+reportUnused :: Name -> RenameM ()
+reportUnused n
+  | nameSrc n == UserName =
+    case Text.uncons (identText (nameIdent n)) of
+      Just ('_',_) -> pure ()
+      _ -> addWarning (UnusedName n)
+  | otherwise = pure ()
 
 -- | Do something that will only modify the local scope, and restore
 -- it after the computation.  Usually we use `inLocalBindScope`, but
 -- we use this for list comprehensions, because the binders in the arms
 -- need to be combined when processing the "head" of the comprehension.
--- XXX: Shadowing
 inLocalScope :: NamingEnv -> RenameM a -> RenameM a
-inLocalScope env (R m) = R (mapReader upd m)
+inLocalScope env (R m) =
+  do
+    a     <- R (mapReader upd m)
+    used <- R (usedNames <$> get)
+    let unused = namingEnvNames env `Set.difference` used
+    mapM_ reportUnused (Set.toList unused)
+    pure a
   where
   upd ro = ro {
     localsEnv = env `shadowing` localsEnv ro
   }
 
-    
-
 -- | Do some renaming in the context of a nested module.
 inSubmodule :: Ident -> RenameM a -> RenameM a
-inSubmodule x (R m) =
+inSubmodule x (R m) = R
   do
-    rw <- R get
+    rw <- get
     let defs = defEnv rw
         pars = modParamEnv rw
         parns = modParamNames rw
@@ -478,24 +495,25 @@ inSubmodule x (R m) =
           outEnv     = defs `shadowing` pars `shadowing` imps `shadowing` outEnv ro
         }
 
-    R $ set rw {
+    set rw {
       defEnv      = mempty,
       impEnv      = mempty,
       modParamEnv = mempty,
       modParamNames = mempty
     }
     a <- mapReader upd m
-    sets_ \rw1 -> 
+    sets \rw1 -> 
       let bound = Set.unions
                     (map namingEnvNames
                       [ defEnv rw1, impEnv rw1, modParamEnv rw1 ])
       in
-      rw1 { defEnv = defs,
-                        modParamEnv = pars,
-                        impEnv      = imps,
-                        usedNames   = usedNames rw1 `Set.difference` bound
-                      } 
-    pure a
+        (a,
+        rw1 { defEnv = defs,
+              modParamEnv = pars,
+              modParamNames = parns,
+              impEnv      = imps,
+              usedNames   = usedNames rw1 `Set.difference` bound
+            } )
 
 
 --------------------------------------------------------------------------------
