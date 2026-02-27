@@ -402,6 +402,8 @@ setThisModuleDefs env =
       ]
 
 -- | Add names from module parameters to the current scope.
+-- It is an error if the module parameters conflict with the
+-- definitions in a module.
 addModParams :: Located Ident -> NamingEnv -> RenameM ()
 addModParams nm env =
   do
@@ -409,17 +411,16 @@ addModParams nm env =
     mapM_ recordError errs
     when (not (null errs)) quit
   where
-    upd rw =
-      let nms    = modParamNames rw
-          newEnv = env <> modParamEnv rw
-          errs   =
-            [ MultipleModParams (thing nm) [r,srcRange nm]
-            | r <- maybeToList (Map.lookup (thing nm) nms) ] ++
-            map OverlappingSyms (findAmbig newEnv)
-      in (errs, rw {
-                  modParamEnv = newEnv,
-                  modParamNames = Map.insert (thing nm) (srcRange nm) nms })
--- XXX: Warn about shadowing.
+  upd rw =
+    let nms    = modParamNames rw
+        newEnv = env <> modParamEnv rw
+        errs   =
+          [ MultipleModParams (thing nm) [r,srcRange nm]
+          | r <- maybeToList (Map.lookup (thing nm) nms) ] ++
+          map OverlappingSyms (findAmbig newEnv)
+    in (errs, rw {
+                modParamEnv = newEnv,
+                modParamNames = Map.insert (thing nm) (srcRange nm) nms })
 
 -- | Add some names that came from an import.
 addImported :: NamingEnv -> RenameM ()
@@ -464,12 +465,12 @@ inLocalScope env (R m) = R (mapReader upd m)
 
 -- | Do some renaming in the context of a nested module.
 inSubmodule :: Ident -> RenameM a -> RenameM a
-inSubmodule x (R m) = R
+inSubmodule x (R m) =
   do
-    
-    rw <- get
+    rw <- R get
     let defs = defEnv rw
         pars = modParamEnv rw
+        parns = modParamNames rw
         imps = impEnv rw
         
     let upd ro = ro {
@@ -477,10 +478,11 @@ inSubmodule x (R m) = R
           outEnv     = defs `shadowing` pars `shadowing` imps `shadowing` outEnv ro
         }
 
-    set rw {
+    R $ set rw {
       defEnv      = mempty,
       impEnv      = mempty,
-      modParamEnv = mempty
+      modParamEnv = mempty,
+      modParamNames = mempty
     }
     a <- mapReader upd m
     sets_ \rw1 -> 
