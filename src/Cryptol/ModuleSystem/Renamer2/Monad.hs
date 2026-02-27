@@ -473,11 +473,16 @@ inSubmodule x (R m) = R
       outEnv      = defs `shadowing` pars `shadowing` imps `shadowing` outs
     }
     a <- mapReader upd m
-    sets_ \rw1 -> rw1 { defEnv = defs,
+    sets_ \rw1 -> 
+      let bound = Set.unions
+                    (map namingEnvNames
+                      [ defEnv rw1, impEnv rw1, modParamEnv rw1 ])
+      in
+      rw1 { defEnv = defs,
                         modParamEnv = pars,
                         impEnv = imps,
                         outEnv = outs,
-                        usedNames   = usedNames rw1 `Set.difference` namingEnvNames (defEnv rw1)
+                        usedNames   = usedNames rw1 `Set.difference` bound
                       } 
     pure a
 
