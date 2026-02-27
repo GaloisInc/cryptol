@@ -53,7 +53,7 @@ module Cryptol.ModuleSystem.Renamer2.Monad
 -- import Cryptol.Utils.PP
 
 import MonadLib
-import Data.Maybe(fromMaybe)
+import Data.Maybe(fromMaybe,maybeToList)
 import Data.Set(Set)
 import Data.Set qualified as Set
 import Data.Map(Map)
@@ -119,6 +119,7 @@ runRenamer info (R m) = (res, reverse (renWarnings rwFin))
       defEnv = mempty,
       impEnv = mempty,
       modParamEnv = mempty,
+      modParamNames = mempty,
       externalDeps = mempty,
       newNames = renSupply info,
       renErrors = [],
@@ -182,10 +183,12 @@ data RW = RW {
   modParamEnv :: NamingEnv,
   -- ^ Names from module parameters
 
+  modParamNames :: Map Ident Range,
+  -- ^ Names of module parameters for the current module
+
   impEnv :: NamingEnv,
   -- ^ Things imported in the current scope
 
-  
   newNames :: !Supply,
   -- ^ Used to generate unique names when renaming
 
@@ -399,17 +402,23 @@ setThisModuleDefs env =
       ]
 
 -- | Add names from module parameters to the current scope.
-addModParams :: NamingEnv -> RenameM ()
-addModParams env =
+addModParams :: Located Ident -> NamingEnv -> RenameM ()
+addModParams nm env =
   do
     errs <- R (sets upd)
-    mapM_ (recordError . OverlappingSyms) errs
+    mapM_ recordError errs
     when (not (null errs)) quit
   where
     upd rw =
-      let newEnv = env <> modParamEnv rw
-          errs   = findAmbig newEnv
-      in (errs, rw { modParamEnv = newEnv })
+      let nms    = modParamNames rw
+          newEnv = env <> modParamEnv rw
+          errs   =
+            [ MultipleModParams (thing nm) [r,srcRange nm]
+            | r <- maybeToList (Map.lookup (thing nm) nms) ] ++
+            map OverlappingSyms (findAmbig newEnv)
+      in (errs, rw {
+                  modParamEnv = newEnv,
+                  modParamNames = Map.insert (thing nm) (srcRange nm) nms })
 -- XXX: Warn about shadowing.
 
 -- | Add some names that came from an import.

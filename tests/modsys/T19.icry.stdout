@@ -1,0 +1,7 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T19
+
+[error] Multiple parameters with name `X`
+    • T19.cry:10:30--10:31
+    • T19.cry:11:30--11:31

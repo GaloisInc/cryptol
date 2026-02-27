@@ -644,7 +644,7 @@ doModParam mp =
           case mpAs mp of
             Nothing -> env'
             Just q  -> qualify q env'
-    addModParams env
+    addModParams (mpSignature mp) { thing = nm } env
     let ren = zipByTextName env' (modDefines mo)
     pure (mp { mpSignature = fst <$> x, mpRenaming = ren }, namingEnvNames env)
 
