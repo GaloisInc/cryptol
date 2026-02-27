@@ -34,6 +34,9 @@ data RenamerError
   | UnboundName Namespace (Located PName)
     -- ^ Some name not bound to any definition
 
+  | ImportTooSoon Range Ident
+    -- ^ Import is before the definition of a module.
+
   | OverlappingSyms [Name]
     -- ^ An environment has produced multiple overlapping symbols
 
@@ -121,6 +124,10 @@ instance PP RenamerError where
                     NSType    -> "Type"
                     NSModule  -> "Module"
                     NSConstructor -> "Constructor"
+
+    ImportTooSoon rng x ->
+      hang (text "[error] at" <+> pp rng)
+         4 ("Import of" <+> backticks (pp x) <+> "should come after its definition.")
 
     OverlappingSyms qns ->
       hang (text "[error]")

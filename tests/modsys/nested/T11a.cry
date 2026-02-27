@@ -1,10 +1,10 @@
 module T11 where
 
-submodule B where
-  y : Integer
-  y = 42
-
 import submodule B
 
 submodule A where
   propA = y > 5
+
+submodule B where
+  y : Integer
+  y = 42

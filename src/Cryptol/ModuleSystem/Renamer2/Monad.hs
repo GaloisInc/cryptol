@@ -127,7 +127,7 @@ runRenamer info (R m) = (res, reverse (renWarnings rwFin))
       knownMods =
         Map.unions [  
           case ent of
-            Left ps -> Map.singleton (ImpTop t) (ifaceSigToMod ps)
+            Left ps -> Map.singleton (ImpTop t) (ModKnown (ifaceSigToMod ps))
             Right i -> ifaceToMod (ImpTop t) i
           | (t,ent) <- Map.toList (renIfaces info)
         ]
@@ -177,7 +177,6 @@ data RW = RW {
   defEnv :: NamingEnv,
   -- ^ Things defined in the current module
 
-  
   modParamEnv :: NamingEnv,
   -- ^ Names from module parameters
 
@@ -228,7 +227,7 @@ lookupMod nm mbExpected =
   do
     rw <- R get
     case Map.lookup nm (knownMods rw) of
-      Just mo ->
+      Just (ModKnown mo) ->
         case mbExpected of
           Nothing -> pure mo
           Just expected
@@ -239,10 +238,19 @@ lookupMod nm mbExpected =
                 recordError (ModuleKindMismatch loc nm expected actual)
                 pure (emptyMod expected)
               where actual = modKind mo
+      Just ModTodo ->
+        do
+          loc <- getCurLoc
+          case nm of
+            ImpNested x ->
+              recordError (ImportTooSoon loc (nameIdent x))
+            ImpTop {} -> panic "lookupMod" ["ModTodo"]
+          pure (emptyMod (fromMaybe AModule mbExpected))
+      Just ModFake ->
+          pure (emptyMod (fromMaybe AModule mbExpected))
 
-      Nothing -> pure (emptyMod (fromMaybe AModule mbExpected))
-      -- This could happen because we are looking up a fake name
-      -- generated due to undefined name
+      Nothing ->
+        panic "lookupMod" ["Resolved name, but unknown module"]
 
 recordTopImport :: ModName -> RenameM ()
 recordTopImport m =
@@ -256,7 +264,9 @@ recordTopImport m =
 getExternalDeps :: RenameM IfaceDecls
 getExternalDeps = R (externalDeps <$> get)
 
-type ModMap = Map (ImpName Name) Mod
+data ModStatus = ModKnown Mod | ModFake | ModTodo
+
+type ModMap = Map (ImpName Name) ModStatus
 
 -- | Make a `Mod` from the public declarations in a top-level module's interface.
 -- This is used to handle imports.
@@ -268,10 +278,10 @@ ifaceToMod nm iface =
 ifaceNamesToMod ::
     IfaceG topname -> Bool -> ImpName Name -> IfaceNames name -> ModMap
 ifaceNamesToMod iface params nm names =
-  Map.unions (Map.fromList ((nm,mo) : sigs) : funs ++ nest)
+  Map.unions (Map.fromList ((nm,ModKnown mo) : sigs) : funs ++ nest)
   where
   sigs =
-    [ (ImpNested k, ifaceSigToMod v) | (k,v) <- Map.toList (ifSignatures decls) ]
+    [ (ImpNested k, ModKnown (ifaceSigToMod v)) | (k,v) <- Map.toList (ifSignatures decls) ]
   funs =
     [ ifaceToMod (ImpNested k) v | (k,v) <- Map.toList (ifFunctors decls) ]
   nest =
@@ -299,7 +309,7 @@ ifaceSigToMod ps = Mod
 -- | Add a module that was generated when instantiating a functor
 addInstMod :: Name -> Mod -> RenameM ()
 addInstMod x y =
-  R (sets_ \rw -> rw { knownMods = Map.insert (ImpNested x) y (knownMods rw) })
+  R (sets_ \rw -> rw { knownMods = Map.insert (ImpNested x) (ModKnown y) (knownMods rw) })
 
 addResolvedMod :: NamingEnv -> ModuleG Name Name -> RenameM ()
 addResolvedMod env mo =
@@ -318,7 +328,7 @@ addResolvedMod env mo =
             
         FunctorInstance f _ inst ->
           do
-            fmo <- lookupMod (thing f) (Just AFunctor)
+            fmo <- withLoc (srcRange f) (lookupMod (thing f) (Just AFunctor))
             let remap x = case Map.lookup x inst of
                             Just y -> y
                             Nothing -> panic "addResolvedMod" ["remap failed"]
@@ -334,7 +344,7 @@ addResolvedMod env mo =
             modDefines = env,
             modPublic = namingEnvNames env
           }
-    R (sets_ \rw -> rw { knownMods = Map.insert nm summary (knownMods rw) })
+    R (sets_ \rw -> rw { knownMods = Map.insert nm (ModKnown summary) (knownMods rw) })
 
 
 
@@ -375,7 +385,16 @@ getCurScope = R
 
 -- | Set the definition for the current module.
 setThisModuleDefs :: NamingEnv -> RenameM ()
-setThisModuleDefs env = R (sets_ \rw -> rw { defEnv = env })
+setThisModuleDefs env =
+  R (sets_ \rw -> rw { defEnv = env,
+                       knownMods = todoMods `Map.union` knownMods rw
+                     })
+  where
+  todoMods =
+    Map.fromList 
+      [ (ImpNested x,ModTodo)
+      | x <- Set.toList (namingEnvNames env), nameNamespace x == NSModule
+      ]
 
 -- | Add names from module parameters to the current scope.
 addModParams :: NamingEnv -> RenameM ()
@@ -558,7 +577,11 @@ mkFakeName ns pn =
     nm <-
       liftSupply (mkDeclared ns (TopModule undefinedModName)
                                SystemName (getIdent pn) Nothing loc)
-    R (sets_ \rw -> rw { defEnv = singletonNS ns pn nm `shadowing` defEnv rw })
+    R (sets_ \rw -> rw { defEnv = singletonNS ns pn nm `shadowing` defEnv rw,
+                         knownMods =
+                          case ns of
+                            NSModule -> Map.insert (ImpNested nm) ModFake (knownMods rw)
+                            _ -> knownMods rw })
     pure nm 
 
 
