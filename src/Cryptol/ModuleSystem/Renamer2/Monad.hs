@@ -107,6 +107,7 @@ runRenamer info (R m) = (res, reverse (renWarnings rwFin))
       localsEnv = mempty,
       localBindEnv = mempty,
       outEnv = renEnv info,
+      outDefs = renEnv info,
       curModPath = renContext info,
       curLoc = emptyRange,
       loadedIfaces =
@@ -166,8 +167,14 @@ data RO = RO {
   -- ^ Variables local to a function. These are variables from outside the
   -- current binding scope.
 
-  outEnv :: NamingEnv
-  -- ^ Things defined in an enclosing scope (for nested modules)
+  outEnv :: NamingEnv,
+  -- ^ Things in an enclosing scope (for nested modules).  This is used
+  -- for resolving names, and it includes definitions and imports in the
+  -- outer scope of a module appropriately shadowed.
+
+  outDefs :: NamingEnv
+  -- ^ Things defined in outer scopes.  This is not used for resolving names,
+  -- but to report shadowing warnings.
 }
 
 data RW = RW {
@@ -425,9 +432,13 @@ addModParams nm env =
                 modParamNames = Map.insert (thing nm) (srcRange nm) nms })
 
 -- | Add some names that came from an import.
-addImported :: NamingEnv -> RenameM ()
-addImported env = R (sets_ \rw -> rw { impEnv = env <> impEnv rw })
--- XXX: Warn about shadowing
+addImported :: Range -> NamingEnv -> RenameM ()
+addImported rng env =
+  do
+    R (sets_ \rw -> rw { impEnv = env <> impEnv rw })
+    outDs <- R (outDefs <$> ask)
+    forM_ (findShadowing env outDs) \(_,_,xs) ->
+      addWarning (SymbolShadowed (ImportShadower rng) xs)
 
 -- | Capture the `getCurBinds` at this point.  See the comment
 -- on `lastBindsEnv` for more info.
@@ -448,20 +459,14 @@ inLocalBindScope checkUsed env (R m) =
     used <- R (usedNames <$> get)
     let unused = namingEnvNames env `Set.difference` used
     when checkUsed (mapM_ reportUnused unused)
+    scope <- getCurScope -- XXX: is this too much, we'll get warning for shadowing imported things too...
+    mapM_ reportShadowed (findShadowing env scope)
     pure a
   where
   upd ro = ro {
     localBindEnv = env,
     localsEnv = localBindEnv ro `shadowing` localsEnv ro
   }
-
-reportUnused :: Name -> RenameM ()
-reportUnused n
-  | nameSrc n == UserName =
-    case Text.uncons (identText (nameIdent n)) of
-      Just ('_',_) -> pure ()
-      _ -> addWarning (UnusedName n)
-  | otherwise = pure ()
 
 -- | Do something that will only modify the local scope, and restore
 -- it after the computation.  Usually we use `inLocalBindScope`, but
@@ -490,10 +495,14 @@ inSubmodule x (R m) = R
         parns = modParamNames rw
         imps = impEnv rw
         
-    let upd ro = ro {
-          curModPath = Nested (curModPath ro) x,
-          outEnv     = defs `shadowing` pars `shadowing` imps `shadowing` outEnv ro
-        }
+    let upd ro =
+          let ds = defs `shadowing` pars
+          in
+            ro {
+              curModPath = Nested (curModPath ro) x,
+              outEnv     = ds `shadowing` imps `shadowing` outEnv ro,
+              outDefs    = ds `shadowing` outDefs ro
+            }
 
     set rw {
       defEnv      = mempty,
@@ -525,6 +534,17 @@ recordError e = R (sets_ \rw -> rw { renErrors = e : renErrors rw })
 
 addWarning :: RenamerWarning -> RenameM ()
 addWarning e = R (sets_ \rw -> rw { renWarnings = e : renWarnings rw })
+
+reportUnused :: Name -> RenameM ()
+reportUnused n
+  | nameSrc n == UserName =
+    case Text.uncons (identText (nameIdent n)) of
+      Just ('_',_) -> pure ()
+      _ -> addWarning (UnusedName n)
+  | otherwise = pure ()
+
+reportShadowed :: (PName, Name, [Name]) -> RenameM ()
+reportShadowed (x,y,z) = addWarning (SymbolShadowed (DefShadower x y) z)
 
 quit :: RenameM a
 quit = R (raise ())

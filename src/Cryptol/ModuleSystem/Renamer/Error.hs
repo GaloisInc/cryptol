@@ -219,10 +219,33 @@ instance PP DepName where
 -- Warnings --------------------------------------------------------------------
 
 data RenamerWarning
-  = SymbolShadowed PName Name [Name]
+  = SymbolShadowed Shadower [Name]
   | UnusedName Name
   | PrefixAssocChanged PrefixOp (Expr Name) (Located Name) Fixity (Expr Name)
     deriving (Show, Generic, NFData)
+
+data Shadower = ImportShadower Range | DefShadower PName Name
+  deriving (Show, Generic, NFData)
+
+shadowerLoc :: Shadower -> Range
+shadowerLoc x =
+  case x of
+    ImportShadower a -> a
+    DefShadower _ a -> nameLoc a
+
+shadowerName :: Shadower -> Maybe Name
+shadowerName x =
+  case x of
+    ImportShadower {} -> Nothing
+    DefShadower _ a -> Just a
+
+instance Eq Shadower where
+  x == y = compare x y == EQ
+
+-- used to determine in what order to show things
+instance Ord Shadower where
+  compare x y = compare (cmp x) (cmp y)
+    where cmp z = (from (shadowerLoc z), shadowerName z)
 
 instance Eq RenamerWarning where
   x == y = compare x y == EQ
@@ -231,8 +254,7 @@ instance Eq RenamerWarning where
 instance Ord RenamerWarning where
   compare w1 w2 =
     case (w1, w2) of
-      (SymbolShadowed x y _, SymbolShadowed x' y' _) ->
-        compare (byStart y, x) (byStart y', x')
+      (SymbolShadowed x _, SymbolShadowed x' _) -> compare x x'
       (UnusedName x, UnusedName x') ->
         compare (byStart x) (byStart x')
       (PrefixAssocChanged _ _ op _ _, PrefixAssocChanged _ _ op' _ _) ->
@@ -246,18 +268,22 @@ instance Ord RenamerWarning where
       priority PrefixAssocChanged {} = 2
 
 instance PP RenamerWarning where
-  ppPrec _ (SymbolShadowed k x os) =
+  ppPrec _ (SymbolShadowed sh os) =
     hang (text "[warning] at" <+> loc)
-       4 $ fsep [ "This binding for" <+> backticks (pp k)
-                , "shadows the existing binding" <.> plural
+       4 $ fsep [ who, "shadows the existing binding" <.> plural
                 , text "at" ]
         $$ vcat (map (pp . nameLoc) os)
 
     where
+    who =
+      case sh of
+        ImportShadower _ -> "The import"
+        DefShadower k _ -> "This binding for" <+> backticks (pp k)
+
     plural | length os > 1 = char 's'
            | otherwise     = mempty
 
-    loc = pp (nameLoc x)
+    loc = pp (shadowerLoc sh)
 
   ppPrec _ (UnusedName x) =
     hang (text "[warning] at" <+> pp (nameLoc x))
@@ -268,6 +294,8 @@ instance PP RenamerWarning where
        4 $ fsep [ backticks (pp old)
                 , "is now parsed as"
                 , backticks (pp new) ]
+
+  
 
     where
     old = EInfix (EPrefix prefixOp x) infixOp infixFixity y

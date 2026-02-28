@@ -631,7 +631,7 @@ doImport limp =
     case thing lname of
       ImpTop x -> recordTopImport x
       _ -> pure ()
-    addImported newNames
+    addImported (srcRange limp) newNames
     pure ( limp { thing = imp { iModule = (iModule imp) { thing = resMo } } },
            namingEnvNames newNames
         )

@@ -356,7 +356,7 @@ checkShadowing :: NamingEnv -> NamingEnv -> RenameM ()
 checkShadowing envNew envOld =
   mapM_
     recordWarning
-    [ SymbolShadowed p x xs | (p, x, xs) <- findShadowing envNew envOld
+    [ SymbolShadowed (DefShadower p x) xs | (p, x, xs) <- findShadowing envNew envOld
     ]
 
 

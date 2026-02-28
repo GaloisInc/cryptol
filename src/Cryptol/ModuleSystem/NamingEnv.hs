@@ -214,7 +214,7 @@ findAmbig env =
   NamingEnv ns = consToValues env
 
 -- | Get the subset of the first environment that shadows something
--- in the second one. We only consider UserNames in the second enviornment.
+-- in the second one. We only consider UserNames in the second environment.
 findShadowing :: NamingEnv -> NamingEnv -> [(PName, Name, [Name])]
 findShadowing (NamingEnv lhs) rhs = res
   where
