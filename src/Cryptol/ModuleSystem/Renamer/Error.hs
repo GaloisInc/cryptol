@@ -62,9 +62,7 @@ data RenamerError
     deriving (Show, Generic, NFData, Eq, Ord)
 
 
-{- | We use this to name dependencies.
-In addition to normal names we have a way to refer to module parameters
-and top-level module constraints, which have no explicit names -}
+{- | This is used to make nicer error messages for certain kinds of dependnecies. -}
 data DepName = NamedThing Name
                -- ^ Something with a name
 
@@ -72,11 +70,11 @@ data DepName = NamedThing Name
                -- ^ The module at this path
 
              | ModParamName Range Ident
-               {- ^ Note that the range is important not just for error
-                    reporting but to distinguish module parameters with
-                    the same name (e.g., in nested functors) -}
+               -- ^ A module parameter
+        
              | ConstratintAt Range
-               -- ^ Identified by location in source
+               -- ^ A top-level constraint.  Shouldn't really appear in
+               -- recursive groups as nothing can refer to it.
 
              | ImportAt Range
                -- ^ Identifies an import
