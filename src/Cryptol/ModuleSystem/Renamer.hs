@@ -86,14 +86,14 @@ instance Rename NestedModule where
 
       lnm <- traverse (resolveNameDef NSModule) (mName mo)
       let nm = thing lnm
-      (defs,env) <-
+      (defs,env,scope) <-
         withLoc (srcRange lnm)
           (inSubmodule (nameIdent nm)
             do
               d1 <- renameModuleDef (mDef mo)
               env <- getCurTopDefs
-              pure (d1,env))
-      scope <- getCurScope
+              scope <- getCurScope
+              pure (d1,env,scope))      
       let newMo = mo { mName = lnm, mDef = defs, mInScope = scope }
       addResolvedMod env newMo
       pure (NestedModule newMo)
