@@ -5,7 +5,21 @@
 * Allow comma separate parameters in functor `parameter` blocks
   ([#556](https://github.com/GaloisInc/cryptol/issues/556))
 
+* Nested modules and imports of sub-modules may only be used in the
+  declarations that follow them.  We now add implicit imports for all submodules
+  uniformly (previously we did not add implicit imports for functor
+  instantiations).
+  ([#1992](https://github.com/GaloisInc/cryptol/issues/1992))
+
+* The REPL now contains some debug flags for dumping the results of
+  intermediate Cryptol passes.
+  ([#2000](https://github.com/GaloisInc/cryptol/issues/2000))
+
 ## Bug fixes
+
+* Fix interface constraint scoping.  Interface constraints are kept in
+  the order they were declared, but will be floated as early as possible.
+  ([#1690](https://github.com/GaloisInc/cryptol/issues/1690))
 
 * Fix incorrect module context computation for nested functors.
   ([#1872](https://github.com/GaloisInc/cryptol/issues/1872))
