@@ -64,7 +64,11 @@ instance Diag ModuleWarning where
         | w <- ws
         , r <-
           case w of
-            R.SymbolShadowed _ x xs -> map nameLoc (x:xs)
+            R.SymbolShadowed x xs -> shLoc x : map nameLoc xs
+              where shLoc s =
+                      case s of
+                        R.ImportShadower r -> r
+                        R.DefShadower _ y -> nameLoc y
             R.UnusedName x -> [ nameLoc x ]
             R.PrefixAssocChanged _ _ r _ _ -> [ srcRange r ]
         ]
@@ -143,9 +147,8 @@ instance Diag R.RenamerError where
               [] -> fallbackRange mb
               ls -> ls
         R.MultipleModParams _ rs -> rs
-        R.InvalidFunctorImport _ ->  fallbackRange mb
-        R.UnexpectedNest r _ -> [r]
         R.ModuleKindMismatch r _ _ _ -> [r]
+        R.ImportTooSoon r _ -> [r]
 
 instance Diag T.Error where
   toDiag extra e =
