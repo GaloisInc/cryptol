@@ -1,0 +1,4 @@
+module T1690::Fu where
+  import interface T1690::I
+  import interface T1690::J
+  interface constraint (i <= j) 
