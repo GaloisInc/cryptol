@@ -4,135 +4,26 @@
 {-# LANGUAGE DeriveTraversable #-}
 module Cryptol.ModuleSystem.Binds
   ( BindsNames
-  , TopDef(..)
-  , Mod(..)
   , ModKind(..)
-  , modNested
   , modBuilder
-  , topModuleDefs
-  , topDeclsDefs
   , newModParam
   , newFunctorInst
   , InModule(..)
-  , ifaceToMod
-  , ifaceSigToMod
-  , modToMap
   , defsOf
   , defsOfSig
   ) where
 
-import Data.Map(Map)
-import qualified Data.Map as Map
-import Data.Set(Set)
-import qualified Data.Set as Set
 import Data.Maybe(fromMaybe)
-import Control.Monad(foldM,forM)
+import Control.Monad(forM)
 import qualified MonadLib as M
 
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.Ident(allNamespaces)
 import Cryptol.Parser.Position
 import Cryptol.Parser.Name(isSystemName)
 import Cryptol.Parser.AST
-import Cryptol.ModuleSystem.Exports(exportedDecls,exported)
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Name
-import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.NamingEnv
-import Cryptol.ModuleSystem.Interface
-import Cryptol.TypeCheck.Type(ModParamNames(..))
-
-
-
-data TopDef = TopMod ModName (Mod ())
-            | TopInst ModName (ImpName PName) (ModuleInstanceArgs PName)
-
--- | Things defined by a module
-data Mod a = Mod
-  { modImports   :: [ ImportG (ImpName PName) ]
-  , modKind      :: ModKind
-  , modInstances :: Map Name (ImpName PName, ModuleInstanceArgs PName)
-    -- ^ Modules defined as module instances
-
-  , modMods      :: Map Name (Mod a) -- ^ this includes signatures
-
-  , modDefines   :: NamingEnv
-    {- ^ Things defined by this module.  Note the for normal modules we
-    really just need the public names, however for things within
-    functors we need all defined names, so that we can generate fresh
-    names in instantiations -}
-
-  , modPublic    :: !(Set Name)
-    -- ^ These are the exported names
-
-  , modState     :: a
-    {- ^ Used in the import loop to track the current state of processing.
-         The reason this is here, rather than just having a pair in the
-         other algorithm is because this type is recursive (for nested modules)
-         and it is convenient to keep track for all modules at once -}
-  }
-
-modNested :: Mod a -> Set Name
-modNested m = Set.unions [ Map.keysSet (modInstances m)
-                         , Map.keysSet (modMods m)
-                         ]
-
-instance Functor Mod where
-  fmap f m = m { modState = f (modState m)
-               , modMods  = fmap f <$> modMods m
-               }
-
--- | Generate a map from this module and all modules nested in it.
-modToMap ::
-  ImpName Name -> Mod () ->
-  Map (ImpName Name) (Mod ()) -> Map (ImpName Name) (Mod ())
-modToMap x m mp = Map.insert x m (Map.foldrWithKey add mp (modMods m))
-  where
-  add n = modToMap (ImpNested n)
-
--- | Make a `Mod` from the public declarations in an interface.
--- This is used to handle imports.
-ifaceToMod :: IfaceG name -> Mod ()
-ifaceToMod iface = ifaceNamesToMod iface (ifaceIsFunctor iface) (ifNames iface)
-
-ifaceNamesToMod :: IfaceG topname -> Bool -> IfaceNames name -> Mod ()
-ifaceNamesToMod iface params names =
-  Mod
-    { modKind    = if params then AFunctor else AModule
-    , modMods    = (ifaceNamesToMod iface False <$> ifModules decls)
-                   `Map.union`
-                   (ifaceToMod <$> ifFunctors decls)
-                   `Map.union`
-                   (ifaceSigToMod <$> ifSignatures decls)
-    , modDefines = namingEnvFromNames defs
-    , modPublic  = ifsPublic names
-
-    , modImports   = []
-    , modInstances = mempty
-    , modState     = ()
-    }
-  where
-  defs      = ifsDefines names
-  isLocal x = x `Set.member` defs
-  decls     = filterIfaceDecls isLocal (ifDefines iface)
-
-
-ifaceSigToMod :: ModParamNames -> Mod ()
-ifaceSigToMod ps = Mod
-  { modImports   = []
-  , modKind      = ASignature
-  , modInstances = mempty
-  , modMods      = mempty
-  , modDefines   = env
-  , modPublic    = namingEnvNames env
-  , modState     = ()
-  }
-  where
-  env = modParamNamesNamingEnv ps
-
-
-
-
 
 
 type ModBuilder = SupplyT (M.StateT [RenamerError] M.Id)
@@ -140,101 +31,6 @@ type ModBuilder = SupplyT (M.StateT [RenamerError] M.Id)
 modBuilder :: ModBuilder a -> Supply -> ((a, [RenamerError]),Supply)
 modBuilder m s = ((a,errs),s1)
   where ((a,s1),errs) = M.runId (M.runStateT [] (runSupplyT s m))
-
-defErr :: RenamerError -> ModBuilder ()
-defErr a = M.lift (M.sets_ (a:))
-
-defNames :: BuildNamingEnv -> ModBuilder NamingEnv
-defNames b = liftSupply \s -> M.runId (runSupplyT s (runBuild b))
-
-
-topModuleDefs :: Module PName -> ModBuilder TopDef
-topModuleDefs m =
-  case mDef m of
-    NormalModule ds -> TopMod mname <$> declsToMod (Just (TopModule mname)) ds
-    FunctorInstance f as _ -> pure (TopInst mname (thing f) as)
-    InterfaceModule s -> TopMod mname <$> sigToMod (TopModule mname) s
-  where
-  mname = thing (mName m)
-
-topDeclsDefs :: ModPath -> [TopDecl PName] -> ModBuilder (Mod ())
-topDeclsDefs = declsToMod . Just
-
-sigToMod :: ModPath -> Signature PName -> ModBuilder (Mod ())
-sigToMod mp sig =
-  do env <- defNames (signatureDefs mp sig)
-     pure Mod { modImports   = map thing (sigImports sig)
-              , modKind      = ASignature
-              , modInstances = mempty
-              , modMods      = mempty
-              , modDefines   = env
-              , modPublic    = namingEnvNames env
-              , modState     = ()
-              }
-
-
-
-declsToMod :: Maybe ModPath -> [TopDecl PName] -> ModBuilder (Mod ())
-declsToMod mbPath ds =
-  do defs <- defNames (foldMap (namingEnv . InModule mbPath) ds)
-     let expSpec = exportedDecls ds
-     let pub     = Set.fromList
-                     [ name
-                     | ns    <- allNamespaces
-                     , pname <- Set.toList (exported ns expSpec)
-                     , name  <- lookupListNS ns pname defs
-                     ]
-
-     case findAmbig defs of
-       bad@(_ : _) : _ ->
-         -- defErr (MultipleDefinitions mbPath (nameIdent f) (map nameLoc bad))
-         defErr (OverlappingSyms bad)
-       _ -> pure ()
-
-     let mo = Mod { modImports      = [ thing i | DImport i <- ds ]
-                  , modKind         = if any isParamDecl ds
-                                         then AFunctor else AModule
-                  , modInstances    = mempty
-                  , modMods         = mempty
-                  , modDefines      = defs
-                  , modPublic       = pub
-                  , modState        = ()
-                  }
-
-     foldM (checkNest defs) mo ds
-
-  where
-  checkNest defs mo d =
-    case d of
-      DModule tl ->
-        do let NestedModule nmod = tlValue tl
-               pname = thing (mName nmod)
-               name  = case lookupNS NSModule pname defs of
-                         Just xs -> anyOne xs
-                         _ -> panic "declsToMod" ["undefined name", show pname]
-           case mbPath of
-             Nothing ->
-               do defErr (UnexpectedNest (srcRange (mName nmod)) pname)
-                  pure mo
-             Just path ->
-                case mDef nmod of
-
-                   NormalModule xs ->
-                     do m <- declsToMod (Just (Nested path (nameIdent name))) xs
-                        pure mo { modMods = Map.insert name m (modMods mo) }
-
-                   FunctorInstance f args _ ->
-                      pure mo { modInstances = Map.insert name (thing f, args)
-                                                    (modInstances mo) }
-
-                   InterfaceModule sig ->
-                      do m <- sigToMod (Nested path (nameIdent name)) sig
-                         pure mo { modMods = Map.insert name m (modMods mo) }
-
-
-      _ -> pure mo
-
-
 
 -- | These are the names "owned" by the signature.  These names are
 -- used when resolving the signature.  They are also used to figure out what

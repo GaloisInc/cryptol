@@ -154,13 +154,8 @@ library
                        Cryptol.ModuleSystem.Binds
                        Cryptol.ModuleSystem.Exports,
                        Cryptol.ModuleSystem.Renamer,
-                       Cryptol.ModuleSystem.Renamer.Imports,
-                       Cryptol.ModuleSystem.Renamer.ImplicitImports,
                        Cryptol.ModuleSystem.Renamer.Monad,
                        Cryptol.ModuleSystem.Renamer.Error,
-                      
-                       Cryptol.ModuleSystem.Renamer2
-                       Cryptol.ModuleSystem.Renamer2.Monad
 
                        Cryptol.TypeCheck,
                        Cryptol.TypeCheck.Type,

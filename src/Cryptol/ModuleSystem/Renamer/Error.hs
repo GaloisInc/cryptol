@@ -56,9 +56,6 @@ data RenamerError
   | MultipleModParams Ident [Range]
     -- ^ Module parameters with the same name
 
-  | UnexpectedNest Range PName
-    -- ^ Nested modules were not supposed to appear here
-
   | ModuleKindMismatch Range (ImpName Name) ModKind ModKind
     -- ^ Expected one kind (first one) but found the other (second one)
 
@@ -185,10 +182,6 @@ instance PP RenamerError where
     MultipleModParams x rs ->
       hang ("[error] Multiple parameters with name" <+> backticks (pp x))
          4 (vcat [ "•" <+> pp r | r <- rs ])
-
-    UnexpectedNest s x ->
-      hang ("[error] at" <+> pp s)
-        4 ("submodule" <+> backticks (pp x) <+> "may not be defined here.")
 
     ModuleKindMismatch r x expected actual ->
       hang ("[error] at" <+> pp r)

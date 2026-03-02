@@ -67,7 +67,7 @@ import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
 import           Cryptol.Eval.FFI
 import qualified Cryptol.ModuleSystem.NamingEnv as R
-import qualified Cryptol.ModuleSystem.Renamer2 as R
+import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.Parser               as P
 import qualified Cryptol.Parser.Unlit         as P
 import Cryptol.Parser.AST as P
@@ -623,7 +623,7 @@ checkDecls ds = do
       names  = mctxNames  fe
 
   (declsEnv,rds) <- rename interactiveName names
-                  $ R.renameTopDecls interactiveName ds
+                  $ R.renameTopDecls ds
   prims <- getPrimMap
   let act  = TCAction { tcAction = T.tcDecls, tcLinter = declsLinter
                       , tcPrims = prims }

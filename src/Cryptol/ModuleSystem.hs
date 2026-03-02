@@ -49,7 +49,7 @@ import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Monad
 import           Cryptol.ModuleSystem.Name (Name,PrimMap,nameTopModule)
-import qualified Cryptol.ModuleSystem.Renamer2 as R
+import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.Parser.AST        as P
 import           Cryptol.Parser.Name (PName)
@@ -136,13 +136,13 @@ noPat a env = runModuleM env (interactive (Base.noPat a))
 -- binding is used to keep track of dependencies.
 renameVar :: R.NamingEnv -> PName -> ModuleCmd Name
 renameVar names n env = runModuleM env $ interactive $
-  Base.rename M.interactiveName names (R.renameVar R.NameUse n)
+  Base.rename M.interactiveName names (R.resolveNameUse M.NSValue n)
 
 -- | Rename a *use* of a type name. The distinction between uses and
 -- binding is used to keep track of dependencies.
 renameType :: R.NamingEnv -> PName -> ModuleCmd Name
 renameType names n env = runModuleM env $ interactive $
-  Base.rename M.interactiveName names (R.renameType R.NameUse n)
+  Base.rename M.interactiveName names (R.resolveNameUse M.NSType n)
 
 --------------------------------------------------------------------------------
 -- Dependencies
