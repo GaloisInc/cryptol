@@ -34,7 +34,8 @@ jobs:
         uses: docker://pandoc/latex:latest
         with:
           args: >-
-            sh -c
+            --entrypoint /bin/sh
+            -c
             "
             apk add make;
             tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo;
