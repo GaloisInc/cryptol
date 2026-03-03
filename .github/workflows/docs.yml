@@ -31,7 +31,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork == false &&
             github.repository_owner == 'GaloisInc' &&
             github.actor != 'dependabot[bot]'
-        uses: docker://pandoc/latex:2.9.2
+        uses: docker://pandoc/latex:latest
         with:
           args: >-
             sh -c
