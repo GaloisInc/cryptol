@@ -44,6 +44,7 @@ module Cryptol.ModuleSystem.Renamer.Monad
   , located
   , withLoc
   , reportUnboundName
+  , noWarningsFor
 
     -- * Dependency tracking
   , recordNameUses
@@ -110,6 +111,7 @@ runRenamer info (R m) = (res, reverse (renWarnings rwFin))
       outDefs = renEnv info,
       curModPath = renContext info,
       curLoc = emptyRange,
+      don'tWarn = mempty,
       loadedIfaces =
         let hasIf x =
               case x of
@@ -172,9 +174,12 @@ data RO = RO {
   -- for resolving names, and it includes definitions and imports in the
   -- outer scope of a module appropriately shadowed.
 
-  outDefs :: NamingEnv
+  outDefs :: NamingEnv,
   -- ^ Things defined in outer scopes.  This is not used for resolving names,
   -- but to report shadowing warnings.
+
+  don'tWarn :: Set Name
+  -- ^ Don't emit warnings for these names
 }
 
 data RW = RW {
@@ -532,6 +537,10 @@ inSubmodule x (R m) = R
 recordError :: RenamerError -> RenameM ()
 recordError e = R (sets_ \rw -> rw { renErrors = e : renErrors rw })
 
+noWarningsFor :: Set Name -> RenameM a -> RenameM a
+noWarningsFor xs (R m) = R (mapReader upd m)
+  where upd ro = ro { don'tWarn = Set.union xs (don'tWarn ro) }
+
 addWarning :: RenamerWarning -> RenameM ()
 addWarning e = R (sets_ \rw -> rw { renWarnings = e : renWarnings rw })
 
@@ -540,7 +549,10 @@ reportUnused n
   | nameSrc n == UserName =
     case Text.uncons (identText (nameIdent n)) of
       Just ('_',_) -> pure ()
-      _ -> addWarning (UnusedName n)
+      _ ->
+        do
+          ws <- R (don'tWarn <$> ask)
+          unless (n `Set.member` ws) (addWarning (UnusedName n))
   | otherwise = pure ()
 
 reportShadowed :: (PName, Name, [Name]) -> RenameM ()

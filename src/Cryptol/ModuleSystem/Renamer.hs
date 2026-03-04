@@ -1024,7 +1024,15 @@ instance Rename BindDef where
 
 instance Rename BindImpl where
   rename (DExpr e) = DExpr <$> rename e
-  rename (DPropGuards {}) = panic "Rename BindImpl" ["DPropGuards"]
+  rename (DPropGuards gs) = DPropGuards <$> mapM rename gs
+
+instance Rename PropGuardCase where
+  rename pg =
+    do
+      props <- mapM (rnLocated rename) (pgcProps pg)
+      rhs   <- rename (pgcExpr pg)
+      pure PropGuardCase { pgcProps = props, pgcExpr = rhs }
+
 
 instance Rename Expr where
   rename expr =
@@ -1088,7 +1096,11 @@ instance Rename Expr where
       EFun desc ps e' ->
         do
           desc' <- rename desc
-          renamePats ps \newPs -> EFun desc' newPs <$> rename e'
+          -- We disable warnings for arguments of this came from a
+          -- a system name.  This is to avoid spurious warnings arising
+          -- from the additional definitions we get from prop guard desugaring.
+          let checkUsed = not (funDescrFromPropGuard desc')
+          renamePats checkUsed ps \newPs -> EFun desc' newPs <$> rename e'
 
       ELocated e' r   -> withLoc r (ELocated <$> rename e' <*> pure r)
 
@@ -1102,14 +1114,14 @@ instance Rename Expr where
       EPrefix op e    -> EPrefix op <$> rename e
 
 instance Rename FunDesc where
-  rename (FunDesc nm offset) =
+  rename (FunDesc nm offset fromP) =
     do
       env <- getLastBindDefs
       nm' <- forM nm \x ->
         case lookupNS NSValue x env of
           Just a -> pure (anyOne a)
           Nothing -> panic "Rename FunDesc" ["Missing"]
-      pure (FunDesc nm' offset)
+      pure (FunDesc nm' offset fromP)
 
 
 --------------------------------------------------------------------------------
@@ -1220,7 +1232,7 @@ renameBindParams :: BindParams PName -> (BindParams Name -> RenameM a) -> Rename
 renameBindParams bps k =
   case bps of
     DroppedParams x y -> k (DroppedParams x y)
-    PatternParams ps  -> renamePats ps \ps' -> k (PatternParams ps')
+    PatternParams ps  -> renamePats True ps \ps' -> k (PatternParams ps')
 
 instance Rename CaseAlt where
   rename (CaseAlt p e) =
@@ -1230,15 +1242,12 @@ instance Rename CaseAlt where
 
 -- | Rename a group of patterns from the same place and add their names
 -- to the local environment.
-renamePats :: [Pattern PName] -> ([Pattern Name] -> RenameM a) -> RenameM a
-renamePats ps k =
+renamePats :: Bool -> [Pattern PName] -> ([Pattern Name] -> RenameM a) -> RenameM a
+renamePats checkUsed ps k =
   do
     env <- doDefGroup (defsOf ps)
-    inLocalBindScope True env
-      do
-        ps' <- mapM rename ps
-        k ps'
-
+    inLocalBindScope checkUsed env (k =<< mapM rename ps)
+  
 instance Rename Pattern where
   rename pat =
     case pat of

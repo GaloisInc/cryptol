@@ -707,11 +707,13 @@ data FunDesc n =
   { funDescrName      :: Maybe n   -- ^ Name of this function, if it has one
   , funDescrArgOffset :: Int -- ^ number of previous arguments to this function
                              --   bound in surrounding lambdas (defaults to 0)
+  , funDescrFromPropGuard  :: Bool
+    -- ^ This came from a prop guard alternative.  Used in Renamer
   }
  deriving (Eq, Show, Generic, NFData, Functor)
 
 emptyFunDesc :: FunDesc n
-emptyFunDesc = FunDesc Nothing 0
+emptyFunDesc = FunDesc Nothing 0 False
 
 data UpdField n = UpdField UpdHow [Located Selector] (Expr n)
                                                 -- ^ non-empty list @ x.y = e@
