@@ -272,8 +272,8 @@ instance Rename SigDecl where
 --------------------------------------------------------------------------------
 
 {- | Entry point. Rename a list of top-level declarations.
-This is used for declaration that don't live in a module
-(e.g., define on the command line.
+This is used for declarations that don't live in a module
+(e.g., defined on the command line).
 
 NOTE: We used to check that the top-decls are not nested modules, but I can't
 see anything that goes wrong if we allow modules, so I lifted the restriction
