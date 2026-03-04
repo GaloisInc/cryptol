@@ -307,7 +307,7 @@ renameModTopDecls decls =
       _ -> Right d
 
 
--- | Rename declarations and order the in dependency order.  Also, we preserve
+-- | Rename declarations and order them in dependency order.  Also, we preserve
 -- the order of interface constraints as it they were written in the file,
 -- but we move them as early as possible (i.e., immediately after all of
 -- their dependencies.
