@@ -31,16 +31,8 @@ jobs:
         if: github.event.pull_request.head.repo.fork == false &&
             github.repository_owner == 'GaloisInc' &&
             github.actor != 'dependabot[bot]'
-        uses: docker://pandoc/latex:2.9.2
-        with:
-          args: >-
-            sh -c
-            "
-            apk add make;
-            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo;
-            cd docs;
-            make
-            "
+        shell: bash
+        run: nix shell nixpkgs#pandoc nixpkgs#texlive.combined.scheme-full nixpkgs#gnumake -c make -C docs
       - name: build HTML docs
         # This builds the docs for the current checked-out branch to verify they
         # are buildable.
