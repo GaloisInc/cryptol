@@ -1153,15 +1153,15 @@ userOptions  = mkOptionMap $
 
 debugDumpOpts :: [OptionDescr]
 debugDumpOpts =
-  opt "dbg-dump-prelude"
+  opt "debugDumpPrelude"
     "Indicates if we should `dbg-dump-` for `Cryptol.cry`"
     (\b o -> o { M.dbgIncludePrelude = b })
   :
-  [ opt ("dbg-dump-" ++ nm)
-    "Dump AST after this pass"
+  [ opt ("debugDump_" ++ show n ++ "_" ++ nm)
+    (passHelp pass)
     (\b o -> o { M.dbgDumpAfter = upd b pass (M.dbgDumpAfter o) })
-  | pass <- [ minBound .. maxBound ]
-  , let nm = map toLower (drop 4 (show pass))
+  | (n,pass) <- [1 :: Int ..] `zip` [ minBound .. maxBound ]
+  , let nm = drop 4 (show pass)
   ]
   where
   opt x msg k = OptionDescr x [] (EnvBool False) noCheck msg $
@@ -1173,6 +1173,14 @@ debugDumpOpts =
     do 
       me <- getModuleEnv
       setModuleEnv me { M.meDebugOpts = f (M.meDebugOpts me) }
+  passHelp p =
+    case p of
+      M.PassParser -> "The AST produced by the parser"
+      M.PassNoPat  -> "The AST after some desugaring (e.g., eliminate patterns)"
+      M.PassPropGuards -> "AST with simplified prop. guards"
+      M.PassRename -> "The AST with resolve names"
+      M.PassTC -> "Typechecked AST (this is different to the parsed one)"
+      M.PassREW -> "Typechecked AST with some simplifying rewrites"
 
 
 parsePPFloatFormat :: String -> Maybe PPFloatFormat
