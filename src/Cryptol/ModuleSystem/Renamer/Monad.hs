@@ -157,7 +157,7 @@ data RO = RO {
   -- resolving a binding.  We need this, because during `NoPat`, we desugar
   -- bindings with arguments, into lambdas, but those lambdas are annotated
   -- with the name of the function that gave rice to them.  We use this
-  -- environment to avoid resolve this name, thus avoiding confusion with
+  -- environment to avoid resolving this name, thus avoiding confusion with
   -- the parameters of the function.
 
   localBindEnv :: NamingEnv,
