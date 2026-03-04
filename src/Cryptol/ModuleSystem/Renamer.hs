@@ -170,7 +170,7 @@ instance Rename ModuleInstanceArgs where
   rename args =
     case args of
       DefaultInstAnonArg {} ->
-        panic "checkFunctorArgs" ["Nested DefaultInstAnonArg"]
+        panic "Rename ModuleInstanceArgs" ["Nested DefaultInstAnonArg"]
       DefaultInstArg l -> DefaultInstArg <$> rnLocated rename l
       NamedInstArgs as -> NamedInstArgs  <$> mapM rename as
 
