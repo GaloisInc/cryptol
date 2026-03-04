@@ -127,7 +127,7 @@ instance PPName PName where
       in if ppcfgShowNameUniques cfg then base <.> text sys else base)
     where
     sys = case n of
-            UnQual' _ SystemName -> "__$sys"
+            UnQual' _ SystemName -> "/*sys*/"
             _ -> ""
     i   = getIdent n
     pfx = case getModName n of

@@ -1221,7 +1221,13 @@ instance (Show name, PPName name) => PP (BindDef name) where
 
 instance (Show name, PPName name) => PP (BindImpl name) where
   ppPrec p (DExpr e) = ppPrec p e
-  ppPrec _p (DPropGuards _guards) = text "propguards"
+  ppPrec _p (DPropGuards guards) =
+    text "propguards" $$ indent 2 (vcat (map pp guards))
+      
+instance (Show name, PPName name) => PP (PropGuardCase name) where
+  ppPrec _ pg =
+    parens (commaSep (map (pp . thing) (pgcProps pg))) <+>
+      "=>" <+> pp (pgcExpr pg)
 
 
 instance PPName name => PP (TySyn name) where

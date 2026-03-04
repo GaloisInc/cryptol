@@ -446,7 +446,7 @@ instance PP Ident where
       let base = text (T.unpack (identText i))
       in
         if ppcfgShowNameUniques cfg && not (identIsNormal i)
-          then base <.> "__!"
+          then base <.> "/*sys*/"
           else base)
       
 
