@@ -156,7 +156,7 @@ data RO = RO {
   -- It is basically the value of `getCurBinds` at the point we start
   -- resolving a binding.  We need this, because during `NoPat`, we desugar
   -- bindings with arguments, into lambdas, but those lambdas are annotated
-  -- with the name of the function that gave rice to them.  We use this
+  -- with the name of the function that gave rise to them.  We use this
   -- environment to avoid resolving this name, thus avoiding confusion with
   -- the parameters of the function.
 
