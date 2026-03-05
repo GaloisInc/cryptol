@@ -1,3 +1,5 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module EnigmaBroke
+[warning] at issue225.cry:19:34--19:40
+    Unused name: rotor'

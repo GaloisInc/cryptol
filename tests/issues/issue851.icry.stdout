@@ -1,6 +1,12 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
+[warning] at issue851.cry:10:9--10:10
+    Unused name: m
+[warning] at issue851.cry:10:7--10:8
+    Unused name: q
+[warning] at issue851.cry:13:5--13:6
+    Unused name: p
 Using exhaustive testing.
 Testing... Counterexample
 problem 0x01 = False

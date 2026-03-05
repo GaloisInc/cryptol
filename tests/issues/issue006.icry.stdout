@@ -2,6 +2,8 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 0x00000008
+[warning] at issue006.icry:3:7--3:8
+    Unused name: x
 0x00000008
 0x00000000
 0x00000078

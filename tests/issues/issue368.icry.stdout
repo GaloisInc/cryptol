@@ -1,3 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
+[warning] at issue368.cry:2:9--2:10
+    Unused name: b
+[warning] at issue368.cry:2:7--2:8
+    Unused name: a

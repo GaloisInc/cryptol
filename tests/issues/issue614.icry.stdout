@@ -1,6 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
+[warning] at issue614.cry:2:3--2:4
+    Unused name: x
 
 [error] at issue614.cry:1:18--1:20 and issue614.cry:1:31--1:33
     The fixities of

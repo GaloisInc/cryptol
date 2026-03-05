@@ -1,27 +1,45 @@
 Loading module Cryptol
 [warning] at issue567.icry:1:7--1:8
+    Unused name: x
+[warning] at issue567.icry:1:7--1:8
     This binding for `x` shadows the existing binding at
     issue567.icry:1:5--1:6
-(\x x -> x : [8]) : {a} a -> [8] -> [8]
+(\x x -> x : [8]) : {a} [8] -> a -> [8]
+[warning] at issue567.icry:2:11--2:12
+    Unused name: x
 [warning] at issue567.icry:2:11--2:12
     This binding for `x` shadows the existing binding at
     issue567.icry:2:5--2:6
-(\x -> \x -> x : [8]) : {a} a -> [8] -> [8]
+(\x -> \x -> x : [8]) : {a} [8] -> a -> [8]
+[warning] at issue567.icry:3:12--3:13
+    Unused name: x
 [warning] at issue567.icry:3:12--3:13
     This binding for `x` shadows the existing binding at
     issue567.icry:3:6--3:7
-(\(x, y) x -> x) : {a, b, c} (a, b) -> c -> c
+[warning] at issue567.icry:3:9--3:10
+    Unused name: y
+(\(x, y) x -> x) : {a, b, c} (a, b) -> c -> a
 [warning] at issue567.icry:4:13--4:14
     This binding for `x` shadows the existing binding at
     issue567.icry:4:6--4:7
 [warning] at issue567.icry:4:16--4:17
     This binding for `y` shadows the existing binding at
     issue567.icry:4:9--4:10
+[warning] at issue567.icry:4:16--4:17
+    Unused name: y
+[warning] at issue567.icry:4:9--4:10
+    Unused name: y
+[warning] at issue567.icry:4:6--4:7
+    Unused name: x
 (\(x, y) (x, y) -> x) : {a, b, c, d} (a, b) -> (c, d) -> c
 [warning] at issue567.icry:5:8--5:9
     This binding for `x` shadows the existing binding at
     issue567.icry:5:5--5:6
 [warning] at issue567.icry:5:11--5:12
+    Unused name: x
+[warning] at issue567.icry:5:11--5:12
     This binding for `x` shadows the existing binding at
     issue567.icry:5:8--5:9
-(\x [x] x -> x) : {a, b, c} a -> [1]b -> c -> c
+[warning] at issue567.icry:5:5--5:6
+    Unused name: x
+(\x [x] x -> x) : {a, b, c} a -> [1]b -> c -> b

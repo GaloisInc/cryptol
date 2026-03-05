@@ -1,3 +1,5 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
+[warning] at issue126.cry:4:3--4:4
+    Unused name: x

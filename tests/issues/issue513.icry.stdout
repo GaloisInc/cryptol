@@ -1,6 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
+[warning] at issue513.cry:2:24--2:25
+    Unused name: i
 [warning] at issue513.cry:1:8--1:15:
   Assuming  a to have a numeric type
 module Main
