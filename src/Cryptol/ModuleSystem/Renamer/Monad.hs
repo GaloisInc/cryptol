@@ -384,7 +384,7 @@ getCurBinds = R
   do
     ro <- ask
     rw <- get
-    pure (localBindEnv ro <> defEnv rw)
+    pure (localBindEnv ro `shadowing` defEnv rw)
 
 
 -- | Compute the current scope, including local definitions, outer environment
