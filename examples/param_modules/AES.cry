@@ -1,5 +1,12 @@
 module AES where
 
+parameter
+  /** 0: AES128, 1: AES192, 2: AES256 */
+  type m : #
+  type k : #
+  type constraint (k == 128 + m * 64, 2 >= m)
+
+
 import AES::Algorithm as AES where
   type Mode = m
   encRound = AESRound
@@ -11,11 +18,6 @@ import AES::ExpandKey where
 
 import AES::TBox
 
-parameter
-  /** 0: AES128, 1: AES192, 2: AES256 */
-  type m : #
-  type k : #
-  type constraint (k == 128 + m * 64, 2 >= m)
 
 type EncKey = AES::KeySchedule
 type DecKey = AES::KeySchedule

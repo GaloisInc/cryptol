@@ -10,10 +10,6 @@ https://tools.ietf.org/html/draft-irtf-cfrg-gcmsiv-06
 
 module Common::AES_GCM_SIV where
 
-import AES as AES where
-  type m = (2 * Mode)
-  type k = K
-
 parameter
   /** 0: use AES128, 1: use AES256 */
   type Mode : #
@@ -21,6 +17,11 @@ parameter
 
   type AAD : #
   type constraint ( (36 + 8) >= width AAD )
+
+
+import AES as AES where
+  type m = (2 * Mode)
+  type k = K
 
 
 type K  = 128 + 128 * Mode
