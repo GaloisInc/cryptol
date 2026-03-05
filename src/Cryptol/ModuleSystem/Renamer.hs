@@ -35,7 +35,7 @@ import Cryptol.Parser.AST
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Interface
-import Cryptol.ModuleSystem.Binds(defsOf, defsOfSig, InModule(..), newFunctorInst, newModParam, BindsNames)
+import Cryptol.ModuleSystem.Binds(defsOf, defsOfSig, defsOfPats, InModule(..), newFunctorInst, newModParam, BindsNames)
 import Cryptol.ModuleSystem.Names
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Renamer.Monad
@@ -1210,7 +1210,8 @@ renameMatch ma k =
     Match p e ->
       do
         e' <- rename e
-        env <- liftSupply (defsOf p)
+        bound <- getCurUnqualTypes
+        env <- liftSupply (defsOfPats bound [p])
         inLocalBindScope False env
           do p' <- rename p
              k env (Match p' e')
@@ -1237,7 +1238,8 @@ renameBindParams bps k =
 instance Rename CaseAlt where
   rename (CaseAlt p e) =
     do
-      env <- liftSupply (defsOf p)
+      bound <- getCurUnqualTypes
+      env <- liftSupply (defsOfPats bound [p])
       inLocalBindScope True env (CaseAlt <$> rename p <*> rename e)
 
 -- | Rename a group of patterns from the same place and add their names
@@ -1245,7 +1247,8 @@ instance Rename CaseAlt where
 renamePats :: Bool -> [Pattern PName] -> ([Pattern Name] -> RenameM a) -> RenameM a
 renamePats checkUsed ps k =
   do
-    env <- doDefGroup (defsOf ps)
+    bound <- getCurUnqualTypes
+    env <- doDefGroup (defsOfPats bound ps)
     inLocalBindScope checkUsed env (k =<< mapM rename ps)
   
 instance Rename Pattern where

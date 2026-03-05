@@ -20,6 +20,7 @@ module Cryptol.ModuleSystem.Renamer.Monad
   , getCurTopDefs
   , getCurBinds
   , getCurScope
+  , getCurUnqualTypes
   , setThisModuleDefs
   , addModParams
   , addImported
@@ -401,6 +402,12 @@ getCurScope = R
       modParamEnv rw `shadowing`
       impEnv    rw `shadowing`
       outEnv    ro
+
+getCurUnqualTypes :: RenameM (Set Ident)
+getCurUnqualTypes =
+  do
+    scope <- getCurScope
+    pure (Set.fromList [ i | UnQual i <- Map.keys (namespaceMap NSType scope) ])
 
 -- | Set the definition for the current module.
 setThisModuleDefs :: NamingEnv -> RenameM ()

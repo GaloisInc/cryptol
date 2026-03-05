@@ -2,6 +2,7 @@
 {-# Language RecordWildCards #-}
 {-# Language FlexibleInstances #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE PatternSynonyms #-}
 module Cryptol.ModuleSystem.Binds
   ( BindsNames
   , ModKind(..)
@@ -11,15 +12,19 @@ module Cryptol.ModuleSystem.Binds
   , InModule(..)
   , defsOf
   , defsOfSig
+  , defsOfPats
   ) where
 
+import Data.Set(Set)
+import qualified Data.Set as Set
 import Data.Maybe(fromMaybe)
 import Control.Monad(forM)
 import qualified MonadLib as M
 
 import Cryptol.Utils.Panic (panic)
+import Cryptol.Utils.RecordMap(displayElements)
 import Cryptol.Parser.Position
-import Cryptol.Parser.Name(isSystemName)
+import Cryptol.Parser.Name(isSystemName, pattern UnQual)
 import Cryptol.Parser.AST
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Name
@@ -231,17 +236,75 @@ instance BindsNames (InModule (SigDecl PName)) where
       SigTySyn ts _    -> namingEnv (InModule m (DType ts))
       SigPropSyn ps _  -> namingEnv (InModule m (DProp ps))
 
-instance BindsNames (Pattern PName) where
-  namingEnv pat =
-    case pat of
-      PVar x -> BuildNamingEnv (
-        do y <- newLocal NSValue (thing x) (srcRange x)
-           pure (singletonNS NSValue (thing x) y)
-        )
-      PCon _ xs     -> mconcat (map namingEnv xs)
-      PLocated p _r -> namingEnv p
-      PTyped p _t   -> namingEnv p
-      _ -> panic "namingEnv" ["Unexpected pattern"]
+
+type PatsM = M.StateT (Set Ident) (SupplyT M.Id)
+
+-- | We have a special case for this, because of the existential types
+-- that we might encounter in the types of patterns.   In particular, if
+-- we see `p : T` and `T` mentions a name `a` which is not otherwise defined,
+-- we treat it as a new existential variable, and it is now considered defined
+-- (i.e., other references to `a` should use the same name).
+defsOfPats ::
+  Set Ident {- ^ Unqalified type level names that are in scope -} ->
+  [Pattern PName] {- ^ We want to know what names are introduced by these -} ->
+  Supply -> (NamingEnv,Supply)
+defsOfPats bound ps s =
+  M.runId (runSupplyT s (fst <$> M.runStateT bound (defsOfPats' ps)))
+
+defsOfPats' :: [Pattern PName] -> PatsM NamingEnv
+defsOfPats' ps =
+  case ps of
+    []        -> pure mempty
+    p : more  -> (<>) <$> defsOfPat p <*> defsOfPats' more
+
+defsOfPat :: Pattern PName -> PatsM NamingEnv
+defsOfPat pat =
+  case pat of
+
+    PVar x ->
+      do
+        y <- newLocal NSValue (thing x) (srcRange x)
+        pure (singletonNS NSValue (thing x) y) 
+
+    PCon _ xs     -> defsOfPats' xs
+    PLocated p _r -> defsOfPat p
+    PTyped p t    -> (<>) <$> defsOfTy t <*> defsOfPat p
+    _             -> panic "namingEnv" ["Unexpected pattern"]
+
+-- | Look for "naming" type variables in the type.
+defsOfTy :: Type PName -> PatsM NamingEnv
+defsOfTy ty =
+  case ty of
+    TFun a b -> defsOfTys [a,b]
+    TSeq n t -> defsOfTys [n,t]
+    TBit     -> pure mempty
+    TNum {}  -> pure mempty
+    TChar {} -> pure mempty
+
+    TUser Located { thing = nm@(UnQual i), srcRange = rng  } [] ->
+      do
+        bound <- M.get
+        if i `Set.member` bound
+          then pure mempty
+          else
+            do
+              y <- newLocal NSType nm rng
+              M.sets (\b -> (singletonNS NSType nm y, Set.insert i b))
+
+    TUser _ ts        -> defsOfTys ts
+    TTyApp {}         -> panic "defsOfTy" ["TTyApp"]
+    TRecord r         -> defsOfTys (map snd (displayElements r))
+    TTuple ts         -> defsOfTys ts
+    TWild             -> pure mempty
+    TLocated t _      -> defsOfTy t
+    TParens t _       -> defsOfTy t
+    TInfix t1 _ _ t2  -> defsOfTys [t1,t2]
+    
+defsOfTys :: [Type PName] -> PatsM NamingEnv
+defsOfTys tys =
+  case tys of
+    t : more  -> (<>) <$> defsOfTy t <*> defsOfTys more
+    []        -> pure mempty
 
 
 
