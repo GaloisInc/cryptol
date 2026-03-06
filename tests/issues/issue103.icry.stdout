@@ -4,6 +4,8 @@ Run-time error: undefined
 -- Backtrace --
 Cryptol::error called at Cryptol:1062:13--1062:18
 Cryptol::undefined called at issue103.icry:1:9--1:18
+[warning] at issue103.icry:2:7--2:8
+    Unused name: x
 Using exhaustive testing.
 Testing... ERROR for the following inputs:
 (f : () -> Bit) () ~> ERROR

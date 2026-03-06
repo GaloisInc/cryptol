@@ -34,6 +34,9 @@ data RenamerError
   | UnboundName Namespace (Located PName)
     -- ^ Some name not bound to any definition
 
+  | ImportTooSoon Range Ident
+    -- ^ Import is before the definition of a module.
+
   | OverlappingSyms [Name]
     -- ^ An environment has produced multiple overlapping symbols
 
@@ -53,21 +56,13 @@ data RenamerError
   | MultipleModParams Ident [Range]
     -- ^ Module parameters with the same name
 
-  | InvalidFunctorImport (ImpName Name)
-    -- ^ Can't import functors directly
-
-  | UnexpectedNest Range PName
-    -- ^ Nested modules were not supposed to appear here
-
   | ModuleKindMismatch Range (ImpName Name) ModKind ModKind
-    -- ^ Exepcted one kind (first one) but found the other (second one)
+    -- ^ Expected one kind (first one) but found the other (second one)
 
     deriving (Show, Generic, NFData, Eq, Ord)
 
 
-{- | We use this to name dependencies.
-In addition to normal names we have a way to refer to module parameters
-and top-level module constraints, which have no explicit names -}
+{- | This is used to make nicer error messages for certain kinds of dependnecies. -}
 data DepName = NamedThing Name
                -- ^ Something with a name
 
@@ -75,11 +70,14 @@ data DepName = NamedThing Name
                -- ^ The module at this path
 
              | ModParamName Range Ident
-               {- ^ Note that the range is important not just for error
-                    reporting but to distinguish module parameters with
-                    the same name (e.g., in nested functors) -}
+               -- ^ A module parameter
+        
              | ConstratintAt Range
-               -- ^ Identifed by location in source
+               -- ^ A top-level constraint.  Shouldn't really appear in
+               -- recursive groups as nothing can refer to it.
+
+             | ImportAt Range
+               -- ^ Identifies an import
                deriving (Eq,Ord,Show,Generic,NFData)
 
 depNameLoc :: DepName -> Maybe Range
@@ -89,6 +87,7 @@ depNameLoc x =
     ConstratintAt r -> Just r
     ModParamName r _ -> Just r
     ModPath {} -> Nothing
+    ImportAt r -> Just r
 
 
 data ModKind = AFunctor | ASignature | AModule
@@ -120,6 +119,10 @@ instance PP RenamerError where
                     NSType    -> "Type"
                     NSModule  -> "Module"
                     NSConstructor -> "Constructor"
+
+    ImportTooSoon rng x ->
+      hang (text "[error] at" <+> pp rng)
+         4 ("Import of" <+> backticks (pp x) <+> "should come after its definition.")
 
     OverlappingSyms qns ->
       hang (text "[error]")
@@ -178,14 +181,6 @@ instance PP RenamerError where
       hang ("[error] Multiple parameters with name" <+> backticks (pp x))
          4 (vcat [ "•" <+> pp r | r <- rs ])
 
-    InvalidFunctorImport x ->
-      hang ("[error] Invalid import of functor" <+> backticks (pp x))
-        4 "• Functors need to be instantiated before they can be imported."
-
-    UnexpectedNest s x ->
-      hang ("[error] at" <+> pp s)
-        4 ("submodule" <+> backticks (pp x) <+> "may not be defined here.")
-
     ModuleKindMismatch r x expected actual ->
       hang ("[error] at" <+> pp r)
         4 (vcat [ "• Expected" <+> pp expected
@@ -208,16 +203,40 @@ instance PP DepName where
         case modPathSplit mp of
           (m,[]) -> "module" <+> pp m
           (_,is) -> "submodule" <+> hcat (intersperse "::" (map pp is))
+      ImportAt r -> "import at" <+> pp r
 
 
 
 -- Warnings --------------------------------------------------------------------
 
 data RenamerWarning
-  = SymbolShadowed PName Name [Name]
+  = SymbolShadowed Shadower [Name]
   | UnusedName Name
   | PrefixAssocChanged PrefixOp (Expr Name) (Located Name) Fixity (Expr Name)
     deriving (Show, Generic, NFData)
+
+data Shadower = ImportShadower Range | DefShadower PName Name
+  deriving (Show, Generic, NFData)
+
+shadowerLoc :: Shadower -> Range
+shadowerLoc x =
+  case x of
+    ImportShadower a -> a
+    DefShadower _ a -> nameLoc a
+
+shadowerName :: Shadower -> Maybe Name
+shadowerName x =
+  case x of
+    ImportShadower {} -> Nothing
+    DefShadower _ a -> Just a
+
+instance Eq Shadower where
+  x == y = compare x y == EQ
+
+-- used to determine in what order to show things
+instance Ord Shadower where
+  compare x y = compare (cmp x) (cmp y)
+    where cmp z = (from (shadowerLoc z), shadowerName z)
 
 instance Eq RenamerWarning where
   x == y = compare x y == EQ
@@ -226,8 +245,7 @@ instance Eq RenamerWarning where
 instance Ord RenamerWarning where
   compare w1 w2 =
     case (w1, w2) of
-      (SymbolShadowed x y _, SymbolShadowed x' y' _) ->
-        compare (byStart y, x) (byStart y', x')
+      (SymbolShadowed x _, SymbolShadowed x' _) -> compare x x'
       (UnusedName x, UnusedName x') ->
         compare (byStart x) (byStart x')
       (PrefixAssocChanged _ _ op _ _, PrefixAssocChanged _ _ op' _ _) ->
@@ -241,18 +259,22 @@ instance Ord RenamerWarning where
       priority PrefixAssocChanged {} = 2
 
 instance PP RenamerWarning where
-  ppPrec _ (SymbolShadowed k x os) =
+  ppPrec _ (SymbolShadowed sh os) =
     hang (text "[warning] at" <+> loc)
-       4 $ fsep [ "This binding for" <+> backticks (pp k)
-                , "shadows the existing binding" <.> plural
+       4 $ fsep [ who, "shadows the existing binding" <.> plural
                 , text "at" ]
         $$ vcat (map (pp . nameLoc) os)
 
     where
+    who =
+      case sh of
+        ImportShadower _ -> "The import"
+        DefShadower k _ -> "This binding for" <+> backticks (pp k)
+
     plural | length os > 1 = char 's'
            | otherwise     = mempty
 
-    loc = pp (nameLoc x)
+    loc = pp (shadowerLoc sh)
 
   ppPrec _ (UnusedName x) =
     hang (text "[warning] at" <+> pp (nameLoc x))
@@ -263,6 +285,8 @@ instance PP RenamerWarning where
        4 $ fsep [ backticks (pp old)
                 , "is now parsed as"
                 , backticks (pp new) ]
+
+  
 
     where
     old = EInfix (EPrefix prefixOp x) infixOp infixFixity y

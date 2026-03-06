@@ -17,6 +17,10 @@ i : {a} (fin a) => [a] -> [a]
 j : {a} (fin a) => [a]{fld : Integer} -> [a]Integer
 Loading module Cryptol
 Loading module Main
+[warning] at issue962b.cry:29:27--29:30
+    Unused name: a23
+[warning] at issue962b.cry:29:23--29:26
+    Unused name: a22
 
 [error] at issue962b.cry:32:16--32:25:
   Unexpected bare type application.

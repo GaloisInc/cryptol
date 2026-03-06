@@ -1,0 +1,11 @@
+module T19 where
+
+interface submodule I where
+  x: [8]
+
+interface submodule J where
+  y: [8]
+
+submodule F where
+  import interface submodule I as X
+  import interface submodule J as X

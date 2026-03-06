@@ -823,7 +823,7 @@ checkFun ::
   P.FunDesc Name -> [P.Pattern Name] ->
   P.Expr Name -> TypeWithSource -> InferM Expr
 checkFun _    [] e tGoal = checkE e tGoal
-checkFun (P.FunDesc fun offset) ps e tGoal =
+checkFun (P.FunDesc fun offset _) ps e tGoal =
   inNewScope
   do let descs = [ TypeOfArg (ArgDescr fun (Just n)) | n <- [ 1 + offset .. ] ]
      (tys,tRes) <- expectFun fun (length ps) tGoal
@@ -1147,7 +1147,7 @@ checkMonoB b t =
           do let nm = thing (P.bName b)
              let tGoal = WithSource t (DefinitionOf nm) (getLoc b)
              checkBindParams b tGoal
-             e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bindParams b) e tGoal
+             e1 <- checkFun (P.FunDesc (Just nm) 0 False) (P.bindParams b) e tGoal
              let f = thing (P.bName b)
              return Decl { dName = f
                          , dSignature = Forall [] [] t
@@ -1279,7 +1279,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         let nm = thing (P.bName b)
             tGoal = WithSource t0 (DefinitionOf nm) (getLoc b)
         checkBindParams b tGoal
-        e1 <- checkFun (P.FunDesc (Just nm) 0) (P.bindParams b) e0 tGoal
+        e1 <- checkFun (P.FunDesc (Just nm) 0 False) (P.bindParams b) e0 tGoal
         addGoals validSchema
         () <- simplifyAllConstraints  -- XXX: using `asmps` also?
         return e1

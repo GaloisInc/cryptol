@@ -170,7 +170,7 @@ data ModuleG mname name = Module
     -- ^ Names in scope inside this module, filled in by the renamer.
     --   Also, for the 'FunctorInstance' case this is not the final result of
     --   the names in scope. The typechecker adds in the names in scope in the
-    --   functor, so this will just contain the names in the enclosing scope.
+    --   functor, so after renaming, this will contain only the names in the enclosing scope.
   , mDocTop   :: Maybe (Located Text)
   -- ^ only used for top-level modules
   } deriving (Show, Generic, NFData)
@@ -188,7 +188,7 @@ data ModuleDefinition name =
   | InterfaceModule (Signature name)
     deriving (Show, Generic, NFData)
 
-{- | Maps names in the original functor with names in the instnace.
+{- | Maps names in the original functor with names in the instance.
 Does *NOT* include the parameters, just names for the definitions.
 This *DOES* include entries for all the name in the instantiated functor,
 including names in modules nested inside the functor. -}
@@ -291,10 +291,10 @@ data ParamDecl name =
 -- | All arguments in a functor instantiation
 data ModuleInstanceArgs name =
     DefaultInstArg (Located (ModuleInstanceArg name))
-    -- ^ Single parameter instantitaion
+    -- ^ Single parameter instantiations
 
   | DefaultInstAnonArg [TopDecl name]
-    -- ^ Single parameter instantitaion using this anonymous module.
+    -- ^ Single parameter instantiations using this anonymous module.
     -- (parser only)
 
   | NamedInstArgs  [ModuleInstanceNamedArg name]
@@ -707,11 +707,13 @@ data FunDesc n =
   { funDescrName      :: Maybe n   -- ^ Name of this function, if it has one
   , funDescrArgOffset :: Int -- ^ number of previous arguments to this function
                              --   bound in surrounding lambdas (defaults to 0)
+  , funDescrFromPropGuard  :: Bool
+    -- ^ This came from a prop guard alternative.  Used in Renamer
   }
  deriving (Eq, Show, Generic, NFData, Functor)
 
 emptyFunDesc :: FunDesc n
-emptyFunDesc = FunDesc Nothing 0
+emptyFunDesc = FunDesc Nothing 0 False
 
 data UpdField n = UpdField UpdHow [Located Selector] (Expr n)
                                                 -- ^ non-empty list @ x.y = e@
@@ -1019,7 +1021,7 @@ instance (Show name, PPName name) => PP (ModuleInstanceArg name) where
     case arg of
       ModuleArg x    -> pp x
       ParameterArg i -> "parameter" <+> pp i
-      AddParams      -> "{}"
+      AddParams      -> "_"
 
 
 instance (Show name, PPName name) => PP (Program name) where
@@ -1055,7 +1057,7 @@ instance (Show name, PPName name) => PP (ParamDecl name) where
 ppInterface :: (Show name, PPName name) => Doc -> Signature name -> Doc
 ppInterface kw sig = kw $$ indent 2 (vcat (is ++ ds))
     where
-    is = map pp (sigImports sig)
+    is = map (pp . thing) (sigImports sig)
     cs = case sigConstraints sig of
            []  -> []
            cs' -> ["type constraint" <+>
@@ -1143,7 +1145,7 @@ instance (Show name, PPName name) => PP (EnumCon name) where
   ppPrec _ c = pp (ecName c) <+> hsep (map (ppPrec 1) (ecFields c))
 
 instance (PP mname) => PP (ImportG mname) where
-  ppPrec _ d = vcat [ text "import" <+> sep ([pp (iModule d)] ++ mbInst ++
+  ppPrec _ d = vcat [ text "import" <+> sep ([pp (thing (iModule d))] ++ mbInst ++
                                                       mbAs ++ mbSpec)
                     , indent 2 mbWhere
                     ]
@@ -1221,7 +1223,13 @@ instance (Show name, PPName name) => PP (BindDef name) where
 
 instance (Show name, PPName name) => PP (BindImpl name) where
   ppPrec p (DExpr e) = ppPrec p e
-  ppPrec _p (DPropGuards _guards) = text "propguards"
+  ppPrec _p (DPropGuards guards) =
+    text "propguards" $$ indent 2 (vcat (map pp guards))
+      
+instance (Show name, PPName name) => PP (PropGuardCase name) where
+  ppPrec _ pg =
+    parens (commaSep (map (pp . thing) (pgcProps pg))) <+>
+      "=>" <+> pp (pgcExpr pg)
 
 
 instance PPName name => PP (TySyn name) where

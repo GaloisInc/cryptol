@@ -81,7 +81,6 @@ data ModParam = ModParam
   } deriving (Show, Generic, NFData)
 
 -- | Information about the names brought in through an "interface import".
--- This is also used to keep information about.
 data ModParamNames = ModParamNames
   { mpnTypes       :: Map Name ModTParam
     -- ^ Type parameters

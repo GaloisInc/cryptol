@@ -221,7 +221,7 @@ noPatFun mnm offset (p:ps) e =
                            -- This reverse isn't strictly necessary, but yields more sensible
                            -- variable ordering results from type inference.  I'm not entirely
                            -- sure why.
-     let desc = FunDesc mnm offset
+     let desc = FunDesc mnm offset False
      return (EFun desc [p'] body)
 
 noPatArm :: [Match PName] -> NoPatM [Match PName]

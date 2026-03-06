@@ -402,7 +402,7 @@ data MaybeAnon = NormalName       -- ^ Not an anonymous name.
 
 instance NFData MaybeAnon
 
--- | Modify a name, if it is a nonymous.
+-- | Modify a name, if it is anonymous.
 -- If we change this, please update the reference manual as well, so that
 -- folks know how to refer to these in external tools.
 maybeAnonText :: MaybeAnon -> Text -> Text

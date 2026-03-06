@@ -1,0 +1,9 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T20
+[warning] at T20.cry:9:3--9:21
+    The import shadows the existing binding at
+    T20.cry:3:1--3:2
+[warning] at T20.cry:12:4--12:11
+    This binding for `Integer` shadows the existing binding at
+    Cryptol:30:16--30:23

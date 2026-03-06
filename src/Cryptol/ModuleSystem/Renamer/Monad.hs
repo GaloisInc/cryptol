@@ -1,47 +1,84 @@
--- |
--- Module      :  Cryptol.ModuleSystem.Renamer
--- Copyright   :  (c) 2013-2016 Galois, Inc.
--- License     :  BSD3
--- Maintainer  :  cryptol@galois.com
--- Stability   :  provisional
--- Portability :  portable
+{-# Language BlockArguments, BangPatterns, ImportQualifiedPost #-}
+{-# Language GeneralisedNewtypeDeriving #-}
+module Cryptol.ModuleSystem.Renamer.Monad
+  ( 
+    -- * Renamer monad
+    RenameM
+  , runRenamer
+  , RenamerInfo(..)
 
-{-# Language RecordWildCards #-}
-{-# Language FlexibleContexts #-}
-{-# Language BlockArguments #-}
-{-# Language OverloadedStrings #-}
-{-# Language MultiParamTypeClasses #-}
-module Cryptol.ModuleSystem.Renamer.Monad where
+    -- * Modules
+  , lookupMod
+  , addResolvedMod
+  , addInstMod
+  , recordTopImport
+  , getExternalDeps
+  , Mod(..)
 
-import Data.List(sort,foldl')
-import           Data.Set(Set)
-import qualified Data.Set as Set
-import           Data.Map.Strict ( Map )
-import qualified Data.Map.Strict as Map
-import qualified Data.Semigroup as S
-import           MonadLib hiding (mapM, mapM_)
+    -- * The current module
+  , getCurModPath
+  , getCurTopDefs
+  , getCurBinds
+  , getCurScope
+  , getCurUnqualTypes
+  , setThisModuleDefs
+  , addModParams
+  , addImported
 
-import Prelude ()
-import Prelude.Compat
+    -- * Scopes
+  , inSubmodule
+  , inLocalScope
+  , inLocalBindScope
+  , doBind
+  , getLastBindDefs
 
-import Cryptol.Utils.PP(pp)
-import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident(modPathCommon,OrigName(..),OrigSource(..),
-                           undefinedModName)
+    -- * Name generation
+  , doDefGroup
+  , doDefOrdGroup
+
+    -- * Error reporting
+  , recordError
+  , addWarning
+  , reportUnused
+  , quit
+  , getCurLoc
+  , located
+  , withLoc
+  , reportUnboundName
+  , noWarningsFor
+
+    -- * Dependency tracking
+  , recordNameUses
+  , getDeps
+  ) where
+
+-- import Debug.Trace
+-- import Cryptol.Utils.PP
+
+import MonadLib
+import Data.Maybe(fromMaybe,maybeToList)
+import Data.Set(Set)
+import Data.Set qualified as Set
+import Data.Map(Map)
+import Data.Map qualified as Map
+import Data.Text qualified as Text
+
+import Cryptol.Utils.Panic
+import Cryptol.Utils.Ident
+import Cryptol.Parser.Name
+import Cryptol.Parser.Position
+import Cryptol.Parser.AST
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
-import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Interface
-import Cryptol.Parser.AST
-import Cryptol.TypeCheck.AST(ModParamNames)
-import Cryptol.Parser.Position
-
+import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Renamer.Error
-import Cryptol.ModuleSystem.Renamer.Imports
-  (ResolvedLocal,rmodKind,rmodDefines,rmodNested)
+import Cryptol.ModuleSystem.Exports
+import Cryptol.TypeCheck.Type(ModParamNames)
 
--- | Indicates if a name is in a binding poisition or a use site
-data NameType = NameBind | NameUse
+newtype RenameM a = R (ReaderT RO (ExceptionT () (StateT RW Lift)) a)
+  deriving (Functor,Applicative,Monad)
+
 
 -- | Information needed to do some renaming.
 data RenamerInfo = RenamerInfo
@@ -49,483 +86,598 @@ data RenamerInfo = RenamerInfo
   , renContext  :: ModPath    -- ^ We are renaming things in here
   , renEnv      :: NamingEnv  -- ^ This is what's in scope
   , renIfaces   :: Map ModName (Either ModParamNames Iface)
-    -- ^ External modules
-  }
-
--- The ExceptionT here is for bailing when a fake value like mkFakeName is
--- encountered. These values have already had an error recorded and are being
--- processed for best-effort error reporting so we do not need a value.
-newtype RenameM a = RenameM { unRenameM :: ReaderT RO (ExceptionT () (StateT RW Lift)) a }
-
-data RO = RO
-  { roLoc       :: Range
-  , roNames     :: NamingEnv
-  , roExternal  :: Map ModName (Maybe Iface, Map (ImpName Name) (Mod ()))
-    -- ^ Externally loaded modules. `Mod` is defined in 'Cryptol.Renamer.Binds'.
-
-  , roCurMod    :: ModPath               -- ^ Current module we are working on
-
-  , roNestedMods :: Map ModPath Name
-    {- ^ Maps module paths to the actual name for it.   This is used
-         for dependency tracking, to find the name of a containing module.
-         See the note on `addDep`. -}
-
-  , roResolvedModules :: Map (ImpName Name) ResolvedLocal
-    -- ^ Info about locally defined modules
-
-  , roModParams :: Map Ident RenModParam
-    {- ^ Module parameters.  These are used when rename the module parameters,
-       and only refer to the parameters of the current module (i.e., no
-       outer parameters as those are not needed) -}
-
-  , roFromModParam :: Map Name DepName
-    -- ^ Keeps track of which names were introduce by module parameters
-    -- and which one.  The `DepName` is always a `ModParamName`.
-  }
-
-data RW = RW
-  { rwWarnings      :: ![RenamerWarning]
-  , rwErrors        :: !(Set RenamerError)
-  , rwSupply        :: !Supply
-  , rwNameUseCount  :: !(Map Name Int)
-    -- ^ How many times did we refer to each name.
-    -- Used to generate warnings for unused definitions.
-
-  , rwCurrentDeps     :: Set Name
-    -- ^ keeps track of names *used* by something.
-    -- see 'depsOf'
-
-  , rwDepGraph        :: Map DepName (Set Name)
-    -- ^ keeps track of the dependencies for things.
-    -- see 'depsOf'
-
-  , rwExternalDeps  :: !IfaceDecls
-    -- ^ Info about imported things, from external modules
+    -- ^ External modules. These include normal modules, and functors
+    -- (on the Right), as well as interfaces (on the Left)
   }
 
 
+-- | Do some renaming.
+runRenamer ::
+  RenamerInfo ->
+  RenameM a ->
+  (Either [RenamerError] (a,Supply), [RenamerWarning])
+runRenamer info (R m) = (res, reverse (renWarnings rwFin))
+    where
+    (mres, rwFin) = runLift (runStateT rw0 (runExceptionT (runReaderT ro0 m)))
+    res =
+      case renErrors rwFin of
+        [] | Right a <- mres -> Right (a, newNames rwFin)
+        es -> Left (reverse es)
 
-data RenModParam = RenModParam
-  { renModParamName      :: Ident
-  , renModParamRange     :: Range
-  , renModParamSig       :: ImpName Name
-  , renModParamInstance  :: Map Name Name
-    {- ^ Maps names that come into scope through this parameter
-         to the names in the *module interface*.
-         This is for functors, NOT functor instantantiations. -}
+    ro0 = RO {
+      lastBindsEnv = mempty,
+      localsEnv = mempty,
+      localBindEnv = mempty,
+      outEnv = renEnv info,
+      outDefs = renEnv info,
+      curModPath = renContext info,
+      curLoc = emptyRange,
+      don'tWarn = mempty,
+      loadedIfaces =
+        let hasIf x =
+              case x of
+                Left {} -> Nothing
+                Right i -> Just i
+        in Map.mapMaybe hasIf (renIfaces info)
+    }
+
+    rw0 = RW {
+      defEnv = mempty,
+      impEnv = mempty,
+      modParamEnv = mempty,
+      modParamNames = mempty,
+      externalDeps = mempty,
+      newNames = renSupply info,
+      renErrors = [],
+      renWarnings = [],
+      usedNames = Set.empty,
+      knownMods =
+        Map.unions [  
+          case ent of
+            Left ps -> Map.singleton (ImpTop t) (ModKnown (ifaceSigToMod ps))
+            Right i -> ifaceToMod (ImpTop t) i
+          | (t,ent) <- Map.toList (renIfaces info)
+        ]
+
+    }
+
+
+data RO = RO {
+  curModPath :: ModPath,
+  -- ^ Current module that we are working on
+
+  curLoc :: Range,
+  -- ^ The source location where we are doing something
+
+  loadedIfaces :: Map ModName Iface,
+  -- ^ Interfaces for external loaded modules.
+  -- We keep this so then if one of the modules is imported, we can
+  -- collect its definitions in `externalDeps` to give the typechecker.
+
+  lastBindsEnv :: NamingEnv,
+  -- ^ This is the last environment that introduced function bindings.
+  -- It is basically the value of `getCurBinds` at the point we start
+  -- resolving a binding.  We need this, because during `NoPat`, we desugar
+  -- bindings with arguments, into lambdas, but those lambdas are annotated
+  -- with the name of the function that gave rise to them.  We use this
+  -- environment to avoid resolving this name, thus avoiding confusion with
+  -- the parameters of the function.
+
+  localBindEnv :: NamingEnv,
+  -- ^ Used to resolve the names of definitions in the current scope.
+
+  localsEnv :: NamingEnv,
+  -- ^ Variables local to a function. These are variables from outside the
+  -- current binding scope.
+
+  outEnv :: NamingEnv,
+  -- ^ Things in an enclosing scope (for nested modules).  This is used
+  -- for resolving names, and it includes definitions and imports in the
+  -- outer scope of a module appropriately shadowed.
+
+  outDefs :: NamingEnv,
+  -- ^ Things defined in outer scopes.  This is not used for resolving names,
+  -- but to report shadowing warnings.
+
+  don'tWarn :: Set Name
+  -- ^ Don't emit warnings for these names
+}
+
+data RW = RW {
+
+  knownMods :: ModMap,
+  -- ^ Information about previously processed modules
+
+  externalDeps :: IfaceDecls,
+  -- ^ Interface declarations for imported external modules.
+  -- We track this so we can give it to the type checker.
+  
+  defEnv :: NamingEnv,
+  -- ^ Things defined in the current module
+
+  modParamEnv :: NamingEnv,
+  -- ^ Names from module parameters
+
+  modParamNames :: Map Ident Range,
+  -- ^ Names of module parameters for the current module
+
+  impEnv :: NamingEnv,
+  -- ^ Things imported in the current scope
+
+  newNames :: !Supply,
+  -- ^ Used to generate unique names when renaming
+
+  renErrors :: [RenamerError],
+  -- ^ Errors we found
+
+  renWarnings :: [RenamerWarning],
+  -- ^ Warnings we'd like to emit.
+
+  usedNames :: Set Name
+  -- ^ Every time we resove a name use we record it here.
+  -- In this way we can determine the dependencies of things.
+}
+
+--------------------------------------------------------------------------------
+-- Module Manipulation
+--------------------------------------------------------------------------------
+
+
+-- | Information about a processed module.
+data Mod = Mod
+  { modKind      :: ModKind             -- ^ What sort of thing are we
+  , modDefines   :: NamingEnv           -- ^ Things defined by this module.
+  , modPublic    :: !(Set Name)         -- ^ These are the exported names
   }
 
+-- | A dummy module to use as placeholder for error situations
+emptyMod :: ModKind -> Mod
+emptyMod k = Mod {
+  modKind = k,
+  modDefines = mempty,
+  modPublic = mempty
+}
 
 
+-- | Lookup a known module
+lookupMod :: ImpName Name -> Maybe ModKind -> RenameM Mod
+lookupMod nm mbExpected =
+  do
+    rw <- R get
+    case Map.lookup nm (knownMods rw) of
+      Just (ModKnown mo) ->
+        case mbExpected of
+          Nothing -> pure mo
+          Just expected
+            | expected == actual -> pure mo
+            | otherwise ->
+              do
+                loc <- getCurLoc
+                recordError (ModuleKindMismatch loc nm expected actual)
+                pure (emptyMod expected)
+              where actual = modKind mo
+      Just ModTodo ->
+        do
+          loc <- getCurLoc
+          case nm of
+            ImpNested x ->
+              recordError (ImportTooSoon loc (nameIdent x))
+            ImpTop {} -> panic "lookupMod" ["ModTodo"]
+          pure (emptyMod (fromMaybe AModule mbExpected))
+      Just ModFake ->
+          pure (emptyMod (fromMaybe AModule mbExpected))
 
-instance S.Semigroup a => S.Semigroup (RenameM a) where
-  {-# INLINE (<>) #-}
-  a <> b =
-    do x <- a
-       y <- b
-       return (x S.<> y)
+      Nothing ->
+        panic "lookupMod" ["Resolved name, but unknown module"]
 
-instance (S.Semigroup a, Monoid a) => Monoid (RenameM a) where
-  {-# INLINE mempty #-}
-  mempty = return mempty
+recordTopImport :: ModName -> RenameM ()
+recordTopImport m =
+  do
+    ro <- R ask
+    case Map.lookup m (loadedIfaces ro) of
+      Just ifa ->
+        R (sets_ \rw -> rw { externalDeps = ifDefines ifa <> externalDeps rw })
+      Nothing -> panic "recordTopImport" ["Missing module"]
 
-  {-# INLINE mappend #-}
-  mappend = (S.<>)
+getExternalDeps :: RenameM IfaceDecls
+getExternalDeps = R (externalDeps <$> get)
 
-instance Functor RenameM where
-  {-# INLINE fmap #-}
-  fmap f m      = RenameM (fmap f (unRenameM m))
+data ModStatus = ModKnown Mod | ModFake | ModTodo
 
-instance Applicative RenameM where
-  {-# INLINE pure #-}
-  pure x        = RenameM (pure x)
+type ModMap = Map (ImpName Name) ModStatus
 
-  {-# INLINE (<*>) #-}
-  l <*> r       = RenameM (unRenameM l <*> unRenameM r)
+-- | Make a `Mod` from the public declarations in a top-level module's interface.
+-- This is used to handle imports.
+ifaceToMod :: ImpName Name -> IfaceG name -> ModMap
+ifaceToMod nm iface =
+  ifaceNamesToMod iface (ifaceIsFunctor iface) nm (ifNames iface)
 
-instance Monad RenameM where
-  {-# INLINE return #-}
-  return        = pure
-
-  {-# INLINE (>>=) #-}
-  m >>= k       = RenameM (unRenameM m >>= unRenameM . k)
-
-instance FreshM RenameM where
-  liftSupply f = RenameM $ sets $ \ RW { .. } ->
-    let (a,s') = f rwSupply
-        rw'    = RW { rwSupply = s', .. }
-     in a `seq` rw' `seq` (a, rw')
-
-instance ExceptionM RenameM () where
-  {-# INLINE raise #-}
-  raise        = RenameM . raise
-
-runRenamer :: RenamerInfo -> RenameM a
-           -> ( Either [RenamerError] (a,Supply)
-              , [RenamerWarning]
-              )
-runRenamer info m = (res, warns)
+-- | Generate a module or functor from the given names.
+ifaceNamesToMod ::
+    IfaceG topname -> Bool -> ImpName Name -> IfaceNames name -> ModMap
+ifaceNamesToMod iface params nm names =
+  Map.unions (Map.fromList ((nm,ModKnown mo) : sigs) : funs ++ nest)
   where
-  warns = sort (rwWarnings rw ++ warnUnused (renContext info) (renEnv info) rw)
+  sigs =
+    [ (ImpNested k, ModKnown (ifaceSigToMod v)) | (k,v) <- Map.toList (ifSignatures decls) ]
+  funs =
+    [ ifaceToMod (ImpNested k) v | (k,v) <- Map.toList (ifFunctors decls) ]
+  nest =
+    [ ifaceNamesToMod iface False (ImpNested k) v
+    | (k,v) <- Map.toList (ifModules decls) ]
+  mo = Mod
+    { modKind    = if params then AFunctor else AModule
+    , modDefines = namingEnvFromNames defs
+    , modPublic  = ifsPublic names
+    }
+  defs      = ifsDefines names
+  isLocal x = x `Set.member` defs
+  decls     = filterIfaceDecls isLocal (ifDefines iface)
 
-  (a,rw) = runM (unRenameM m) ro
-                              RW { rwErrors   = Set.empty
-                                 , rwWarnings = []
-                                 , rwSupply   = renSupply info
-                                 , rwNameUseCount = Map.empty
-                                 , rwExternalDeps = mempty
-                                 , rwCurrentDeps = Set.empty
-                                 , rwDepGraph = Map.empty
-                                 }
+-- | Generate a module corresponding to an interface module.
+ifaceSigToMod :: ModParamNames -> Mod
+ifaceSigToMod ps = Mod
+  { modKind      = ASignature
+  , modDefines   = env
+  , modPublic    = namingEnvNames env
+  }
+  where
+  env = modParamNamesNamingEnv ps
 
-  ro = RO { roLoc   = emptyRange
-          , roNames = renEnv info
-          , roExternal = Map.mapWithKey toModMap (renIfaces info)
-          , roCurMod = renContext info
-          , roNestedMods = Map.empty
-          , roResolvedModules = mempty
-          , roModParams = mempty
-          , roFromModParam = mempty
+-- | Add a module that was generated when instantiating a functor
+addInstMod :: Name -> Mod -> RenameM ()
+addInstMod x y =
+  R (sets_ \rw -> rw { knownMods = Map.insert (ImpNested x) (ModKnown y) (knownMods rw) })
+
+addResolvedMod :: NamingEnv -> ModuleG Name Name -> RenameM ()
+addResolvedMod env mo =
+  do
+    let nm = ImpNested (thing (mName mo))
+    summary <-
+      case mDef mo of
+        NormalModule ds ->
+          pure Mod {
+              modKind = if any isParamDecl ds
+                            then AFunctor else AModule,
+              modDefines = env,
+              modPublic = Set.unions (map (`exported` expSpec) allNamespaces)
+            }
+          where expSpec = exportedDecls ds
+            
+        FunctorInstance f _ inst ->
+          do
+            -- Here we don't validate the functor again, to avoid duplicated
+            -- error.
+            fmo <- withLoc (srcRange f) (lookupMod (thing f) Nothing)
+            -- If there was an error, and the thing we are instantiating
+            -- is *not* a functor `inst` would be empty.  We just leave
+            -- the name as is in this case, which shouldn't matter as we'll
+            -- stop after the renamer due to errors.
+            let remap x = Map.findWithDefault x x inst
+
+
+            pure Mod {
+              modKind = AModule,
+              modDefines = env,
+              modPublic = Set.map remap (modPublic fmo)
+            }
+              
+        InterfaceModule {} ->
+          pure Mod {
+            modKind = ASignature,
+            modDefines = env,
+            modPublic = namingEnvNames env
           }
-
-  res | Set.null (rwErrors rw) = case a of
-          Left _ -> panic "runRenamer" ["No renaming errors, but no output"]
-          Right r -> Right (r,rwSupply rw)
-      | otherwise              = Left (Set.toList (rwErrors rw))
-
-  toModMap t ent =
-    case ent of
-      Left ps -> (Nothing, Map.singleton (ImpTop t) (ifaceSigToMod ps))
-      Right i -> (Just i, modToMap (ImpTop t) (ifaceToMod i) mempty)
+    R (sets_ \rw -> rw { knownMods = Map.insert nm (ModKnown summary) (knownMods rw) })
 
 
 
-setCurMod :: ModPath -> RenameM a -> RenameM a
-setCurMod mpath (RenameM m) =
-  RenameM $ mapReader (\ro -> ro { roCurMod = mpath }) m
+--------------------------------------------------------------------------------
+-- The current module
+--------------------------------------------------------------------------------
 
-getCurMod :: RenameM ModPath
-getCurMod = RenameM $ asks roCurMod
+-- | What module we are currently processing.
+getCurModPath :: RenameM ModPath
+getCurModPath = R (curModPath <$> ask)
 
-getNamingEnv :: RenameM NamingEnv
-getNamingEnv = RenameM (asks roNames)
+-- | Get just the things defined in the current module
+getCurTopDefs :: RenameM NamingEnv
+getCurTopDefs = R (defEnv <$> get)
 
-setResolvedLocals :: Map (ImpName Name) ResolvedLocal -> RenameM a -> RenameM a
-setResolvedLocals mp (RenameM m) =
-  RenameM $ mapReader (\ro -> ro { roResolvedModules = mp }) m
-
-lookupResolved :: ImpName Name -> RenameM ResolvedLocal
-lookupResolved nm =
-  do mp <- RenameM (roResolvedModules <$> ask)
-     case Map.lookup nm mp of
-       Just r -> pure r
-       Nothing | isFakeName nm -> raise ()
-       Nothing ->
-         panic
-           "lookupResolved"
-           ["Missing module: " ++ show nm]
-
-setModParams :: [RenModParam] -> RenameM a -> RenameM a
-setModParams ps (RenameM m) =
-  do let pmap = Map.fromList [ (renModParamName p, p) | p <- ps ]
-
-         newFrom =
-           foldLoop ps mempty \p mp ->
-             let nm = ModParamName (renModParamRange p) (renModParamName p)
-             in foldLoop (Map.keys (renModParamInstance p)) mp \x ->
-                  Map.insert x nm
-
-         upd ro = ro { roModParams    = pmap
-                     , roFromModParam = newFrom <> roFromModParam ro
-                     }
-
-     RenameM (mapReader upd m)
+-- | Get things defined in the current module, and any local bindings in scope.
+-- Used for resolving name definitions
+getCurBinds :: RenameM NamingEnv
+getCurBinds = R
+  do
+    ro <- ask
+    rw <- get
+    pure (localBindEnv ro `shadowing` defEnv rw)
 
 
-foldLoop :: [a] -> b -> (a -> b -> b) -> b
-foldLoop xs b f = foldl' (flip f) b xs
+-- | Compute the current scope, including local definitions, outer environment
+-- and imports.
+getCurScope :: RenameM NamingEnv
+getCurScope = R
+  do
+    ro <- ask
+    rw <- get
+    pure $
+      localsEnv ro `shadowing`
+      localBindEnv ro `shadowing`
+      defEnv    rw `shadowing`
+      modParamEnv rw `shadowing`
+      impEnv    rw `shadowing`
+      outEnv    ro
 
-getModParam :: Ident -> RenameM RenModParam
-getModParam p =
-  do ps <- RenameM (roModParams <$> ask)
-     case Map.lookup p ps of
-       Just r  -> pure r
-       Nothing -> panic "getModParam" [ "Missing module paramter", show p ]
+getCurUnqualTypes :: RenameM (Set Ident)
+getCurUnqualTypes =
+  do
+    scope <- getCurScope
+    pure (Set.fromList [ i | UnQual i <- Map.keys (namespaceMap NSType scope) ])
 
-getNamesFromModParams :: RenameM (Map Name DepName)
-getNamesFromModParams = RenameM (roFromModParam <$> ask)
+-- | Set the definition for the current module.
+setThisModuleDefs :: NamingEnv -> RenameM ()
+setThisModuleDefs env =
+  R (sets_ \rw -> rw { defEnv = env,
+                       knownMods = todoMods `Map.union` knownMods rw
+                     })
+  where
+  todoMods =
+    Map.fromList 
+      [ (ImpNested x,ModTodo)
+      | x <- Set.toList (namingEnvNames env), nameNamespace x == NSModule
+      ]
 
-getLocalModParamDeps :: RenameM (Map Ident DepName)
-getLocalModParamDeps =
-  do ps <- RenameM (roModParams <$> ask)
-     let toName mp = ModParamName (renModParamRange mp) (renModParamName mp)
-     pure (toName <$> ps)
+-- | Add names from module parameters to the current scope.
+-- It is an error if the module parameters conflict with the
+-- definitions in a module.
+addModParams :: Located Ident -> NamingEnv -> RenameM ()
+addModParams nm env =
+  do
+    errs <- R (sets upd)
+    mapM_ recordError errs
+    when (not (null errs)) quit
+  where
+  upd rw =
+    let nms    = modParamNames rw
+        newEnv = env <> modParamEnv rw
+        errs   =
+          [ MultipleModParams (thing nm) [r,srcRange nm]
+          | r <- maybeToList (Map.lookup (thing nm) nms) ] ++
+          map OverlappingSyms (findAmbig newEnv)
+    in (errs, rw {
+                modParamEnv = newEnv,
+                modParamNames = Map.insert (thing nm) (srcRange nm) nms })
+
+-- | Add some names that came from an import.
+addImported :: Range -> NamingEnv -> RenameM ()
+addImported rng env =
+  do
+    R (sets_ \rw -> rw { impEnv = env <> impEnv rw })
+    outDs <- R (outDefs <$> ask)
+    forM_ (findShadowing env outDs) \(_,_,xs) ->
+      addWarning (SymbolShadowed (ImportShadower rng) xs)
+
+-- | Capture the `getCurBinds` at this point.  See the comment
+-- on `lastBindsEnv` for more info.
+doBind :: RenameM a -> RenameM a
+doBind (R m) =
+  do
+    env <- getCurBinds
+    R (mapReader (\ro -> ro { lastBindsEnv = env }) m)
+
+getLastBindDefs :: RenameM NamingEnv
+getLastBindDefs = R (lastBindsEnv <$> ask)
+
+-- | Set the names of bindings for the duration of a computation.
+inLocalBindScope :: Bool -> NamingEnv -> RenameM a -> RenameM a
+inLocalBindScope checkUsed env (R m) =
+  do
+    a <- R (mapReader upd m)
+    used <- R (usedNames <$> get)
+    let unused = namingEnvNames env `Set.difference` used
+    when checkUsed (mapM_ reportUnused unused)
+    scope <- getCurScope -- XXX: is this too much, we'll get warning for shadowing imported things too...
+    mapM_ reportShadowed (findShadowing env scope)
+    pure a
+  where
+  upd ro = ro {
+    localBindEnv = env,
+    localsEnv = localBindEnv ro `shadowing` localsEnv ro
+  }
+
+-- | Do something that will only modify the local scope, and restore
+-- it after the computation.  Usually we use `inLocalBindScope`, but
+-- we use this for list comprehensions, because the binders in the arms
+-- need to be combined when processing the "head" of the comprehension.
+inLocalScope :: NamingEnv -> RenameM a -> RenameM a
+inLocalScope env (R m) =
+  do
+    a     <- R (mapReader upd m)
+    used <- R (usedNames <$> get)
+    let unused = namingEnvNames env `Set.difference` used
+    mapM_ reportUnused (Set.toList unused)
+    pure a
+  where
+  upd ro = ro {
+    localsEnv = env `shadowing` localsEnv ro
+  }
+
+-- | Do some renaming in the context of a nested module.
+inSubmodule :: Ident -> RenameM a -> RenameM a
+inSubmodule x (R m) = R
+  do
+    rw <- get
+    let defs = defEnv rw
+        pars = modParamEnv rw
+        parns = modParamNames rw
+        imps = impEnv rw
+        
+    let upd ro =
+          let ds = defs `shadowing` pars
+          in
+            ro {
+              curModPath = Nested (curModPath ro) x,
+              outEnv     = ds `shadowing` imps `shadowing` outEnv ro,
+              outDefs    = ds `shadowing` outDefs ro
+            }
+
+    set rw {
+      defEnv      = mempty,
+      impEnv      = mempty,
+      modParamEnv = mempty,
+      modParamNames = mempty
+    }
+    a <- mapReader upd m
+    sets \rw1 -> 
+      let bound = Set.unions
+                    (map namingEnvNames
+                      [ defEnv rw1, impEnv rw1, modParamEnv rw1 ])
+      in
+        (a,
+        rw1 { defEnv = defs,
+              modParamEnv = pars,
+              modParamNames = parns,
+              impEnv      = imps,
+              usedNames   = usedNames rw1 `Set.difference` bound
+            } )
 
 
-setNestedModule :: Map ModPath Name -> RenameM a -> RenameM a
-setNestedModule mp (RenameM m) =
-  RenameM $ mapReader (\ro -> ro { roNestedMods = mp }) m
+--------------------------------------------------------------------------------
+-- Error reporting
+--------------------------------------------------------------------------------
 
-nestedModuleOrig :: ModPath -> RenameM (Maybe Name)
-nestedModuleOrig x = RenameM (asks (Map.lookup x . roNestedMods))
-
-
--- | Record an error.
 recordError :: RenamerError -> RenameM ()
-recordError f = RenameM $
-  do RW { .. } <- get
-     set RW { rwErrors = Set.insert f rwErrors, .. }
+recordError e = R (sets_ \rw -> rw { renErrors = e : renErrors rw })
 
-recordWarning :: RenamerWarning -> RenameM ()
-recordWarning w =
-  RenameM $ sets_ \rw -> rw { rwWarnings = w : rwWarnings rw }
+noWarningsFor :: Set Name -> RenameM a -> RenameM a
+noWarningsFor xs (R m) = R (mapReader upd m)
+  where upd ro = ro { don'tWarn = Set.union xs (don'tWarn ro) }
 
-collectIfaceDeps :: RenameM a -> RenameM (IfaceDecls,a)
-collectIfaceDeps (RenameM m) =
-  RenameM
-  do ds  <- sets \s -> (rwExternalDeps s, s { rwExternalDeps = mempty })
-     a   <- m
-     ds' <- sets \s -> (rwExternalDeps s, s { rwExternalDeps = ds })
-     pure (ds',a)
+addWarning :: RenamerWarning -> RenameM ()
+addWarning e = R (sets_ \rw -> rw { renWarnings = e : renWarnings rw })
 
--- |  Rename something.  All name uses in the sub-computation are assumed
--- to be dependenices of the thing.
-depsOf :: DepName -> RenameM a -> RenameM a
-depsOf x (RenameM m) = RenameM
-  do ds <- sets \rw -> (rwCurrentDeps rw, rw { rwCurrentDeps = Set.empty })
-     a  <- m
-     sets_ \rw ->
-        rw { rwCurrentDeps = Set.union (rwCurrentDeps rw) ds
-           , rwDepGraph = Map.insert x (rwCurrentDeps rw) (rwDepGraph rw)
-           }
-     pure a
+reportUnused :: Name -> RenameM ()
+reportUnused n
+  | nameSrc n == UserName =
+    case Text.uncons (identText (nameIdent n)) of
+      Just ('_',_) -> pure ()
+      _ ->
+        do
+          ws <- R (don'tWarn <$> ask)
+          unless (n `Set.member` ws) (addWarning (UnusedName n))
+  | otherwise = pure ()
 
--- | This is used when renaming a group of things.  The result contains
--- dependencies between names defined in the group, and is intended to
--- be used to order the group members in dependency order.
-depGroup :: RenameM a -> RenameM (a, Map DepName (Set Name))
-depGroup (RenameM m) = RenameM
-  do ds  <- sets \rw -> (rwDepGraph rw, rw { rwDepGraph = Map.empty })
-     a   <- m
-     ds1 <- sets \rw -> (rwDepGraph rw, rw { rwDepGraph = ds })
-     pure (a,ds1)
+reportShadowed :: (PName, Name, [Name]) -> RenameM ()
+reportShadowed (x,y,z) = addWarning (SymbolShadowed (DefShadower x y) z)
 
--- | Get the source range for wahtever we are currently renaming.
-curLoc :: RenameM Range
-curLoc  = RenameM (roLoc `fmap` ask)
+quit :: RenameM a
+quit = R (raise ())
+
+getCurLoc :: RenameM Range
+getCurLoc = R (curLoc <$> ask)
 
 -- | Annotate something with the current range.
 located :: a -> RenameM (Located a)
-located thing =
-  do srcRange <- curLoc
-     return Located { .. }
+located a =
+  do loc <- getCurLoc
+     return Located { thing = a, srcRange = loc }
 
--- | Do the given computation using the source code range from `loc` if any.
 withLoc :: HasLoc loc => loc -> RenameM a -> RenameM a
-withLoc loc m = RenameM $ case getLoc loc of
+withLoc th (R m) = R
+  case getLoc th of
+    Nothing -> m
+    Just r -> mapReader (\ro -> ro { curLoc = r }) m
 
-  Just range -> do
-    ro <- ask
-    local ro { roLoc = range } (unRenameM m)
+-- | Generate an error for a name that we cannot resolve.
+-- We try to give a hint, if the name appears in a different name space.
+reportUnboundName :: Namespace -> PName -> NamingEnv -> RenameM Name
+reportUnboundName expected qn scope =
+  do 
+    let others     = [ ns | ns <- allNamespaces
+                          , ns /= expected
+                          , Just _ <- [lookupNS ns qn scope] ]
+    nm <- located qn
+    case others of
+      -- name exists in a different namespace
+      actual : _ -> recordError (WrongNamespace expected actual nm)
+      -- the value is just missing
+      [] -> recordError (UnboundName expected nm)
 
-  Nothing -> unRenameM m
+    -- traceM ("UNDEFINED NAME IN " ++ show (pp expected) ++ ": " ++ show (pp qn) ++ "\n" ++ show (pp scope))
 
-
--- | Shadow the current naming environment with some more names.
-shadowNames :: BindsNames env => env -> RenameM a -> RenameM a
-shadowNames  = shadowNames' CheckAll
-
-data EnvCheck = CheckAll     -- ^ Check for overlap and shadowing
-              | CheckOverlap -- ^ Only check for overlap
-              | CheckNone    -- ^ Don't check the environment
-                deriving (Eq,Show)
-
--- | Report errors if the given naming environemnt contains multiple
--- definitions for the same symbol
-checkOverlap :: NamingEnv -> RenameM NamingEnv
-checkOverlap env =
-  case findAmbig env of
-    []    -> pure env
-    ambig -> do mapM_ recordError [ OverlappingSyms xs | xs <- ambig ]
-                pure (forceUnambig env)
-
--- | Issue warnings if entries in the first environment would
---   shadow something in the second. This warning is only emited
---   for UserNames
-checkShadowing :: NamingEnv -> NamingEnv -> RenameM ()
-checkShadowing envNew envOld =
-  mapM_
-    recordWarning
-    [ SymbolShadowed p x xs | (p, x, xs) <- findShadowing envNew envOld
-    ]
+    mkFakeName expected qn
 
 
--- | Shadow the current naming environment with some more names.
--- XXX: The checks are really confusing
-shadowNames' :: BindsNames env => EnvCheck -> env -> RenameM a -> RenameM a
-shadowNames' check names m = do
-  do env    <- liftSupply (defsOf names)
-     envOld <- RenameM (roNames <$> ask)
-     env1   <- case check of
-                 CheckNone    -> pure env
-                 CheckOverlap -> checkOverlap env
-                 CheckAll     -> do checkShadowing env envOld
-                                    checkOverlap env
-     RenameM
-       do ro  <- ask
-          let ro' = ro { roNames = env1 `shadowing` envOld }
-          local ro' (unRenameM m)
+--------------------------------------------------------------------------------
+-- Name generation
+--------------------------------------------------------------------------------
 
-recordUse :: Name -> RenameM ()
-recordUse x = RenameM $ sets_ $ \rw ->
-  rw { rwNameUseCount = Map.insertWith (+) x 1 (rwNameUseCount rw) }
-  {- NOTE: we don't distinguish between bindings and uses here, because
-  the situation is complicated by the pattern signatures where the first
-  "use" site is actually the binding site.  Instead we just count them all, and
-  something is considered unused if it is used only once (i.e, just the
-  binding site) -}
+instance FreshM RenameM where
+  liftSupply f =
+    R (sets \rw ->
+      case f (newNames rw) of
+        (a,s1) -> (a, rw1)
+          where !rw1 = rw { newNames = s1 })
 
--- | Mark something as a dependency. This is similar but different from
--- `recordUse`, in particular:
---    * We only record use sites, not bindings
---    * We record all namespaces, not just types
---    * We only keep track of actual uses mentioned in the code.
---      Otoh, `recordUse` also considers exported entities to be used.
---    * If we depend on a name from a sibling submodule we add a dependency on
---      the module in our common ancestor.  Examples:
---      - @A::B::x@ depends on @A::B::C::D::y@, @x@ depends on @A::B::C@
---      - @A::B::x@ depends on @A::P::Q::y@@,   @x@ depends on @A::P@
-
-addDep :: Name -> RenameM ()
-addDep x =
-  do cur  <- getCurMod
-     deps <- case nameInfo x of
-               GlobalName _ OrigName { ogModule = m }
-                 | Just (c,_,i:_) <- modPathCommon cur m ->
-                 do mb <- nestedModuleOrig (Nested c i)
-                    pure case mb of
-                           Just y  -> Set.fromList [x,y]
-                           Nothing -> Set.singleton x
-               _ -> pure (Set.singleton x)
-     RenameM $
-       sets_ \rw -> rw { rwCurrentDeps = Set.union deps (rwCurrentDeps rw) }
+-- | Make names for a bunch of things defined together.
+-- Check that they all have distinct names.
+-- We also return the names defined by each entry.
+-- This is useful for when we need to rearrange the entries in dependency
+-- order.
+doDefOrdGroup :: BindsNames a => [a] -> RenameM (NamingEnv,[Set Name])
+doDefOrdGroup as =
+  do
+    envs <- mapM (liftSupply . defsOf) as
+    let env = mconcat envs
+        errs = findAmbig env
+    mapM_ (recordError . OverlappingSyms) errs
+    when (not (null errs)) quit
+    pure (env, map namingEnvNames envs)
 
 
-warnUnused :: ModPath -> NamingEnv -> RW -> [RenamerWarning]
-warnUnused m0 env rw =
-  map UnusedName
-  $ Map.keys
-  $ Map.filterWithKey keep
-  $ rwNameUseCount rw
-  where
-  keep nm count = count == 1 && isLocal nm
-  oldNames = Map.findWithDefault Set.empty NSType (visibleNames env)
+-- | Make names for a bunch of things defined together.
+-- Check that they all have distinct names.
+doDefGroup :: (Supply -> (NamingEnv, Supply)) -> RenameM NamingEnv
+doDefGroup m =
+  do
+    env <- liftSupply m
+    let errs = findAmbig env
+    mapM_ (recordError . OverlappingSyms) (findAmbig env)
+    when (not (null errs)) quit
+    pure env
 
-  -- returns true iff the name comes from a definition in a nested module,
-  -- including the current module
-  isNestd og = case modPathCommon m0 (ogModule og) of
-                 Just (_,[],_) | FromDefinition <- ogSource og -> True
-                 _ -> False
-
-  isLocal nm = case nameInfo nm of
-                 GlobalName sys og ->
-                   sys == UserName && isNestd og && nm `Set.notMember` oldNames
-                 LocalName {} -> True
-
-
-getExternal :: RenameM (ImpName Name -> Mod ())
-getExternal =
-  do mp <- roExternal <$> RenameM ask
-     pure \nm -> let mb = do t   <- case nm of
-                                      ImpTop t  -> pure t
-                                      ImpNested x -> nameTopModuleMaybe x
-                             (_,mp1) <- Map.lookup t mp
-                             Map.lookup nm mp1
-                 in case mb of
-                      Just m -> m
-                      Nothing -> panic "getExternal"
-                                    ["Missing external name", show (pp nm) ]
-
-getExternalMod :: ImpName Name -> RenameM (Mod ())
-getExternalMod nm = ($ nm) <$> getExternal
-
--- | Returns `Nothing` if the name does not refer to a module (i.e., it is a sig)
-getTopModuleIface :: ImpName Name -> RenameM (Maybe Iface)
-getTopModuleIface nm =
-  do mp <- roExternal <$> RenameM ask
-     let t = case nm of
-               ImpTop t' -> t'
-               ImpNested x -> nameTopModule x
-     case Map.lookup t mp of
-       Just (mb, _) -> pure mb
-       Nothing -> panic "getTopModuleIface"
-                                ["Missing external module", show (pp nm) ]
-
-{- | Record an import:
-      * record external dependency if the name refers to an external import
-      * record an error if the imported thing is a functor
--}
-recordImport :: Range -> ImpName Name -> RenameM ()
-recordImport r i =
-  do ro <- RenameM ask
-     case Map.lookup i (roResolvedModules ro) of
-       Just loc ->
-         case rmodKind loc of
-           AModule -> pure ()
-           k       -> recordError (ModuleKindMismatch r i AModule k)
-       Nothing ->
-        do mb <- getTopModuleIface i
-           case mb of
-             Nothing -> recordError (ModuleKindMismatch r i AModule ASignature)
-             Just iface
-               | ifaceIsFunctor iface ->
-                       recordError (ModuleKindMismatch r i AModule AFunctor)
-               | otherwise ->
-                 RenameM $ sets_ \s -> s { rwExternalDeps = ifDefines iface <>
-                                                            rwExternalDeps s }
+-- | Assuming an error has been recorded already, construct a fake name that's
+-- not expected to make it out of the renamer.
+mkFakeName :: Namespace -> PName -> RenameM Name
+mkFakeName ns pn =
+  do
+    loc <- getCurLoc
+    nm <-
+      liftSupply (mkDeclared ns (TopModule undefinedModName)
+                               SystemName (getIdent pn) Nothing loc)
+    R (sets_ \rw -> rw { defEnv = singletonNS ns pn nm `shadowing` defEnv rw,
+                         knownMods =
+                          case ns of
+                            NSModule -> Map.insert (ImpNested nm) ModFake (knownMods rw)
+                            _ -> knownMods rw })
+    pure nm 
 
 
--- | Lookup a name either in the locally resolved thing or in an external module
-lookupModuleThing :: ImpName Name -> RenameM (Either ResolvedLocal (Mod ()))
-lookupModuleThing nm =
-  do ro <- RenameM ask
-     case Map.lookup nm (roResolvedModules ro) of
-       Just loc -> pure (Left loc)
-       Nothing  -> Right <$> getExternalMod nm
+--------------------------------------------------------------------------------
+-- Dependency Tracking
+--------------------------------------------------------------------------------
 
-lookupDefines :: ImpName Name -> RenameM NamingEnv
-lookupDefines nm =
-  do thing <- lookupModuleThing nm
-     pure case thing of
-            Left loc -> rmodDefines loc
-            Right e  -> modDefines e
+-- | Collect all names used while running the given computation.
+-- Note that the names of the sub-computation are *NOT* added to the dependencies.
+getDeps :: RenameM a -> RenameM (a, Set Name)
+getDeps (R m) = R
+  do
+    curUses <- sets \rw -> (usedNames rw, rw { usedNames = Set.empty })
+    a <- m
+    sets \rw -> ((a,usedNames rw), rw { usedNames = usedNames rw <> curUses })
 
-checkIsModule :: Range -> ImpName Name -> ModKind -> RenameM ()
-checkIsModule r nm expect =
-  do thing <- lookupModuleThing nm
-     let actual = case thing of
-                    Left rmod -> rmodKind rmod
-                    Right mo  -> modKind mo
-     unless (actual == expect)
-        (recordError (ModuleKindMismatch r nm expect actual))
-
-lookupDefinesAndSubs :: ImpName Name -> RenameM (NamingEnv, Set Name)
-lookupDefinesAndSubs nm =
-  do thing <- lookupModuleThing nm
-     pure case thing of
-            Left rmod -> ( rmodDefines rmod, rmodNested rmod)
-            Right m ->
-              ( modDefines m
-              , Set.unions [ Map.keysSet (modMods m)
-                           , Map.keysSet (modInstances m)
-                           ]
-              )
-
-isFakeName :: ImpName Name -> Bool
-isFakeName m =
-  case m of
-    ImpTop x -> x == undefinedModName
-    ImpNested x ->
-      case nameTopModuleMaybe x of
-        Just y  -> y == undefinedModName
-        Nothing -> False
+-- | Add some dependencies for the current thing we are working on.
+recordNameUses :: Set Name -> RenameM ()
+recordNameUses xs =
+  R (sets_ \rw -> rw { usedNames = Set.union xs (usedNames rw) })

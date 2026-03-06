@@ -1,3 +1,5 @@
 Loading module Cryptol
 (\(x : (Bit, Bit)) -> x.0) : (Bit, Bit) -> Bit
+[warning] at issue335.icry:2:13--2:14
+    Unused name: y
 (\(x : a) (y : a) -> x) : {a} a -> a -> a

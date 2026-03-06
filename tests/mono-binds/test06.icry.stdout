@@ -1,6 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module test06
+[warning] at test06.cry:4:6--4:7
+    Unused name: a
 module test06
 
 /* Not recursive */
@@ -20,6 +22,8 @@ test06::test =
 
 Loading module Cryptol
 Loading module test06
+[warning] at test06.cry:4:6--4:7
+    Unused name: a
 module test06
 
 /* Not recursive */

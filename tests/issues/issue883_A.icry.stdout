@@ -2,3 +2,7 @@ Loading module Cryptol
 Loading module Cryptol
 Loading interface module Issue883_A__parameter
 Loading module Issue883_A
+[warning] at Issue883_A.cry:7:10--7:13
+    Unused name: msg
+[warning] at Issue883_A.cry:10:6--10:9
+    Unused name: msg

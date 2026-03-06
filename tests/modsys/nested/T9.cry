@@ -1,6 +1,5 @@
 module T9 where
 
-x = y
 
 submodule A where
   submodule B where
@@ -8,3 +7,5 @@ submodule A where
 
 import submodule A
 import submodule B
+
+x = y

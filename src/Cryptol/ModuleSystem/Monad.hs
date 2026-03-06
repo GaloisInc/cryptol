@@ -677,3 +677,6 @@ setDynEnv denv = ModuleT $ do
 withLogger :: (Logger -> a -> IO b) -> a -> ModuleM b
 withLogger f a = do l <- getEvalOpts
                     io (f (evalLogger l) a)
+
+getDebugOpts :: ModuleM DebugOpts
+getDebugOpts = ModuleT (meDebugOpts <$> get)

@@ -1,8 +1,9 @@
 module T12 where
 
-submodule A where
-  propA = B::y > 5
-
 submodule B where
   y : Integer
   y = 42
+
+submodule A where
+  propA = B::y > 5
+

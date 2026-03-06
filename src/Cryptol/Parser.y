@@ -200,7 +200,7 @@ modInstParam               :: { Located (ModuleInstanceArg PName) }
                                         , srcRange = $1 } }
 
 vmod_body                  :: { [TopDecl PName] }
-  : vtop_decls                { reverse $1 }
+  : vtop_decls                { concat (reverse $1) }
   | {- empty -}               { [] }
 
 
@@ -255,21 +255,21 @@ mbHiding                   :: { [Ident] -> ImportSpec }
   | {- empty -}               { Only   }
 
 program                    :: { Program PName }
-  : top_decls                 { Program (reverse $1) }
+  : top_decls                 { Program (concat (reverse $1)) }
   | {- empty -}               { Program [] }
 
 program_layout             :: { Program PName }
-  : 'v{' vtop_decls 'v}'      { Program (reverse $2) }
+  : 'v{' vtop_decls 'v}'      { Program (concat (reverse $2)) }
   | 'v{''v}'                  { Program []           }
 
-top_decls                  :: { [TopDecl PName]  }
-  : top_decl ';'              { $1         }
-  | top_decls top_decl ';'    { $2 ++ $1   }
+top_decls                  :: { [[TopDecl PName]]  }
+  : top_decl ';'              { [$1] }
+  | top_decls top_decl ';'    { $2 : $1 }
 
-vtop_decls                 :: { [TopDecl PName]  }
-  : vtop_decl                 { $1       }
-  | vtop_decls 'v;' vtop_decl { $3 ++ $1 }
-  | vtop_decls ';'  vtop_decl { $3 ++ $1 }
+vtop_decls                 :: { [[TopDecl PName]]  }
+  : vtop_decl                 { [$1] }
+  | vtop_decls 'v;' vtop_decl { $3 : $1 }
+  | vtop_decls ';'  vtop_decl { $3 : $1 }
 
 vtop_decl               :: { [TopDecl PName] }
   : decl                   { [exportDecl Nothing   Public $1]                 }
@@ -321,9 +321,9 @@ top_decl                :: { [TopDecl PName] }
 
 private_decls           :: { [TopDecl PName] }
   : 'private' 'v{' vtop_decls 'v}'
-                           { changeExport Private (reverse $3) }
+                           { changeExport Private (concat (reverse $3)) }
   | doc 'private' 'v{' vtop_decls 'v}'
-                           {% privateDocedDecl $1 $4 }
+                           {% privateDocedDecl $1 (concat (reverse $4)) }
 
 prim_bind               :: { [TopDecl PName] }
   : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 $3 $5 }

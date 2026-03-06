@@ -1,0 +1,7 @@
+module T1690::G where
+  import interface T1690::I
+  import interface T1690::J
+  interface constraint (i <= j)
+  interface submodule K where
+    p: [j]
+  import module T1690::Fu { I = interface I, J = interface J }
