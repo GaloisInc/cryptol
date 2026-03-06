@@ -1,7 +1,7 @@
 TOP=../../..
 
-CFLAGS += -Wall -Werror -I$(TOP)/lib
-LDLIBS += -lgmp
+CFLAGS += -Wall -Werror -I$(TOP)/lib $(shell pkg-config --cflags gmp 2>/dev/null)
+LDLIBS += $(shell pkg-config --libs gmp 2>/dev/null)
 
 # For each C file foo.c, we make a phony target foo, then depending on the OS
 # map that to foo.dylib, foo.so, or foo.dll.
