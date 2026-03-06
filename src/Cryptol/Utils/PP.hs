@@ -134,6 +134,9 @@ updPPCfg f d = withPPCfg (\cfg -> fixPPCfg (f cfg) d)
 debugShowUniques :: Doc -> Doc
 debugShowUniques = updPPCfg \cfg -> cfg { ppcfgShowNameUniques = True }
 
+debugHidePreludeNames :: Doc -> Doc
+debugHidePreludeNames = updPPCfg \cfg -> cfg { ppcfgHidePreludeNames = True }
+
 setAnnotStyle :: AnnotStyle -> Doc -> Doc
 setAnnotStyle s = updPPCfg \cfg -> cfg { ppcfgAnnotStyle = s }
 
@@ -144,6 +147,7 @@ setAnnotStyle s = updPPCfg \cfg -> cfg { ppcfgAnnotStyle = s }
 data PPCfg = PPCfg
   { ppcfgNameDisp     :: NameDisp
   , ppcfgShowNameUniques :: Bool
+  , ppcfgHidePreludeNames :: Bool
   , ppcfgAnnotStyle :: AnnotStyle
   }
 
@@ -151,6 +155,7 @@ defaultPPCfg :: PPCfg
 defaultPPCfg = PPCfg
   { ppcfgNameDisp = mempty
   , ppcfgShowNameUniques = False
+  , ppcfgHidePreludeNames = False
   , ppcfgAnnotStyle = AnsiAnnot
   }
 
