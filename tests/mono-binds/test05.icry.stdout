@@ -1,12 +1,16 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module test05
-[warning] at test05.cry:9:3--9:6
-    This binding for `foo` shadows the existing binding at
-    test05.cry:4:1--4:4
 [warning] at test05.cry:13:5--13:8
     This binding for `foo` shadows the existing binding at
     test05.cry:9:3--9:6
+[warning] at test05.cry:9:3--9:6
+    This binding for `foo` shadows the existing binding at
+    test05.cry:4:1--4:4
+[warning] at test05.cry:9:3--9:6
+    Unused name: foo
+[warning] at test05.cry:11:3--11:4
+    Unused name: f
 module test05
 
 /* Not recursive */
@@ -43,12 +47,16 @@ test05::test =
 
 Loading module Cryptol
 Loading module test05
-[warning] at test05.cry:9:3--9:6
-    This binding for `foo` shadows the existing binding at
-    test05.cry:4:1--4:4
 [warning] at test05.cry:13:5--13:8
     This binding for `foo` shadows the existing binding at
     test05.cry:9:3--9:6
+[warning] at test05.cry:9:3--9:6
+    This binding for `foo` shadows the existing binding at
+    test05.cry:4:1--4:4
+[warning] at test05.cry:9:3--9:6
+    Unused name: foo
+[warning] at test05.cry:11:3--11:4
+    Unused name: f
 
 [error] at test05.cry:14:11--14:21:
   Ambiguous numeric type: type argument 'front' of '(#)'
