@@ -38,7 +38,7 @@ doFunctorInst ::
   Located (P.ImpName Name)    {- ^ Functor being instantiated -} ->
   P.ModuleInstanceArgs Name   {- ^ Instance arguments -} ->
   Map Name Name
-  {- ^ Instantitation.  These is the renaming for the functor that arises from
+  {- ^ Instantiation.  These is the renaming for the functor that arises from
        generativity (i.e., it is something that will make the names "fresh").
   -} ->
   NamingEnv
@@ -389,7 +389,7 @@ checkSimpleParameterValue r i mp =
   sch = mvpType mp
 
 
-{- | Make an "adaptor" that instantiates the paramter into the form expected
+{- | Make an "adaptor" that instantiates the parameter into the form expected
 by the functor.  If the actual type is:
 
 > {x} P => t

@@ -165,7 +165,7 @@ data PPAnnot = AnnError
 -- | How to render annotations
 data AnnotStyle = NoAnnot | AnsiAnnot | MarkdownAnnot
 
--- The underlyng `Doc` type we (i.e., without the additional configuration)
+-- The underlying `Doc` type we (i.e., without the additional configuration)
 type PPDoc = PP.Doc (AnnotStyle, PPAnnot)
 
 
