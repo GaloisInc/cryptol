@@ -346,10 +346,16 @@ addResolvedMod env mo =
             
         FunctorInstance f _ inst ->
           do
-            fmo <- withLoc (srcRange f) (lookupMod (thing f) (Just AFunctor))
-            let remap x = case Map.lookup x inst of
-                            Just y -> y
-                            Nothing -> panic "addResolvedMod" ["remap failed"]
+            -- Here we don't validate the functor again, to avoid duplicated
+            -- error.
+            fmo <- withLoc (srcRange f) (lookupMod (thing f) Nothing)
+            -- If there was an error, and the thing we are instantiating
+            -- is *not* a functor `inst` would be empty.  We just leave
+            -- the name as is in this case, which shouldn't matter as we'll
+            -- stop after the renamer due to errors.
+            let remap x = Map.findWithDefault x x inst
+
+
             pure Mod {
               modKind = AModule,
               modDefines = env,
