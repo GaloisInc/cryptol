@@ -183,7 +183,11 @@ data ModuleDefinition name =
   | FunctorInstance (Located (ImpName name))
                     (ModuleInstanceArgs name)
                     (ModuleInstance name)
-    -- ^ The instance is filled in by the renamer
+    -- ^ The instance is filled in by the renamer.  It associates names
+    -- in the functor with the names in this instance. Note that this
+    -- includes all names in the functor, including ones in nested modules
+    -- inside it.
+    -- It is used by the type-checker when generating the module instantiation.
 
   | InterfaceModule (Signature name)
     deriving (Show, Generic, NFData)

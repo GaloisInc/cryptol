@@ -124,8 +124,7 @@ runRenamer info (R m) = (res, reverse (renWarnings rwFin))
     rw0 = RW {
       defEnv = mempty,
       impEnv = mempty,
-      modParamEnv = mempty,
-      modParamNames = mempty,
+      modParams = mempty,
       externalDeps = mempty,
       newNames = renSupply info,
       renErrors = [],
@@ -195,11 +194,8 @@ data RW = RW {
   defEnv :: NamingEnv,
   -- ^ Things defined in the current module
 
-  modParamEnv :: NamingEnv,
-  -- ^ Names from module parameters
-
-  modParamNames :: Map Ident Range,
-  -- ^ Names of module parameters for the current module
+  modParams :: !(Map Ident (Range, NamingEnv)),
+  -- ^ Information about the module parameters of the current module
 
   impEnv :: NamingEnv,
   -- ^ Things imported in the current scope
@@ -218,6 +214,10 @@ data RW = RW {
   -- In this way we can determine the dependencies of things.
 }
 
+
+modParamEnv :: Map Ident (Range, NamingEnv) -> NamingEnv
+modParamEnv = mconcat . map snd . Map.elems
+
 --------------------------------------------------------------------------------
 -- Module Manipulation
 --------------------------------------------------------------------------------
@@ -225,9 +225,10 @@ data RW = RW {
 
 -- | Information about a processed module.
 data Mod = Mod
-  { modKind      :: ModKind             -- ^ What sort of thing are we
-  , modDefines   :: NamingEnv           -- ^ Things defined by this module.
-  , modPublic    :: !(Set Name)         -- ^ These are the exported names
+  { modKind      :: ModKind               -- ^ What sort of thing are we
+  -- , modParams    :: Map Ident (Set Name)  -- ^ For functors only. Names from the interface import
+  , modDefines   :: NamingEnv             -- ^ Things defined by this module.
+  , modPublic    :: !(Set Name)           -- ^ These are the exported names
   }
 
 -- | A dummy module to use as placeholder for error situations
@@ -405,7 +406,7 @@ getCurScope = R
       localsEnv ro `shadowing`
       localBindEnv ro `shadowing`
       defEnv    rw `shadowing`
-      modParamEnv rw `shadowing`
+      modParamEnv (modParams rw) `shadowing`
       impEnv    rw `shadowing`
       outEnv    ro
 
@@ -436,18 +437,16 @@ addModParams nm env =
   do
     errs <- R (sets upd)
     mapM_ recordError errs
-    when (not (null errs)) quit
+    unless (null errs) quit
   where
   upd rw =
-    let nms    = modParamNames rw
-        newEnv = env <> modParamEnv rw
+    let nms    = modParams rw
+        newEnv = env <> modParamEnv nms
         errs   =
           [ MultipleModParams (thing nm) [r,srcRange nm]
-          | r <- maybeToList (Map.lookup (thing nm) nms) ] ++
+          | (r,_) <- maybeToList (Map.lookup (thing nm) nms) ] ++
           map OverlappingSyms (findAmbig newEnv)
-    in (errs, rw {
-                modParamEnv = newEnv,
-                modParamNames = Map.insert (thing nm) (srcRange nm) nms })
+    in (errs, rw { modParams = Map.insert (thing nm) (srcRange nm, newEnv) nms })
 
 -- | Add some names that came from an import.
 addImported :: Range -> NamingEnv -> RenameM ()
@@ -509,12 +508,11 @@ inSubmodule x (R m) = R
   do
     rw <- get
     let defs = defEnv rw
-        pars = modParamEnv rw
-        parns = modParamNames rw
+        pars = modParams rw
         imps = impEnv rw
         
     let upd ro =
-          let ds = defs `shadowing` pars
+          let ds = defs `shadowing` modParamEnv pars
           in
             ro {
               curModPath = Nested (curModPath ro) x,
@@ -525,19 +523,17 @@ inSubmodule x (R m) = R
     set rw {
       defEnv      = mempty,
       impEnv      = mempty,
-      modParamEnv = mempty,
-      modParamNames = mempty
+      modParams   = mempty
     }
     a <- mapReader upd m
     sets \rw1 -> 
       let bound = Set.unions
                     (map namingEnvNames
-                      [ defEnv rw1, impEnv rw1, modParamEnv rw1 ])
+                      [ defEnv rw1, impEnv rw1, modParamEnv (modParams rw1) ])
       in
         (a,
-        rw1 { defEnv = defs,
-              modParamEnv = pars,
-              modParamNames = parns,
+        rw1 { defEnv      = defs,
+              modParams   = pars,
               impEnv      = imps,
               usedNames   = usedNames rw1 `Set.difference` bound
             } )
