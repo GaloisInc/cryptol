@@ -1,5 +1,4 @@
 {-# Language BlockArguments, BangPatterns, ImportQualifiedPost, OverloadedStrings #-}
-{-# LANGUAGE InstanceSigs #-}
 module Cryptol.ModuleSystem.Renamer (
     NamingEnv(), shadowing
   , BindsNames, InModule(..)
@@ -29,6 +28,7 @@ import Data.Graph.SCC(sccGraph, stronglyConnComp)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
+import Cryptol.Parser.Name
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector
 import Cryptol.Parser.AST
@@ -646,11 +646,11 @@ doModParam mp =
         new <- newModParam mpath nm rng old
         pure (new,old)
     let names = Set.fromList (fst <$> ren)
-    let env' = namingEnvFromNames names
-    let env =
+    let impNam a =
           case mpAs mp of
-            Nothing -> env'
-            Just q  -> qualify q env'
+            Nothing -> UnQual' (nameIdent a) (nameSrc a)
+            Just q  -> Qual q (nameIdent a)
+    let env = namingEnvFromNames' impNam names
     addModParams (mpSignature mp) { thing = nm } env
     pure (mp { mpSignature = fst <$> x,
                mpRenaming = Map.fromList ren

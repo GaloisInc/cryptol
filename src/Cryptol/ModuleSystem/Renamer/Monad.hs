@@ -603,7 +603,7 @@ reportUnboundName expected qn scope =
       -- the value is just missing
       [] -> recordError (UnboundName expected nm)
 
-    -- traceM ("UNDEFINED NAME IN " ++ show (pp expected) ++ ": " ++ show (pp qn) ++ "\n" ++ show (pp scope))
+    -- traceM ("UNDEFINED NAME IN " ++ show (pp expected) ++ ": " ++ show (pp qn) ++ "\n" ++ show (debugHidePreludeNames (pp scope)))
 
     mkFakeName expected qn
 
