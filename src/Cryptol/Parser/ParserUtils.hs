@@ -1194,13 +1194,14 @@ onlySimpleImports = mapM_ check
 mkInterface' :: [Located (ImportG (ImpName PName))] ->
              [ParamDecl PName] -> Signature PName
 mkInterface' is =
-  foldl' add
+  foldl' add 
     Signature { sigImports     = is
               , sigTypeParams  = []
               , sigDecls       = []
               , sigConstraints = []
               , sigFunParams   = []
               }
+    . reverse
   where
   add s d =
     case d of

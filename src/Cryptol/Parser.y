@@ -300,8 +300,8 @@ sig_def ::                 { (Located PName, Signature PName) }
 
 sig_body                 :: { Signature PName }
   : par_decls               {% mkInterface [] $1 }
-  | imports1 'v;' par_decls {% mkInterface (reverse $1) $3 }
-  | imports1 ';'  par_decls {% mkInterface (reverse $1) $3 }
+  | imports1 'v;' par_decls {% mkInterface $1 $3 }
+  | imports1 ';'  par_decls {% mkInterface $1 $3 }
 
 
 mod_param_decl ::          { ModParam PName }
@@ -336,13 +336,17 @@ foreign_bind            :: { [TopDecl PName] }
   
 
 parameter_decls         :: { TopDecl PName }
-  : 'parameter' 'v{' par_decls 'v}' { mkParDecls (reverse $3) }
+  : 'parameter' 'v{' par_decls 'v}' { mkParDecls $3 }
+
+
+par_decls :: { [ParamDecl PName] }
+  : par_decls_rev                           { concat (reverse $1) }
 
 -- Reversed
-par_decls                            :: { [ParamDecl PName] }
-  : par_decl                            { $1 }
-  | par_decls ';'  par_decl             { $3 ++ $1 }
-  | par_decls 'v;' par_decl             { $3 ++ $1 }
+par_decls_rev :: { [[ParamDecl PName]] }
+  : par_decl                                { [$1] }
+  | par_decls_rev ';'  par_decl             { $3 : $1 }
+  | par_decls_rev 'v;' par_decl             { $3 : $1 }
 
 par_decl                             :: { [ParamDecl PName] }
   : mbDoc        vars_comma ':' schema    { map (\x -> mkParFun $1 x $4) $2 }
