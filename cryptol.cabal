@@ -207,6 +207,7 @@ library
                        Cryptol.Transform.Specialize,
 
                        Cryptol.IR.FreeVars,
+                       Cryptol.IR.TraverseExprs,
                        Cryptol.IR.TraverseNames,
                        Cryptol.IR.Builder,
                        Cryptol.IR.Prove,
