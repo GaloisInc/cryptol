@@ -33,6 +33,7 @@ module Cryptol.ModuleSystem.Name (
   , nameToPNameWithQualifiers
   , asPrim
   , asOrigName
+  , nameModParam
   , nameModPath
   , nameModPathMaybe
   , nameTopModule
@@ -276,6 +277,12 @@ asOrigName n =
   case nInfo n of
     GlobalName _ og -> Just og
     LocalName {}    -> Nothing
+
+-- | Check if this name is from a module parameter, and if so get the
+-- name of the module paramter.
+nameModParam :: Name -> Maybe Ident
+nameModParam x = ogFromParam =<< asOrigName x
+
 
 -- | Get the module path for the given name.
 nameModPathMaybe :: Name -> Maybe ModPath

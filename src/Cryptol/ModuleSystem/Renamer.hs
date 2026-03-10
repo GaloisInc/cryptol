@@ -125,11 +125,11 @@ makeFunctorInstance f args =
     pure (FunctorInstance f { thing = newF } newArgs inst)
 
 generateFunctorInstance :: Mod -> RenameM (ModuleInstance Name)
-generateFunctorInstance mo =
+generateFunctorInstance moF =
   do
     mpath       <- getCurModPath
-    (inst,newE) <- mkModInst mpath mo
-    setThisModuleDefs newE
+    (inst,newE) <- mkModInst mpath moF
+    setThisModuleDefs (namingEnvFromNames newE)
     subI <- doSubs mpath inst
     pure (Map.union inst subI)
   where
@@ -140,12 +140,16 @@ generateFunctorInstance mo =
     mapM (doSub mpath)
       [ def | def <- Map.toList inst, nameNamespace (fst def) == NSModule ]
     
-  -- Generate a fresh instantiation for the module at the given path
+  -- Generate a fresh instantiation for the module at the given path.
+  -- This module may be of any kind (normal, functor, interface).
   mkModInst mpath someMo =
     do
-      let oldEnv = modDefines someMo
-      newEnv <- travNamingEnv (newFunctorInst mpath) oldEnv
-      pure (zipByTextName oldEnv newEnv, newEnv)
+      inst <-
+        forM (Set.toList (modDefines someMo)) \old ->
+          do
+            new <- newFunctorInst mpath old
+            pure (old,new)
+      pure (Map.fromList inst, Set.fromList (map snd inst))
 
   -- Instantiate a module contained in the given module path
   doSub mpath (old,new) =
@@ -283,7 +287,7 @@ renameTopDecls :: [TopDecl PName] -> RenameM (NamingEnv,[TopDecl Name])
 renameTopDecls ds0 =
   do
     mo <- renameModTopDecls ds0
-    env <- getCurTopDefs
+    env <- getCurScope
     pure (env,mo)
 
 
@@ -619,7 +623,7 @@ doImport limp =
                     SystemName -> True
                     UserName -> False
         isPub x = not (isSys x) && (x `Set.member` modPublic mo)
-        newNames = interpImportEnv imp (filterUNames isPub (modDefines mo))
+        newNames = interpImportEnv imp (Set.filter isPub (modDefines mo))
     case thing lname of
       ImpTop x -> recordTopImport x
       _ -> pure ()
@@ -637,14 +641,21 @@ doModParam mp =
         rng = srcRange x
         nm  = mpName mp
     mpath <- getCurModPath
-    env' <- travNamingEnv (newModParam mpath nm rng) (modDefines mo)
+    ren <- forM (Set.toList (modDefines mo)) \old ->
+      do
+        new <- newModParam mpath nm rng old
+        pure (new,old)
+    let names = Set.fromList (fst <$> ren)
+    let env' = namingEnvFromNames names
     let env =
           case mpAs mp of
             Nothing -> env'
             Just q  -> qualify q env'
     addModParams (mpSignature mp) { thing = nm } env
-    let ren = zipByTextName env' (modDefines mo)
-    pure (mp { mpSignature = fst <$> x, mpRenaming = ren }, namingEnvNames env)
+    pure (mp { mpSignature = fst <$> x,
+               mpRenaming = Map.fromList ren
+              },
+          names)
 
 
 --------------------------------------------------------------------------------

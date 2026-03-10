@@ -227,7 +227,7 @@ modParamEnv = mconcat . map snd . Map.elems
 data Mod = Mod
   { modKind      :: ModKind               -- ^ What sort of thing are we
   -- , modParams    :: Map Ident (Set Name)  -- ^ For functors only. Names from the interface import
-  , modDefines   :: NamingEnv             -- ^ Things defined by this module.
+  , modDefines   :: Set Name              -- ^ Things defined by this module.
   , modPublic    :: !(Set Name)           -- ^ These are the exported names
   }
 
@@ -308,7 +308,7 @@ ifaceNamesToMod iface params nm names =
     | (k,v) <- Map.toList (ifModules decls) ]
   mo = Mod
     { modKind    = if params then AFunctor else AModule
-    , modDefines = namingEnvFromNames defs
+    , modDefines = defs
     , modPublic  = ifsPublic names
     }
   defs      = ifsDefines names
@@ -320,10 +320,10 @@ ifaceSigToMod :: ModParamNames -> Mod
 ifaceSigToMod ps = Mod
   { modKind      = ASignature
   , modDefines   = env
-  , modPublic    = namingEnvNames env
+  , modPublic    = env
   }
   where
-  env = modParamNamesNamingEnv ps
+  env = namingEnvNames (modParamNamesNamingEnv ps)
 
 -- | Add a module that was generated when instantiating a functor
 addInstMod :: Name -> Mod -> RenameM ()
@@ -334,13 +334,14 @@ addResolvedMod :: NamingEnv -> ModuleG Name Name -> RenameM ()
 addResolvedMod env mo =
   do
     let nm = ImpNested (thing (mName mo))
+        names = namingEnvNames env
     summary <-
       case mDef mo of
         NormalModule ds ->
           pure Mod {
               modKind = if any isParamDecl ds
                             then AFunctor else AModule,
-              modDefines = env,
+              modDefines = names,
               modPublic = Set.unions (map (`exported` expSpec) allNamespaces)
             }
           where expSpec = exportedDecls ds
@@ -359,15 +360,15 @@ addResolvedMod env mo =
 
             pure Mod {
               modKind = AModule,
-              modDefines = env,
+              modDefines = names,
               modPublic = Set.map remap (modPublic fmo)
             }
               
         InterfaceModule {} ->
           pure Mod {
             modKind = ASignature,
-            modDefines = env,
-            modPublic = namingEnvNames env
+            modDefines = names,
+            modPublic = names
           }
     R (sets_ \rw -> rw { knownMods = Map.insert nm (ModKnown summary) (knownMods rw) })
 
@@ -386,7 +387,9 @@ getCurTopDefs :: RenameM NamingEnv
 getCurTopDefs = R (defEnv <$> get)
 
 -- | Get things defined in the current module, and any local bindings in scope.
--- Used for resolving name definitions
+-- Used for resolving name definitions.
+-- Note that this does not include module parameters as these don't have
+-- an explicit binding site that needs renaming.
 getCurBinds :: RenameM NamingEnv
 getCurBinds = R
   do

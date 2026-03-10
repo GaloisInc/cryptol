@@ -311,29 +311,31 @@ unqualifiedEnv IfaceDecls { .. } =
 
 -- | Adapt the things exported by a module to the specific import/open.
 interpImportEnv :: ImportG name  {- ^ The import declaration -} ->
-                   NamingEnv     {- ^ All public things coming in -} ->
+                   Set Name      {- ^ All public things coming in -} ->
                    NamingEnv
 interpImportEnv imp = interpImportEnv' (iAs imp) (iSpec imp)
 
 -- | A more general version of `interpImportEnv`
 interpImportEnv' :: Maybe ModName    {- ^ prefix with this qualifier -} ->
                     Maybe ImportSpec {- ^ restrict per ImportSpec    -} ->
-                    NamingEnv        {- ^ All public things coming in -} ->
+                    Set Name       {- ^ All public things coming in -} ->
                     NamingEnv
 interpImportEnv' iAs' iSpec' public = qualified
   where
-
+  
   -- optionally qualify names in NamingEnv if the import is "qualified",
   --   i.e., if `isJust iAs'`
-  qualified | Just pfx <- iAs' = qualify pfx restricted
-            | otherwise        =             restricted
+  qualified | Just pfx <- iAs' = qualify pfx names
+            | otherwise        = names
+
+  names = namingEnvFromNames restricted
 
   -- restrict or hide imported symbols
   restricted
     | Just (Hiding ns) <- iSpec' =
-       filterPNames (\qn -> not (getIdent qn `elem` ns)) public
+      Set.filter (\n -> not (nameIdent n `elem` ns)) public
 
     | Just (Only ns) <- iSpec' =
-       filterPNames (\qn -> getIdent qn `elem` ns) public
+      Set.filter (\n -> nameIdent n `elem` ns) public
 
     | otherwise = public
