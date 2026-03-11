@@ -3,29 +3,31 @@ Loading module Cryptol
 Loading module test03
 module test03
 
-/* Not recursive */
-test03::test : {a} (fin a, a >= width a) => [a]
-test03::test =
-  \{a} (fin a, a >= width a) ->
-    foo [a] <>
-    where
-      /* Not recursive */
-      foo : {b} (Literal a b) => b
-      foo = \{b} (Literal a b) -> Cryptol::number a b <>
+  
+  /* Not recursive */
+  test03::test : {a} (fin a, a >= width a) => [a]
+  test03::test =
+    \{a} (fin a, a >= width a) ->
+      foo [a] <>
+      where
+        /* Not recursive */
+        foo : {b} (Literal a b) => b
+        foo = \{b} (Literal a b) -> Cryptol::number a b <>
 
 
 Loading module Cryptol
 Loading module test03
 module test03
 
-/* Not recursive */
-test03::test : {a} (fin a, a >= width a) => [a]
-test03::test =
-  \{a} (fin a, a >= width a) ->
-    foo
-    where
-      /* Not recursive */
-      foo : [a]
-      foo = Cryptol::number a [a] <>
+  
+  /* Not recursive */
+  test03::test : {a} (fin a, a >= width a) => [a]
+  test03::test =
+    \{a} (fin a, a >= width a) ->
+      foo
+      where
+        /* Not recursive */
+        foo : [a]
+        foo = Cryptol::number a [a] <>
 
 
