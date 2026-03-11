@@ -9,9 +9,13 @@ Showing a specific instance of polymorphic result:
   * Using 'Integer' for the type of 'x'
   * Using 'Integer' for the type of 'y'
 {x = 1, y = 2}
+[warning] at layout01.icry:4:12--4:13
+    Unused name: y
 Showing a specific instance of polymorphic result:
   * Using 'Integer' for type of 0th tuple field
 1
+[warning] at layout01.icry:5:22--5:23
+    Unused name: y
 Showing a specific instance of polymorphic result:
   * Using 'Integer' for type of field 'x'
 10

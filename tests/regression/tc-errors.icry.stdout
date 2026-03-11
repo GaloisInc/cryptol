@@ -92,6 +92,8 @@ Loading module Main
   a`892 is signature variable 'a' at tc-errors-5.cry:1:6--1:7
 Loading module Cryptol
 Loading module Main
+[warning] at tc-errors-6.cry:4:3--4:4
+    Unused name: g
 
 [error] at tc-errors-6.cry:4:7--4:8:
   The type ?a is not sufficiently polymorphic.

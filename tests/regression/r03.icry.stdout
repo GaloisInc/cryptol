@@ -1,6 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module r03
+[warning] at r03.cry:41:9--41:11
+    Unused name: qs
 Satisfiable
 True
 Counterexample

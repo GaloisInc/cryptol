@@ -1,4 +1,10 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
+[warning] at check26.cry:1:9--1:10
+    Unused name: y
+[warning] at check26.cry:2:6--2:7
+    Unused name: x
+[warning] at check26.cry:9:36--9:37
+    Unused name: y
 True
