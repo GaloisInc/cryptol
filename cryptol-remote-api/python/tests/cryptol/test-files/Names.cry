@@ -3,6 +3,7 @@ module Names where
 // Examples of names included in `names()` (term names)
 
 parameter
+  type a : #
   key : [64]
 
 enc : [64] -> [64]
@@ -18,9 +19,6 @@ primitive prim : [64] -> [64]
 x -! y = if y > x then 0 else x - y
 
 // Examples of names not included in `names()` (type and module names)
-
-parameter
-  type a : #
 
 type b = a
 
