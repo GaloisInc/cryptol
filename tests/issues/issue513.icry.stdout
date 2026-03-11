@@ -7,17 +7,18 @@ Loading module Main
   Assuming  a to have a numeric type
 module Main
 
-/* Recursive */
-Main::test : {a} [1 + a]
-Main::test =
-  \{a} ->
-    Main::$mono
-    where
-      /* Recursive */
-      Main::$mono : [1 + a]
-      Main::$mono =
-        (Cryptol::#) 1 a Bit <> [Cryptol::False] [y | i <- Cryptol::zero [a] <>
-                                                    | y <- Main::$mono]
+  
+  /* Recursive */
+  Main::test : {a} [1 + a]
+  Main::test =
+    \{a} ->
+      Main::$mono
+      where
+        /* Recursive */
+        Main::$mono : [1 + a]
+        Main::$mono =
+          (Cryptol::#) 1 a Bit <> [Cryptol::False] [y | i <- Cryptol::zero [a] <>
+                                                      | y <- Main::$mono]
 
 
 Main::test
