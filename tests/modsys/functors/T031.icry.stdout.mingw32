@@ -1,0 +1,8 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading interface module T030_I
+Loading module T030
+Loading module Main
+[warning] at .\T030.cry:6:3--6:4
+    Unused name: x
+0x0b
