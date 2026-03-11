@@ -101,8 +101,6 @@ Loading module FoxChickenCorn
     Unused name: fromBank
 Loading module Cryptol
 Loading module Main
-[warning] at funstuff/NQueens.cry:54:9--54:11
-    Unused name: qs
 Loading module Cryptol
 Loading module Main
 Loading module Cryptol
