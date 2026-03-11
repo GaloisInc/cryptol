@@ -1,0 +1,274 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading interface module AE__parameter
+Loading module AE
+Loading module Cryptol
+Loading module AES
+Loading module Cryptol
+Loading module OptionUtils
+Loading module ChaCha20
+[warning] at ChaChaPolyCryptolIETF.md:364:56--364:57
+    Unused name: i
+[warning] at ChaChaPolyCryptolIETF.md:832:5--832:6
+    Unused name: s
+[warning] at ChaChaPolyCryptolIETF.md:1088:5--1088:10
+    Unused name: ptlen
+[warning] at ChaChaPolyCryptolIETF.md:1090:5--1090:10
+    Unused name: adlen
+[warning] at ChaChaPolyCryptolIETF.md:1124:5--1124:10
+    Unused name: ptlen
+[warning] at ChaChaPolyCryptolIETF.md:1126:5--1126:10
+    Unused name: adlen
+[warning] at ChaChaPolyCryptolIETF.md:1998:5--1998:15
+    This binding for `cipherText` shadows the existing binding at
+    ChaChaPolyCryptolIETF.md:1996:24--1996:34
+[warning] at ChaChaPolyCryptolIETF.md:1996:24--1996:34
+    Unused name: cipherText
+[warning] at ChaChaPolyCryptolIETF.md:2076:20--2076:27
+    This binding for `AeadAAD` shadows the existing binding at
+    ChaChaPolyCryptolIETF.md:1163:1--1163:8
+Loading module Cryptol
+Loading module Cipher
+Loading module Cryptol
+Loading module Cipher
+Loading module DES
+Loading module Cryptol
+Loading module Cipher
+Loading module DES
+Loading module Test
+Loading module DEStest
+Loading module Cryptol
+Loading module Karatsuba
+Loading module Cryptol
+Loading module Cipher
+Loading module Test
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+[warning] at demote.cry:2:3--2:4
+    Unused name: v
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+[warning] at props.cry:14:3--14:4
+    Unused name: d
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Cipher
+Loading module CAST5
+[warning] at contrib\CAST5.cry:101:16--101:17
+    Unused name: x
+[warning] at contrib\CAST5.cry:121:13--121:14
+    Unused name: y
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module MISTY1
+Loading module Cryptol
+Loading module Main
+[warning] at contrib\RC4.cry:30:33--30:34
+    Unused name: k
+Loading module Cryptol
+Loading module MKRAND
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module FoxChickenCorn
+[warning] at funstuff\FoxChickenCorn.cry:46:27--46:33
+    Unused name: toBank
+[warning] at funstuff\FoxChickenCorn.cry:46:18--46:26
+    Unused name: fromBank
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+Loading module Cryptol
+Loading module Main
+[warning] at maliciousSHA\malicious_SHA1.cry:21:16--21:19
+    Unused name: msg
+[warning] at maliciousSHA\malicious_SHA1.cry:143:16--143:17
+    Unused name: t
+[warning] at maliciousSHA\malicious_SHA1.cry:144:14--144:15
+    Unused name: t
+[warning] at maliciousSHA\malicious_SHA1.cry:145:14--145:15
+    Unused name: t
+[warning] at maliciousSHA\malicious_SHA1.cry:146:14--146:15
+    Unused name: t
+[warning] at maliciousSHA\malicious_SHA1.cry:158:16--158:17
+    Unused name: t
+Loading module Cryptol
+Loading interface module AES__parameter
+Loading module AES::GF28
+Loading module AES::State
+Loading module AES::SubBytePlain
+Loading module AES::SBox
+Loading module AES::SubByteSBox
+Loading module AES::Round
+Loading interface module AES::Algorithm__parameter
+Loading module AES::Algorithm
+Loading interface module AES::ExpandKey__parameter
+Loading module AES::ExpandKey
+Loading module AES::TBox
+Loading module AES
+Loading module Cryptol
+Loading interface module Common::AES_GCM_SIV__parameter
+Loading interface module AES__parameter
+Loading module AES::GF28
+Loading module AES::State
+Loading module AES::SubBytePlain
+Loading module AES::SBox
+Loading module AES::SubByteSBox
+Loading module AES::Round
+Loading interface module AES::Algorithm__parameter
+Loading module AES::Algorithm
+Loading interface module AES::ExpandKey__parameter
+Loading module AES::ExpandKey
+Loading module AES::TBox
+Loading module AES
+Loading module Common::AES_GCM_SIV
+Loading module Main
+Loading module Cryptol
+Loading interface module AES__parameter
+Loading module AES::GF28
+Loading module AES::State
+Loading module AES::SubBytePlain
+Loading module AES::SBox
+Loading module AES::SubByteSBox
+Loading module AES::Round
+Loading interface module AES::Algorithm__parameter
+Loading module AES::Algorithm
+Loading interface module AES::ExpandKey__parameter
+Loading module AES::ExpandKey
+Loading module AES::TBox
+Loading module AES
+Loading interface module Common::GCM__parameter
+Loading module Common::GCM
+Loading module GCM_AES_Tests
+Loading module Cryptol
+Loading module SHA256__where
+Loading interface module Common::SHA__parameter
+Loading module Common::SHA
+Loading module SHA256
+Loading module SHA
+Loading module Cryptol
+Loading module SHA256__where
+Loading interface module Common::SHA__parameter
+Loading module Common::SHA
+Loading module SHA256
+Loading module Cryptol
+Loading module Base58
+Loading module Cryptol
+Loading module Base64
+Loading module Cryptol
+Loading module Blake2s
+Loading module Cryptol
+Loading module bv
+Loading module mod_arith
+Loading module CfrgCurves
+Loading module Cryptol
+Loading module LittleEndian
+Loading module Salsa20
+Loading module Poly1305
+Loading module bv
+Loading module mod_arith
+Loading module CfrgCurves
+Loading module CryptoBox
+[warning] at .\Poly1305.md:206:5--206:6
+    Unused name: s
+[warning] at CryptoBox.cry:22:4--22:7
+    Unused name: tag
+[warning] at CryptoBox.cry:22:8--22:10
+    Unused name: ct
+Loading module Cryptol
+Loading module SHA256
+Loading module HMAC
+Loading module Cryptol
+Loading module LittleEndian
+Loading module Cryptol
+Loading module SHA256
+Loading module HMAC
+Loading module PBKDF2
+Loading module Cryptol
+Loading module Poly1305
+[warning] at Poly1305.md:206:5--206:6
+    Unused name: s
+Loading module Cryptol
+Loading module LittleEndian
+Loading module Salsa20
+Loading module SHA256
+Loading module HMAC
+Loading module PBKDF2
+Loading module SCrypt
+Loading module Cryptol
+Loading module SHA256
+Loading module Cryptol
+Loading module LittleEndian
+Loading module Salsa20
+Loading module Cryptol
+Loading module SHA256
+Loading module HMAC
+Loading module TestHMAC
+Loading module Cryptol
+Loading module bv
+Loading module Cryptol
+Loading module bv
+Loading module mod_arith
+Loading module Cryptol
+Loading module bv
+Loading module mod_arith
+Loading module CfrgCurves
+Loading module Blake2s
+Loading module Base64
+Loading module Poly1305
+Loading module LittleEndian
+Loading module Salsa20
+Loading module CryptoBox
+Loading module SHA256
+Loading module HMAC
+Loading module PBKDF2
+Loading module SCrypt
+Loading module Base58
+Loading module Keys
+Loading module File
+[warning] at .\Poly1305.md:206:5--206:6
+    Unused name: s
+[warning] at .\CryptoBox.cry:22:4--22:7
+    Unused name: tag
+[warning] at .\CryptoBox.cry:22:8--22:10
+    Unused name: ct
+[warning] at .\File.md:196:6--196:10
+    Unused name: succ
+Loading module Cryptol
+Loading module bv
+Loading module mod_arith
+Loading module CfrgCurves
+Loading module Blake2s
+Loading module LittleEndian
+Loading module Salsa20
+Loading module SHA256
+Loading module HMAC
+Loading module PBKDF2
+Loading module SCrypt
+Loading module Base58
+Loading module Keys
