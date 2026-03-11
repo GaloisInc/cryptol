@@ -29,7 +29,7 @@ import Prelude.Compat
 
 data RenamerError
   = MultipleSyms (Located PName) [Name]
-    -- ^ Multiple imported symbols contain this name
+    -- ^ This name is ambiguous.
 
   | UnboundName Namespace (Located PName)
     -- ^ Some name not bound to any definition
@@ -107,8 +107,8 @@ instance PP RenamerError where
 
     MultipleSyms lqn qns ->
       hang (text "[error] at" <+> pp (srcRange lqn))
-         4 $ (text "Multiple definitions for symbol:" <+> pp (thing lqn))
-          $$ vcat (map ppLocName qns)
+         4 $ (text "The name" <+> backticks (pp (thing lqn)) <+> "is ambiguous. See:")
+          $$ indent 2 (vcat (map (pp . nameLoc) qns))
 
     UnboundName ns lqn ->
       hang (text "[error] at" <+> pp (srcRange lqn))

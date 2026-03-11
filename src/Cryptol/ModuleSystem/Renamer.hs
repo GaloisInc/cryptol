@@ -594,15 +594,15 @@ resolveNameUse ns p =
   where
   found names =
     do
-      x <-
+      (x,xs) <-
         case names of
-          One x -> pure x
+          One x -> pure (x, Set.singleton x)
           Ambig xs ->
             do
               p' <- located p
               recordError (MultipleSyms p' (Set.toList xs))
-              pure (anyOne names)
-      recordNameUses (Set.singleton x)
+              pure (anyOne names, xs)
+      recordNameUses xs
       pure x
 
 
