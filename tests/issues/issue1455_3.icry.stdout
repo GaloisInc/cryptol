@@ -15,7 +15,7 @@ y : [8]
 0x06
 0x0b
 a : [4]
-b : [8]
+b : [m]
 c : [m]
 0x0d
 Type Synonyms

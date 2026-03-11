@@ -18,6 +18,7 @@ module Cryptol.ModuleSystem.Renamer.Monad
     -- * The current module
   , getCurModPath
   , getCurTopDefs
+  , getCurDefNames
   , getCurBinds
   , getCurScope
   , getCurUnqualTypes
@@ -226,7 +227,6 @@ modParamEnv = mconcat . map snd . Map.elems
 -- | Information about a processed module.
 data Mod = Mod
   { modKind      :: ModKind               -- ^ What sort of thing are we
-  -- , modParams    :: Map Ident (Set Name)  -- ^ For functors only. Names from the interface import
   , modDefines   :: Set Name              -- ^ Things defined by this module.
   , modPublic    :: !(Set Name)           -- ^ These are the exported names
   }
@@ -330,11 +330,10 @@ addInstMod :: Name -> Mod -> RenameM ()
 addInstMod x y =
   R (sets_ \rw -> rw { knownMods = Map.insert (ImpNested x) (ModKnown y) (knownMods rw) })
 
-addResolvedMod :: NamingEnv -> ModuleG Name Name -> RenameM ()
-addResolvedMod env mo =
+addResolvedMod :: Set Name -> ModuleG Name Name -> RenameM ()
+addResolvedMod names mo =
   do
     let nm = ImpNested (thing (mName mo))
-        names = namingEnvNames env
     summary <-
       case mDef mo of
         NormalModule ds ->
@@ -385,6 +384,16 @@ getCurModPath = R (curModPath <$> ask)
 -- | Get just the things defined in the current module
 getCurTopDefs :: RenameM NamingEnv
 getCurTopDefs = R (defEnv <$> get)
+
+-- | Get names that should be defined in a module.
+-- Note that for functors we include names that come from parameters,
+-- because when making an instantiation we may generate specialized versions
+-- of the original module's name.
+getCurDefNames :: RenameM (Set Name)
+getCurDefNames =
+  do
+    rw <- R get
+    pure (Set.union (namingEnvNames (defEnv rw)) (namingEnvNames (modParamEnv (modParams rw))))
 
 -- | Get things defined in the current module, and any local bindings in scope.
 -- Used for resolving name definitions.

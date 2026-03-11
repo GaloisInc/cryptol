@@ -69,42 +69,67 @@ renameModule :: Module PName -> RenameM RenamedModule
 renameModule m =
   do
     let lnm = mName m
-    md  <- withLoc (srcRange lnm) (renameModuleDef (mDef m))
-    env <- getCurTopDefs
+    (names, newM) <- withLoc (srcRange lnm) (renameModuleDef m)
     ids <- getExternalDeps
-    scope <- getCurScope
     pure RenamedModule {
-      rmModule = m { mDef = md, mInScope = scope },
-      rmDefines = env,
+      rmModule = newM,
+      rmDefines = nameDefsToNamingEnv names,
       rmImported = ids
     }
+
+-- | Get the definitions of a module as a naming environment.
+-- Top level things get unqualified names and they shadow module parameters,
+-- which are available both as qualified and unqualified.
+nameDefsToNamingEnv :: Set Name -> NamingEnv
+nameDefsToNamingEnv names = mconcat nonMps `shadowing` mconcat mps
+  where
+  (mps,nonMps) = partitionEithers (map isMP (Set.toList names))
+  isMP x =
+    let 
+      mk p  = singletonNS (nameNamespace x) p x
+      u     = mk (UnQual' (nameIdent x) (nameSrc x))
+    in 
+      case nameModParam x of
+        Just i -> Left (mk (Qual (identToModName i) (nameIdent x)) <> u)
+        Nothing -> Right u
+    
 
 
 instance Rename NestedModule where
   rename (NestedModule mo) =
     do
-
       lnm <- traverse (resolveNameDef NSModule) (mName mo)
       let nm = thing lnm
-      (defs,env,scope) <-
-        withLoc (srcRange lnm)
-          (inSubmodule (nameIdent nm)
-            do
-              d1 <- renameModuleDef (mDef mo)
-              env <- getCurTopDefs
-              scope <- getCurScope
-              pure (d1,env,scope))      
-      let newMo = mo { mName = lnm, mDef = defs, mInScope = scope }
-      addResolvedMod env newMo
+      (names, newMo1) <-
+        withLoc (srcRange lnm) (inSubmodule (nameIdent nm) (renameModuleDef mo))
+      let newMo = newMo1 { mName = lnm }
+      addResolvedMod names newMo
       pure (NestedModule newMo)
 
 -- | Rename the definition of a module.
-renameModuleDef :: ModuleDefinition PName -> RenameM (ModuleDefinition Name)
-renameModuleDef def =
-  case def of
-    NormalModule decls -> NormalModule <$> renameModTopDecls decls
-    FunctorInstance fun args _ -> makeFunctorInstance fun args
-    InterfaceModule sig -> InterfaceModule <$> rename sig 
+renameModuleDef :: ModuleG name PName -> RenameM (Set Name, ModuleG name Name)
+renameModuleDef mo =
+  case mDef mo of
+    NormalModule decls ->
+      do
+        def   <- NormalModule <$> renameModTopDecls decls
+        names <- getCurDefNames
+        scope <- getCurScope
+        pure (names, mo { mInScope = scope, mDef = def })
+    FunctorInstance fun args _ ->
+      do
+        (names,_scope,def) <- makeFunctorInstance fun args
+        scope <- getCurScope
+        -- XXX: For the time being we just store the outer scope of the
+        -- module here, and the type-checker modifies it.  We really should
+        -- update to do all name stuff here.
+        pure (names, mo { mInScope = scope, mDef = def })
+    InterfaceModule sig ->
+      do
+        def <- InterfaceModule <$> rename sig
+        names <- getCurDefNames
+        scope <- getCurScope
+        pure (names, mo { mInScope = scope, mDef = def })
 
 
 --------------------------------------------------------------------------------
@@ -113,7 +138,7 @@ renameModuleDef def =
 
 makeFunctorInstance ::
   Located (ImpName PName) -> ModuleInstanceArgs PName ->
-  RenameM (ModuleDefinition Name)
+  RenameM (Set Name, NamingEnv, ModuleDefinition Name)
 makeFunctorInstance f args =
   do
     (newF,moF) <- withLoc (srcRange f) (resolveModName AFunctor (thing f))
@@ -121,18 +146,19 @@ makeFunctorInstance f args =
     -- Note: currently the validation that the arguments match what the
     -- functor expects is done in the type checker.  We may want to do it
     -- here instead.
-    inst <- generateFunctorInstance moF
-    pure (FunctorInstance f { thing = newF } newArgs inst)
+    (defs,scope,inst) <- generateFunctorInstance moF
+    pure (defs, scope, FunctorInstance f { thing = newF } newArgs inst)
 
-generateFunctorInstance :: Mod -> RenameM (ModuleInstance Name)
+generateFunctorInstance :: Mod -> RenameM (Set Name, NamingEnv, ModuleInstance Name)
 generateFunctorInstance moF =
   do
     mpath       <- getCurModPath
     (inst,newE) <- mkModInst mpath moF
-    setThisModuleDefs (namingEnvFromNames newE)
+    let scope = nameDefsToNamingEnv newE
     subI <- doSubs mpath inst
-    pure (Map.union inst subI)
-  where
+    pure (newE, scope, Map.union inst subI)
+  where  
+
   -- Generate fresh instantiations for the modules contained in the
   -- module at this path
   doSubs mpath inst =
@@ -145,11 +171,19 @@ generateFunctorInstance moF =
   mkModInst mpath someMo =
     do
       inst <-
-        forM (Set.toList (modDefines someMo)) \old ->
+        -- XXX: we really should be doing all name stuff here in the renamer,
+        -- but for the moment the handling of function parameters is done
+        -- by the type-checker.
+        forM (filter (not . isMP) (Set.toList (modDefines someMo))) \old ->
           do
             new <- newFunctorInst mpath old
             pure (old,new)
       pure (Map.fromList inst, Set.fromList (map snd inst))
+
+  isMP x =
+    case nameModParam x of
+      Just _ -> True
+      Nothing -> False
 
   -- Instantiate a module contained in the given module path
   doSub mpath (old,new) =
