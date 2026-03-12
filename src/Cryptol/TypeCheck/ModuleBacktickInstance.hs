@@ -382,7 +382,11 @@ instance RewVal Expr where
     where
     tryVarApp orElse =
       case splitExprInst expr of
-        (EVar x, ts, cs) | ?isOurs x ->
+        (EVar x, ts, cs)
+          -- We operate on the instantiated module (including module params),
+          -- and module parameters look like they are defined in the module,
+          -- so we have to explicitly check that we have no binding.
+          | ?isOurs x, not (x `Map.member` pSubst ?vparams) ->
            let ets = foldl ETApp (EVar x) (pUse ?tparams ++ rewType ts)
                eps = iterate EProofApp ets !! (?cparams + cs)
                evs = foldl EApp eps (pUse ?vparams)

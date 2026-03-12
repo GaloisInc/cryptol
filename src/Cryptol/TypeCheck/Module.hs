@@ -17,7 +17,7 @@ import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.ModuleSystem.Name(nameIdent)
 import Cryptol.ModuleSystem.NamingEnv
-          (NamingEnv(..), modParamNamingEnv, shadowing, without)
+          (NamingEnv(..), modParamNamesNamingEnv, shadowing, without, mapNamingEnv)
 import Cryptol.ModuleSystem.Interface
           ( IfaceG(..), IfaceDecls(..), IfaceNames(..), IfaceDecl(..)
           , filterIfaceDecls
@@ -90,9 +90,17 @@ doFunctorInst m f as instMap enclosingInScope doc =
      -- and focused.
      --
      -- The exception is when instantiating with _, in which case we must delete
-     -- the module parameters from the naming environment.
-     let inScope0 = mInScope m2 `without`
-           mconcat [ modParamNamingEnv mp | (_, mp, AddDeclParams) <- argIs ]
+     -- the module parameters from the naming environment, but we should
+     -- still add type synonyms.
+     let ren x = case Map.lookup x instMap of
+                   Just x' -> x'
+                   Nothing -> panic "doFunctorInst" ["Missing module parameter"]
+         inScope0 = mInScope m2 `without`
+           mapNamingEnv ren (
+             mconcat [ modParamNamesNamingEnv nms
+                     | (_, mp, AddDeclParams) <- argIs 
+                     , let nms = (mpParameters mp) { mpnTySyn = mempty }
+                     ])
          inScope = inScope0 `shadowing` enclosingInScope
 
      -- Combine the docstrings of:
