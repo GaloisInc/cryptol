@@ -149,14 +149,16 @@ makeFunctorInstance f args =
     (defs,scope,inst) <- generateFunctorInstance moF
     pure (defs, scope, FunctorInstance f { thing = newF } newArgs inst)
 
+
+
 generateFunctorInstance :: Mod -> RenameM (Set Name, NamingEnv, ModuleInstance Name)
 generateFunctorInstance moF =
   do
-    mpath       <- getCurModPath
-    (inst,newE) <- mkModInst mpath moF
-    let scope = nameDefsToNamingEnv newE
+    mpath <- getCurModPath
+    (inst,newDefs) <- mkModInst mpath moF
+    let scope = nameDefsToNamingEnv newDefs -- XXX: figure out what we want this to be...
     subI <- doSubs mpath inst
-    pure (newE, scope, Map.union inst subI)
+    pure (newDefs, scope, Map.union inst subI)
   where  
 
   -- Generate fresh instantiations for the modules contained in the
@@ -171,19 +173,11 @@ generateFunctorInstance moF =
   mkModInst mpath someMo =
     do
       inst <-
-        -- XXX: we really should be doing all name stuff here in the renamer,
-        -- but for the moment the handling of function parameters is done
-        -- by the type-checker.
-        forM (filter (not . isMP) (Set.toList (modDefines someMo))) \old ->
+        forM (Set.toList (modDefines someMo)) \old ->
           do
             new <- newFunctorInst mpath old
             pure (old,new)
       pure (Map.fromList inst, Set.fromList (map snd inst))
-
-  isMP x =
-    case nameModParam x of
-      Just _ -> True
-      Nothing -> False
 
   -- Instantiate a module contained in the given module path
   doSub mpath (old,new) =

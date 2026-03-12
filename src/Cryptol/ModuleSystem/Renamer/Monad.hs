@@ -76,6 +76,7 @@ import Cryptol.ModuleSystem.Binds
 import Cryptol.ModuleSystem.Renamer.Error
 import Cryptol.ModuleSystem.Exports
 import Cryptol.TypeCheck.Type(ModParamNames)
+import Cryptol.TypeCheck.Type qualified as T
 
 newtype RenameM a = R (ReaderT RO (ExceptionT () (StateT RW Lift)) a)
   deriving (Functor,Applicative,Monad)
@@ -291,11 +292,11 @@ type ModMap = Map (ImpName Name) ModStatus
 -- This is used to handle imports.
 ifaceToMod :: ImpName Name -> IfaceG name -> ModMap
 ifaceToMod nm iface =
-  ifaceNamesToMod iface (ifaceIsFunctor iface) nm (ifNames iface)
+  ifaceNamesToMod iface (ifParams iface) nm (ifNames iface)
 
 -- | Generate a module or functor from the given names.
 ifaceNamesToMod ::
-    IfaceG topname -> Bool -> ImpName Name -> IfaceNames name -> ModMap
+    IfaceG topname -> Map Ident T.ModParam -> ImpName Name -> IfaceNames name -> ModMap
 ifaceNamesToMod iface params nm names =
   Map.unions (Map.fromList ((nm,ModKnown mo) : sigs) : funs ++ nest)
   where
@@ -304,16 +305,24 @@ ifaceNamesToMod iface params nm names =
   funs =
     [ ifaceToMod (ImpNested k) v | (k,v) <- Map.toList (ifFunctors decls) ]
   nest =
-    [ ifaceNamesToMod iface False (ImpNested k) v
+    [ ifaceNamesToMod iface mempty (ImpNested k) v
     | (k,v) <- Map.toList (ifModules decls) ]
   mo = Mod
-    { modKind    = if params then AFunctor else AModule
-    , modDefines = defs
+    { modKind    = if null params then AModule else AFunctor
+    , modDefines = Set.fromList namesFromPs `Set.union` defs
     , modPublic  = ifsPublic names
     }
   defs      = ifsDefines names
   isLocal x = x `Set.member` defs
   decls     = filterIfaceDecls isLocal (ifDefines iface)
+  namesFromPs =
+    [ pnm
+    | mp <- Map.elems params
+    , let nms   = T.mpParameters mp
+    , pnm <- Map.keys (T.mpnTypes nms) ++
+             Map.keys (T.mpnFuns nms) ++
+             Map.keys (T.mpnTySyn nms)
+    ]
 
 -- | Generate a module corresponding to an interface module.
 ifaceSigToMod :: ModParamNames -> Mod

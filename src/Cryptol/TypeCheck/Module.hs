@@ -1,22 +1,20 @@
 {-# Language BlockArguments, ImplicitParams #-}
 module Cryptol.TypeCheck.Module (doFunctorInst) where
 
-import Data.List(partition,unzip4)
+import Data.List(partition)
 import Data.Text(Text)
 import Data.Map(Map)
 import Data.Maybe (maybeToList)
 import qualified Data.Map as Map
-import qualified Data.Map.Merge.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Monad(unless,forM_,mapAndUnzipM)
 
 
 import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Ident(Ident,Namespace(..),ModPath,isInfixIdent)
+import Cryptol.Utils.Ident(Ident,Namespace(..),isInfixIdent)
 import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
-import Cryptol.ModuleSystem.Binds(newFunctorInst)
 import Cryptol.ModuleSystem.Name(nameIdent)
 import Cryptol.ModuleSystem.NamingEnv
           (NamingEnv(..), modParamNamingEnv, shadowing, without)
@@ -45,17 +43,15 @@ doFunctorInst ::
   {- ^ Names in the enclosing scope of the instantiated module -} ->
   Maybe Text                  {- ^ Documentation for the module being generated -} ->
   InferM (Maybe TCTopEntity)
-doFunctorInst m f as instMap0 enclosingInScope doc =
+doFunctorInst m f as instMap enclosingInScope doc =
   inRange (srcRange m)
   do mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
-     m2 <- do let mpath = P.impNameModPath (thing m)
-              as2 <- mapM (checkArg mpath) argIs
-              let (tySus,paramTySyns,decls,paramInstMaps) =
-                    unzip4 [ (su,ts,ds,im) | DefinedInst su ts ds im <- as2 ]
-              instMap <- addMissingTySyns mpath mf instMap0
+     m2 <- do as2 <- mapM (checkArg instMap) argIs
+              let (tySus,paramTySyns,decls) =
+                    unzip3 [ (su,ts,ds) | DefinedInst su ts ds <- as2 ]
               let ?tVarSu = mergeDistinctSubst tySus
-                  ?nameSu = instMap <> mconcat paramInstMaps
+                  ?nameSu = instMap
               let m1   = moduleInstance mf
                   m2   = m1 { mName             = m
                             , mDoc              = mempty
@@ -196,9 +192,6 @@ data ArgInst = -- | Argument that defines the params
                  -- ^ Type synonyms created from the functor's type parameters
                  [Decl]
                  -- ^ Bindings for value parameters
-                 (Map Name Name)
-                 -- ^ Map from the functor's parameter names to the new names
-                 --   created for the instantiation
 
              | ParamInst (Set (MBQual TParam)) [Prop] (Map (MBQual Name) Type)
                -- ^ Argument that add parameters
@@ -207,20 +200,9 @@ data ArgInst = -- | Argument that defines the params
 
 
 
-{- | Check the argument to a functor parameter.
-Returns:
-
-  * A substitution which will replace the parameter types with
-    the concrete types that were provided
-
-  * Some declarations that define the parameters in terms of the provided
-    values.
-
-  * XXX: Extra parameters for instantiation by adding params
--}
-checkArg ::
-  ModPath -> (Range, ModParam, ActualArg) -> InferM ArgInst
-checkArg mpath (r,expect,actual') =
+{- | Check the argument to a functor parameter. -}
+checkArg :: Map Name Name -> (Range, ModParam, ActualArg) -> InferM ArgInst
+checkArg instMap (r,expect,actual') =
   case actual' of
     AddDeclParams   -> paramInst
     UseParameter {} -> definedInst
@@ -228,17 +210,17 @@ checkArg mpath (r,expect,actual') =
 
   where
   paramInst =
-    do let as = Set.fromList
-                   (map (qual . mtpParam) (Map.elems (mpnTypes params)))
-           cs = map thing (mpnConstraints params)
-           check = checkSimpleParameterValue r (mpName expect)
+    do let (as,su) = prepParamTypeBacktick instMap (Map.elems (mpnTypes params))
+           cs = map (apSubst su . thing) (mpnConstraints params)
+           check = checkParamValueBacktick instMap su r (mpName expect)
            qual a = (mpQual expect, a)
-       fs <- Map.mapMaybeWithKey (\_ v -> v) <$> mapM check (mpnFuns params)
-       pure (ParamInst as cs (Map.mapKeys qual fs))
+       fs <- concat <$> mapM check (Map.elems (mpnFuns params))
+       let funs = Map.fromList [ (qual f, t) | (f,t) <- fs ]
+       pure (ParamInst (Set.fromList (map qual as)) cs funs)
 
   definedInst =
-    do (tRens, tSyns, tInstMaps) <- unzip3 <$>
-         mapM (checkParamType mpath r tyMap) (Map.toList (mpnTypes params))
+    do (tRens, tSyns) <-
+         mapAndUnzipM (checkParamType instMap r tyMap) (Map.toList (mpnTypes params))
        let renSu = listParamSubst (concat tRens)
 
        {- Note: the constraints from the signature are already added to the
@@ -246,13 +228,12 @@ checkArg mpath (r,expect,actual') =
           doFunctorInst -}
 
 
-       (vDecls, vInstMaps) <-
-         mapAndUnzipM (checkParamValue mpath r vMap)
+       vDecls <-
+         mapM (checkParamValue instMap r vMap)
            [ s { mvpType = apSubst renSu (mvpType s) }
            | s <- Map.elems (mpnFuns params) ]
 
-       pure $ DefinedInst renSu (mconcat tSyns)
-         (concat vDecls) (mconcat tInstMaps <> mconcat vInstMaps)
+       pure $ DefinedInst renSu (mconcat tSyns) (concat vDecls)
 
 
   params = mpParameters expect
@@ -303,31 +284,33 @@ nameMapToIdentMap f m =
 
 -- | Check a type parameter to a module.
 checkParamType ::
-  ModPath                    {- ^ The new module we are creating -} ->
+  Map Name Name              {- ^ Renaming -} ->
   Range                      {- ^ Location for error reporting -} ->
   Map Ident (Kind,Type)      {- ^ Actual types -} ->
   (Name,ModTParam)           {- ^ Type parameter -} ->
-  InferM ([(TParam,Type)], Map Name TySyn, Map Name Name)
+  InferM ([(TParam,Type)], Map Name TySyn)
     {- ^ Mapping from parameter name to actual type (for type substitution),
          type synonym map from a fresh type name to the actual type
            (only so that the type can be referred to in the REPL;
             type synonyms are fully inlined into types at this point),
          and a map from the old type name to the fresh type name
            (for instantiation) -}
-checkParamType mpath r tyMap (name,mp) =
+checkParamType instMap r tyMap (name,mp) =
   let i       = nameIdent name
       expectK = mtpKind mp
   in
   case Map.lookup i tyMap of
     Nothing ->
       do recordErrorLoc (Just r) (FunctorInstanceMissingName NSType i)
-         pure ([], Map.empty, Map.empty)
+         pure ([], Map.empty)
     Just (actualK,actualT) ->
       do unless (expectK == actualK)
            (recordErrorLoc (Just r)
                            (KindMismatch (Just (TVFromModParam name))
                                                   expectK actualK))
-         name' <- newFunctorInst mpath name
+         let name' = case Map.lookup name instMap of
+                       Just nm -> nm
+                       Nothing -> panic "checkParamType" [ "missing name" ]
          let tySyn = TySyn { tsName = name'
                            , tsParams = []
                            , tsConstraints = []
@@ -335,30 +318,31 @@ checkParamType mpath r tyMap (name,mp) =
                            , tsDoc = mtpDoc mp }
          pure ( [(mtpParam mp, actualT)]
               , Map.singleton name' tySyn
-              , Map.singleton name name'
               )
 
 -- | Check a value parameter to a module.
 checkParamValue ::
-  ModPath                 {- ^ The new module we are creating -} ->
+  Map Name Name           {- ^ Name instance map -} ->
   Range                   {- ^ Location for error reporting -} ->
   Map Ident (Name,Schema) {- ^ Actual values -} ->
   ModVParam               {- ^ The parameter we are checking -} ->
-  InferM ([Decl], Map Name Name)
+  InferM [Decl]
   {- ^ Decl mapping a new name to the actual value,
        and a map from the value param name in the functor to the new name
          (for instantiation) -}
-checkParamValue mpath r vMap mp =
+checkParamValue instMap r vMap mp =
   let name     = mvpName mp
       i        = nameIdent name
       expectT  = mvpType mp
   in case Map.lookup i vMap of
        Nothing ->
          do recordErrorLoc (Just r) (FunctorInstanceMissingName NSValue i)
-            pure ([], Map.empty)
+            pure []
        Just actual ->
          do e <- mkParamDef r (name,expectT) actual
-            name' <- newFunctorInst mpath name
+            let name' = case Map.lookup name instMap of
+                          Just nm -> nm
+                          Nothing -> panic "checkParamValue" ["Missing name"]
             let d = Decl { dName        = name'
                          , dSignature   = expectT
                          , dDefinition  = DExpr e
@@ -368,26 +352,52 @@ checkParamValue mpath r vMap mp =
                          , dDoc         = mvpDoc mp
                          }
 
-            pure ([d], Map.singleton name name')
+            pure [d]
 
 
+--------------------------------------------------------------------------------
+-- "Backtick" instantiation
+--------------------------------------------------------------------------------
 
-checkSimpleParameterValue ::
+-- | Compute the names of the type parameters for a backtick import.
+-- The `ModTParam` arguments are those from the functor, so we need to
+-- apply the instantiation renaming to them, so that it can be consistently
+-- used when instantiation
+prepParamTypeBacktick :: Map Name Name -> [ModTParam] -> ([TParam], Subst)
+prepParamTypeBacktick nameInst mps = (newTPs, su)
+  where
+  su     = listParamSubst (oldTPs `zip` map (TVar . TVBound) newTPs)
+  newTPs = map renP mps
+  oldTPs = map mtpParam mps
+  renP p =
+    case Map.lookup (mtpName p) nameInst of
+      Just nm -> mtpParam p { mtpName = nm }
+      Nothing -> panic "prepParamTypeBacktick" ["Missing parameter"]
+
+
+-- | Check that the type o
+checkParamValueBacktick ::
+  Map Name Name               {- ^ Instantiation map -} ->
+  Subst                       {- ^ Renaming subsitution -} ->
   Range                       {- ^ Location for error reporting -} ->
   Ident                       {- ^ Name of functor parameter -} ->
   ModVParam                   {- ^ Module parameter -} ->
-  InferM (Maybe Type)  {- ^ Type to add to things, `Nothing` on err -}
-checkSimpleParameterValue r i mp =
+  InferM [(Name, Type)]       {- ^ Name to use, and it's type.  [] on error -}
+checkParamValueBacktick instMap su r i mp =
   case (sVars sch, sProps sch) of
-    ([],[]) -> pure (Just (sType sch))
+    ([],ps) | all pIsTrue ps -> pure [(newNm,apSubst su (sType sch))]
     _ ->
       do recordErrorLoc (Just r)
             (FunctorInstanceBadBacktick
                (BIPolymorphicArgument i (nameIdent (mvpName mp))))
-         pure Nothing
+         pure []
   where
   sch = mvpType mp
-
+  newNm =
+    case Map.lookup (mvpName mp) instMap of
+      Just nm -> nm
+      Nothing -> panic "checkParamValueBacktick" ["Missing value parameter"]
+--------------------------------------------------------------------------------
 
 {- | Make an "adaptor" that instantiates the parameter into the form expected
 by the functor.  If the actual type is:
@@ -431,23 +441,3 @@ mkParamDef r (pname,wantedS) (arg,actualS) =
          res1 = foldr EProofAbs (apSubst su e)  (sProps wantedS)
 
      applySubst res
-
-
--- | The instMap we get from the renamer will not contain the fresh names for
--- certain things in the functor generated in the typechecking stage, if we are
--- instantiating a functor that is in the same file, since renaming and
--- typechecking happens together with the instantiation. In particular, if the
--- functor's interface has type synonyms, they will only get copied over into
--- the functor in the typechecker, so the renamer will not see them. Here we
--- make the fresh names for those missing type synonyms and add them to the
--- instMap.
-addMissingTySyns ::
-  ModPath                  {- ^ The new module we are creating -} ->
-  ModuleG ()               {- ^ The functor -} ->
-  Map Name Name            {- ^ instMap we get from renamer -} ->
-  InferM (Map Name Name)   {- ^ the complete instMap -}
-addMissingTySyns mpath f = Map.mergeA
-  (Map.traverseMissing \name _ -> newFunctorInst mpath name)
-  Map.preserveMissing
-  (Map.zipWithMatched \_ _ name' -> name')
-  (mTySyns f)
