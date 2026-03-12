@@ -5,7 +5,7 @@ Checking module T06
   Docstrings on T06
   Docstrings on T06::N1::N
   Docstrings on T06::A::I::N
-  Docstrings on T06::A::I::N
+  Docstrings on T06::A::C_::I::N
   Docstrings on T06::A::C_::lost
     let x = lost
   Docstrings on submodule T06::N1
