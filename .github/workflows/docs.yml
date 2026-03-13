@@ -184,6 +184,7 @@ jobs:
             mkdir -p docs/RefMan/_build
             mv ${tgt}/docs/RefMan/_build/html docs/RefMan/_build/$(basename ${tgt})
           done
+          cp docs/index.html docs/RefMan/_build/index.html
       - name: upload pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
