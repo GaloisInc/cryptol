@@ -51,6 +51,6 @@ ijs : {n}(fin n, n>= 1)=> [_](Position n, Position n)
 ijs = [ (i, j) | i <- [0 .. (n-1)], j <- [0 .. (n-1)]]
 
 inRange : {n} (fin n, n >= 1) => Board n -> Position n -> Bit
-inRange qs x = x <= `(n - 1)
+inRange _qs x = x <= `(n - 1)
 
 property nQueensProve x = (nQueens x) == False

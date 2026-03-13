@@ -1,11 +1,14 @@
 module T3 where
 
-import submodule A
-x = y
+
+x = z
 
 submodule A where
   y = x
 
+import submodule A
+
+z = y
 
 
 

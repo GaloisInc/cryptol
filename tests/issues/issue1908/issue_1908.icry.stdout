@@ -1,3 +1,5 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
+[warning] at issue_1908.cry:3:6--3:7
+    Unused name: q

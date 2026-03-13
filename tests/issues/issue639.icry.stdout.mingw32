@@ -1,0 +1,22 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Issue639_M
+Loading module Issue639_C
+[warning] at .\Issue639_M.cry:2:6--2:7
+    Unused name: a
+There are no properties in this module.
+There are no properties in this module.
+There are no properties in this module.
+Loading module Cryptol
+Loading module Issue639_M
+[warning] at Issue639_M.cry:2:6--2:7
+    Unused name: a
+property p Using exhaustive testing.
+Testing... Counterexample
+p False = False
+:prove p
+	Counterexample
+p False = False
+:sat p
+	Satisfiable
+p True = True

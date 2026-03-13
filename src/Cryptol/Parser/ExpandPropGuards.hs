@@ -133,6 +133,13 @@ expandBind bind =
                Right (PosInst (TUser (Located loc (tpName tp)) [])))
               `traverse` tParams
           let e' = foldl EApp (EAppT (EVar $ thing bName') typeInsts) (patternToExpr <$> bindParams bind)
+          let updatedDef x =
+                case x of
+                  ELocated e1 l -> ELocated (updatedDef e1) l
+                  EFun desc xs y
+                    | Just {} <- funDescrName desc ->
+                      EFun desc { funDescrFromPropGuard = True } xs (updatedDef y)
+                  _ -> x
           pure
             ( PropGuardCase props' e',
               bind
@@ -145,7 +152,7 @@ expandBind bind =
                                         t rng },
                   -- keeps same location at original bind
                   -- i.e. "on top of" original bind
-                  bDef = (bDef bind) {thing = exprDef e}
+                  bDef = (bDef bind) {thing = exprDef (updatedDef e) }
                 }
             )
     (guards', binds') <- unzip <$> mapM goGuard guards

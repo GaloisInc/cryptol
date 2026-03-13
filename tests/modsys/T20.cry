@@ -1,0 +1,13 @@
+module T20 where
+
+x = 0x03
+
+submodule B where
+  x = 0x04
+
+submodule M where
+  import submodule B
+  x = 0x02
+
+f:{Integer} Integer
+f = f

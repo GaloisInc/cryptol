@@ -134,6 +134,9 @@ updPPCfg f d = withPPCfg (\cfg -> fixPPCfg (f cfg) d)
 debugShowUniques :: Doc -> Doc
 debugShowUniques = updPPCfg \cfg -> cfg { ppcfgShowNameUniques = True }
 
+debugHidePreludeNames :: Doc -> Doc
+debugHidePreludeNames = updPPCfg \cfg -> cfg { ppcfgHidePreludeNames = True }
+
 setAnnotStyle :: AnnotStyle -> Doc -> Doc
 setAnnotStyle s = updPPCfg \cfg -> cfg { ppcfgAnnotStyle = s }
 
@@ -144,6 +147,7 @@ setAnnotStyle s = updPPCfg \cfg -> cfg { ppcfgAnnotStyle = s }
 data PPCfg = PPCfg
   { ppcfgNameDisp     :: NameDisp
   , ppcfgShowNameUniques :: Bool
+  , ppcfgHidePreludeNames :: Bool
   , ppcfgAnnotStyle :: AnnotStyle
   }
 
@@ -151,6 +155,7 @@ defaultPPCfg :: PPCfg
 defaultPPCfg = PPCfg
   { ppcfgNameDisp = mempty
   , ppcfgShowNameUniques = False
+  , ppcfgHidePreludeNames = False
   , ppcfgAnnotStyle = AnsiAnnot
   }
 
@@ -160,7 +165,7 @@ data PPAnnot = AnnError
 -- | How to render annotations
 data AnnotStyle = NoAnnot | AnsiAnnot | MarkdownAnnot
 
--- The underlyng `Doc` type we (i.e., without the additional configuration)
+-- The underlying `Doc` type we (i.e., without the additional configuration)
 type PPDoc = PP.Doc (AnnotStyle, PPAnnot)
 
 
@@ -441,7 +446,14 @@ instance PP T.Text where
   ppPrec _ str = text (T.unpack str)
 
 instance PP Ident where
-  ppPrec _ i = text (T.unpack (identText i))
+  ppPrec _ i =
+    withPPCfg (\cfg ->
+      let base = text (T.unpack (identText i))
+      in
+        if ppcfgShowNameUniques cfg && not (identIsNormal i)
+          then base <.> "/*sys*/"
+          else base)
+      
 
 instance PP ModName where
   ppPrec _   = text . T.unpack . modNameToText

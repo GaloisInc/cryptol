@@ -3,5 +3,7 @@ Loading module Cryptol
 Loading module T3
 
 [error] Invalid recursive dependency:
-    • submodule T3::A, defined at 6:11--6:12
     • T3::x, defined at 4:1--4:2
+    • submodule T3::A, defined at 6:11--6:12
+    • import at T3.cry:6:11--6:12, defined at 6:11--6:12
+    • T3::z, defined at 11:1--11:2

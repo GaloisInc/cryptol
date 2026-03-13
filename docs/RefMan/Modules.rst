@@ -263,6 +263,11 @@ Declarations in a submodule may be imported with ``import submodule``,
 which works just like an ordinary import except that ``X`` refers
 to the name of a submodule.
 
+A sub-module may be used only in the declarations that follow it
+(e.g., the ``import`` of the sub-module should be *after* the sub-module
+declaration).  Similarly, the names imported from a sub-module may
+be used only in the declarations following the ``import``.
+
 
 .. code-block:: cryptol
   :caption: Using declarations from a submodule.

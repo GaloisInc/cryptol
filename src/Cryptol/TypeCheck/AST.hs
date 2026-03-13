@@ -546,19 +546,24 @@ instance PP n => PP (WithNames (ModuleG n)) where
                       $$ indent 2 (pp y)
         vcat' xs = if null xs then Nothing else Just (vcat xs)
       in
-    vcat $
-    catMaybes
-         [ Just (text "module" <+> pp mName)
-         , Just ""
-         -- XXX: Print exports?
-         , vcat' (map pp' (Map.elems mTySyns))
-         -- XXX: Print abstarct types/functions
-         , vcat' (map pp' mDecls)
-
-         , vcat' (map pp (Map.elems mFunctors))
-
-         , vcat' (map ppSig (Map.toList mSignatures))
-         ]
+    vcat [
+      text "module" <+> pp mName,
+      "",
+      indent 2 $ vcat $
+      catMaybes
+           -- XXX: Print exports?
+           [ vcat' (map pp (Map.elems mParamTypes))
+           , vcat' (map pp (Map.elems mParamFuns))
+           , Just ""
+           , vcat' (map pp' (Map.elems mTySyns))
+           -- XXX: Print abstarct types/functions
+           , vcat' (map pp' mDecls)
+  
+           , vcat' (map pp (Map.elems mFunctors))
+  
+           , vcat' (map ppSig (Map.toList mSignatures))
+           ]
+    ]
 
 
 instance PP (WithNames TCTopEntity) where

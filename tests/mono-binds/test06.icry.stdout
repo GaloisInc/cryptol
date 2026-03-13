@@ -1,39 +1,45 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module test06
+[warning] at test06.cry:4:6--4:7
+    Unused name: a
 module test06
 
-/* Not recursive */
-test06::test : {a} (Zero a) => a -> a
-test06::test =
-  \{a} (Zero a) (a : a) ->
-    bar
-    where
-      /* Not recursive */
-      foo : a
-      foo = Cryptol::zero a <>
+  
+  /* Not recursive */
+  test06::test : {a} (Zero a) => a -> a
+  test06::test =
+    \{a} (Zero a) (a : a) ->
+      bar
+      where
+        /* Not recursive */
+        foo : a
+        foo = Cryptol::zero a <>
 
-      /* Not recursive */
-      bar : a
-      bar = foo
+        /* Not recursive */
+        bar : a
+        bar = foo
 
 
 Loading module Cryptol
 Loading module test06
+[warning] at test06.cry:4:6--4:7
+    Unused name: a
 module test06
 
-/* Not recursive */
-test06::test : {a} (Zero a) => a -> a
-test06::test =
-  \{a} (Zero a) (a : a) ->
-    bar
-    where
-      /* Not recursive */
-      foo : a
-      foo = Cryptol::zero a <>
+  
+  /* Not recursive */
+  test06::test : {a} (Zero a) => a -> a
+  test06::test =
+    \{a} (Zero a) (a : a) ->
+      bar
+      where
+        /* Not recursive */
+        foo : a
+        foo = Cryptol::zero a <>
 
-      /* Not recursive */
-      bar : a
-      bar = foo
+        /* Not recursive */
+        bar : a
+        bar = foo
 
 

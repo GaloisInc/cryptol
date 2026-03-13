@@ -1,0 +1,2 @@
+interface module T1690::I where
+   type i: #

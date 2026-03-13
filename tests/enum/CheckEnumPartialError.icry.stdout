@@ -1,6 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
+[warning] at CheckEnumPartialError.cry:9:14--9:15
+    Unused name: f
 
 [error] at CheckEnumPartialError.cry:5:3--8:1:
   Case expression does not cover the following patterns:

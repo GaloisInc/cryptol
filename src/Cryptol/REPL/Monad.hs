@@ -994,7 +994,7 @@ userOptionsWithAliases = foldl insert userOptions (leaves userOptions)
   insert m d = foldl (\m' n -> insertTrie n d m') m (optAliases d)
 
 userOptions :: OptionMap
-userOptions  = mkOptionMap
+userOptions  = mkOptionMap $
   [ simpleOpt "base" [] (EnvNum 16) checkBase
     "The base to display words at (2, 8, 10, or 16)."
   , simpleOpt "debug" [] (EnvBool False) noCheck
@@ -1149,7 +1149,38 @@ userOptions  = mkOptionMap
 
   , simpleOpt "sawFlags" ["saw-flags"] (EnvString "-v 0") noCheck
     "Flags for all calls to SAW."
+  ] ++ debugDumpOpts
+
+debugDumpOpts :: [OptionDescr]
+debugDumpOpts =
+  opt "debugDumpPrelude"
+    "Indicates if we should `dbg-dump-` for `Cryptol.cry`"
+    (\b o -> o { M.dbgIncludePrelude = b })
+  :
+  [ opt ("debugDump_" ++ show n ++ "_" ++ nm)
+    (passHelp pass)
+    (\b o -> o { M.dbgDumpAfter = upd b pass (M.dbgDumpAfter o) })
+  | (n,pass) <- [1 :: Int ..] `zip` [ minBound .. maxBound ]
+  , let nm = drop 4 (show pass)
   ]
+  where
+  opt x msg k = OptionDescr x [] (EnvBool False) noCheck msg $
+    \case
+      EnvBool b -> setIt (k b)
+      _         -> pure ()
+  upd b  = if b then Set.insert else Set.delete
+  setIt f =
+    do 
+      me <- getModuleEnv
+      setModuleEnv me { M.meDebugOpts = f (M.meDebugOpts me) }
+  passHelp p =
+    case p of
+      M.PassParser -> "The AST produced by the parser"
+      M.PassNoPat  -> "The AST after some desugaring (e.g., eliminate patterns)"
+      M.PassPropGuards -> "AST with simplified prop. guards"
+      M.PassRename -> "The AST with resolve names"
+      M.PassTC -> "Typechecked AST (this is different to the parsed one)"
+      M.PassREW -> "Typechecked AST with some simplifying rewrites"
 
 
 parsePPFloatFormat :: String -> Maybe PPFloatFormat

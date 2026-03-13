@@ -3,29 +3,31 @@ Loading module Cryptol
 Loading module test01
 module test01
 
-/* Not recursive */
-test01::a : {n, a} (fin n) => [n]a -> [2 * n]a
-test01::a =
-  \{n, a} (fin n) (x : [n]a) ->
-    f n x
-    where
-      /* Not recursive */
-      f : {m} [m]a -> [n + m]a
-      f = \{m} (y : [m]a) -> (Cryptol::#) n m a <> x y
+  
+  /* Not recursive */
+  test01::a : {n, a} (fin n) => [n]a -> [2 * n]a
+  test01::a =
+    \{n, a} (fin n) (x : [n]a) ->
+      f n x
+      where
+        /* Not recursive */
+        f : {m} [m]a -> [n + m]a
+        f = \{m} (y : [m]a) -> (Cryptol::#) n m a <> x y
 
 
 Loading module Cryptol
 Loading module test01
 module test01
 
-/* Not recursive */
-test01::a : {n, a} (fin n) => [n]a -> [2 * n]a
-test01::a =
-  \{n, a} (fin n) (x : [n]a) ->
-    f x
-    where
-      /* Not recursive */
-      f : [n]a -> [2 * n]a
-      f = \(y : [n]a) -> (Cryptol::#) n n a <> x y
+  
+  /* Not recursive */
+  test01::a : {n, a} (fin n) => [n]a -> [2 * n]a
+  test01::a =
+    \{n, a} (fin n) (x : [n]a) ->
+      f x
+      where
+        /* Not recursive */
+        f : [n]a -> [2 * n]a
+        f = \(y : [n]a) -> (Cryptol::#) n n a <> x y
 
 

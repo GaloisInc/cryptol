@@ -214,7 +214,7 @@ findAmbig env =
   NamingEnv ns = consToValues env
 
 -- | Get the subset of the first environment that shadows something
--- in the second one. We only consider UserNames in the second enviornment.
+-- in the second one. We only consider UserNames in the second environment.
 findShadowing :: NamingEnv -> NamingEnv -> [(PName, Name, [Name])]
 findShadowing (NamingEnv lhs) rhs = res
   where
@@ -230,7 +230,7 @@ findShadowing (NamingEnv lhs) rhs = res
     isUser z = nameSrc z == UserName
 
 -- | Do an arbitrary choice for ambiguous names.
--- We do this to continue checking afetr we've reported an ambiguity error.
+-- We do this to continue checking after we've reported an ambiguity error.
 forceUnambig :: NamingEnv -> NamingEnv
 forceUnambig (NamingEnv mp) = NamingEnv (fmap (One . anyOne) <$> mp)
 
@@ -311,29 +311,31 @@ unqualifiedEnv IfaceDecls { .. } =
 
 -- | Adapt the things exported by a module to the specific import/open.
 interpImportEnv :: ImportG name  {- ^ The import declaration -} ->
-                   NamingEnv     {- ^ All public things coming in -} ->
+                   Set Name      {- ^ All public things coming in -} ->
                    NamingEnv
 interpImportEnv imp = interpImportEnv' (iAs imp) (iSpec imp)
 
 -- | A more general version of `interpImportEnv`
 interpImportEnv' :: Maybe ModName    {- ^ prefix with this qualifier -} ->
                     Maybe ImportSpec {- ^ restrict per ImportSpec    -} ->
-                    NamingEnv        {- ^ All public things coming in -} ->
+                    Set Name       {- ^ All public things coming in -} ->
                     NamingEnv
 interpImportEnv' iAs' iSpec' public = qualified
   where
-
+  
   -- optionally qualify names in NamingEnv if the import is "qualified",
   --   i.e., if `isJust iAs'`
-  qualified | Just pfx <- iAs' = qualify pfx restricted
-            | otherwise        =             restricted
+  qualified | Just pfx <- iAs' = qualify pfx names
+            | otherwise        = names
+
+  names = namingEnvFromNames restricted
 
   -- restrict or hide imported symbols
   restricted
     | Just (Hiding ns) <- iSpec' =
-       filterPNames (\qn -> not (getIdent qn `elem` ns)) public
+      Set.filter (\n -> not (nameIdent n `elem` ns)) public
 
     | Just (Only ns) <- iSpec' =
-       filterPNames (\qn -> getIdent qn `elem` ns) public
+      Set.filter (\n -> nameIdent n `elem` ns) public
 
     | otherwise = public

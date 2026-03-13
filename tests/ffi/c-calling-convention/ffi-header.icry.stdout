@@ -2,3 +2,7 @@ Loading module Cryptol
 Loading module Float
 Loading module Main
 Writing header to test-ffi2.h
+3a4
+> uint8_t nested(void);
+29d29
+< uint8_t nested(void);

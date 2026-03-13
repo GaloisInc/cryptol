@@ -40,7 +40,7 @@ Loading module T2
 Loading module Cryptol
 Loading module T3
 
-[error] at issue1560\T3.cry:1:1--23:13:
+[error] at issue1560\T3.cry:1:8--23:13:
   Failed to validate user-specified signature.
     when checking the module's parameters,
     we need to show that
@@ -60,7 +60,7 @@ Loading module T3
 Loading module Cryptol
 Loading module T3
 
-[error] at issue1560\T4.cry:1:1--24:13:
+[error] at issue1560\T4.cry:1:8--24:13:
   Failed to validate user-specified signature.
     when checking the module's parameters,
     we need to show that

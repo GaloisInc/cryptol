@@ -1,0 +1,10 @@
+module T11 where
+
+import submodule B
+
+submodule A where
+  propA = y > 5
+
+submodule B where
+  y : Integer
+  y = 42

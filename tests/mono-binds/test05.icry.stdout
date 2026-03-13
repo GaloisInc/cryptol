@@ -1,54 +1,63 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module test05
-[warning] at test05.cry:9:3--9:6
-    This binding for `foo` shadows the existing binding at
-    test05.cry:4:1--4:4
 [warning] at test05.cry:13:5--13:8
     This binding for `foo` shadows the existing binding at
     test05.cry:9:3--9:6
+[warning] at test05.cry:9:3--9:6
+    This binding for `foo` shadows the existing binding at
+    test05.cry:4:1--4:4
+[warning] at test05.cry:9:3--9:6
+    Unused name: foo
+[warning] at test05.cry:11:3--11:4
+    Unused name: f
 module test05
 
-/* Not recursive */
-test05::foo : [10]
-test05::foo = Cryptol::number 10 [10] <>
+  
+  /* Not recursive */
+  test05::foo : [10]
+  test05::foo = Cryptol::number 10 [10] <>
 
-/* Not recursive */
-test05::test : {n, a, b} (Zero b, Literal 10 a) => [n]b -> a
-test05::test =
-  \{n, a, b} (Zero b, Literal 10 a) (a : [n]b) ->
-    Cryptol::number 10 a <>
-    where
-      /* Not recursive */
-      foo : [10]
-      foo = Cryptol::number 10 [10] <>
+  /* Not recursive */
+  test05::test : {n, a, b} (Zero b, Literal 10 a) => [n]b -> a
+  test05::test =
+    \{n, a, b} (Zero b, Literal 10 a) (a : [n]b) ->
+      Cryptol::number 10 a <>
+      where
+        /* Not recursive */
+        foo : [10]
+        foo = Cryptol::number 10 [10] <>
 
-      /* Not recursive */
-      f : {m} (fin m) => [n + m]b
-      f =
-        \{m} (fin m) ->
-          bar m <>
-          where
-            /* Not recursive */
-            foo : [n]b
-            foo = a
+        /* Not recursive */
+        f : {m} (fin m) => [n + m]b
+        f =
+          \{m} (fin m) ->
+            bar m <>
+            where
+              /* Not recursive */
+              foo : [n]b
+              foo = a
 
-            /* Not recursive */
-            bar : {i} (fin i) => [i + n]b
-            bar =
-              \{i} (fin i) ->
-                (Cryptol::#) i n b <> (Cryptol::zero ([i]b) <>) foo
+              /* Not recursive */
+              bar : {i} (fin i) => [i + n]b
+              bar =
+                \{i} (fin i) ->
+                  (Cryptol::#) i n b <> (Cryptol::zero ([i]b) <>) foo
 
 
 
 Loading module Cryptol
 Loading module test05
-[warning] at test05.cry:9:3--9:6
-    This binding for `foo` shadows the existing binding at
-    test05.cry:4:1--4:4
 [warning] at test05.cry:13:5--13:8
     This binding for `foo` shadows the existing binding at
     test05.cry:9:3--9:6
+[warning] at test05.cry:9:3--9:6
+    This binding for `foo` shadows the existing binding at
+    test05.cry:4:1--4:4
+[warning] at test05.cry:9:3--9:6
+    Unused name: foo
+[warning] at test05.cry:11:3--11:4
+    Unused name: f
 
 [error] at test05.cry:14:11--14:21:
   Ambiguous numeric type: type argument 'front' of '(#)'

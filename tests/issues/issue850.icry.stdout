@@ -1,4 +1,12 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
+[warning] at issue850.cry:9:4--9:6
+    Unused name: p1
+[warning] at issue850.cry:9:7--9:9
+    Unused name: p2
+[warning] at issue850.cry:9:13--9:15
+    Unused name: s2
+[warning] at issue850.cry:11:5--11:6
+    Unused name: m
 [(ratio 0 1), (ratio 3 1)]

@@ -1,35 +1,41 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module test02
+[warning] at test02.cry:5:5--5:6
+    Unused name: x
 module test02
 
-/* Not recursive */
-test02::test : {a, b} a -> b
-test02::test =
-  \{a, b} (a : a) ->
-    f b a
-    where
-      /* Recursive */
-      f : {c} a -> c
-      f = \{c} (x : a) -> g c a
-      g : {c} a -> c
-      g = \{c} (x : a) -> f c x
+  
+  /* Not recursive */
+  test02::test : {a, b} a -> b
+  test02::test =
+    \{a, b} (a : a) ->
+      f b a
+      where
+        /* Recursive */
+        f : {c} a -> c
+        f = \{c} (x : a) -> g c a
+        g : {c} a -> c
+        g = \{c} (x : a) -> f c x
 
 
 Loading module Cryptol
 Loading module test02
+[warning] at test02.cry:5:5--5:6
+    Unused name: x
 module test02
 
-/* Not recursive */
-test02::test : {a, b} b -> a
-test02::test =
-  \{a, b} (a : b) ->
-    f a
-    where
-      /* Recursive */
-      f : b -> a
-      f = \(x : b) -> g a
-      g : b -> a
-      g = \(x : b) -> f x
+  
+  /* Not recursive */
+  test02::test : {a, b} b -> a
+  test02::test =
+    \{a, b} (a : b) ->
+      f a
+      where
+        /* Recursive */
+        f : b -> a
+        f = \(x : b) -> g a
+        g : b -> a
+        g = \(x : b) -> f x
 
 

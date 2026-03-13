@@ -1,0 +1,14 @@
+
+
+interface submodule I where
+  type n: #
+  type N = 2 * n
+  type constraint (fin n)
+
+submodule F where
+  import interface submodule I
+
+  f: [n] -> [N]
+  f x = x # x
+
+submodule M = submodule F { _ }
