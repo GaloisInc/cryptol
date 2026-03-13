@@ -812,7 +812,7 @@ Parameter fields
 
 
 ``prover``
-  The SMT solver to use to check for satisfiability. I.e., one of the following: ``w4-cvc4``, ``w4-cvc5``, ``w4-yices``, ``w4-z3``, ``w4-bitwuzla``, ``w4-boolector``, ``w4-abc``, ``w4-rme``, ``w4-offline``, ``w4-any``, ``cvc4``, ``cvc5``, ``yices``, ``z3``, ``bitwuzla``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc4``, ``sbv-cvc5``, ``sbv-yices``, ``sbv-z3``, ``sbv-bitwuzla``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``.
+  The SMT solver to use to check for satisfiability. I.e., one of the following: ``w4-cvc5``, ``w4-yices``, ``w4-z3``, ``w4-bitwuzla``, ``w4-boolector``, ``w4-abc``, ``w4-rme``, ``w4-offline``, ``w4-any``, ``cvc5``, ``yices``, ``z3``, ``bitwuzla``, ``boolector``, ``mathsat``, ``abc``, ``offline``, ``any``, ``sbv-cvc5``, ``sbv-yices``, ``sbv-z3``, ``sbv-bitwuzla``, ``sbv-boolector``, ``sbv-mathsat``, ``sbv-abc``, ``sbv-offline``, ``sbv-any``.
   
   
 
