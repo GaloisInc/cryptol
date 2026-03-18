@@ -11,6 +11,12 @@
   instantiations).
   ([#1992](https://github.com/GaloisInc/cryptol/issues/1992))
 
+* Defining two or more `parameter` blocks within the same module will now raise
+  an error. To migrate an existing module that uses multiple `parameter`
+  blocks, put all of the parameters under a single `parameter` block before
+  they are used.
+  ([#1992](https://github.com/GaloisInc/cryptol/issues/1992))
+
 * The REPL now contains some debug flags for dumping the results of
   intermediate Cryptol passes.
   ([#2000](https://github.com/GaloisInc/cryptol/issues/2000))
@@ -27,7 +33,7 @@
 
 * Don't consider schemas with trivial `True` constraints to be polymorphic.
   ([#1576](https://github.com/GaloisInc/cryptol/issues/1576))
-  
+
 
 # 3.5.0 -- 2026-01-27
 
@@ -62,7 +68,7 @@
   and make saving the cache atomic on file systems where renaming a file to
   an existing file is atomic.  This is useful because we get partial results
   if the validation process is interrupted.
-  
+
 * Change the default behavior of `-p`/`--project`.  The new behavior is that
   it will check all files that have changed, and also files that have not
   been previously verified.  The old behavior would only validate files that
@@ -88,7 +94,7 @@
   is only noticeable when working with nested modules.  The new behavior works
   better when these commands are used from docstrings (e.g., with the
   new behavior, writing `:check` on a submodule, will only check the properties
-  in that submodule, as expected).  
+  in that submodule, as expected).
 
 * When running the `:check-docstrings` command, `Bit` properties (e.g. `property
   p = True`) will be checked with `:exhaust`, unless their docstrings contain
@@ -121,7 +127,7 @@
 
 * Fix #1696, which corrected an incorrect simplification rule, leading to
   panics.
-  
+
 * Allow changing the `tcSolver` setting to non-Z3 solvers (e.g., CVC5) without
   crashing. ([#1874](https://github.com/GaloisInc/cryptol/issues/1874))
 
