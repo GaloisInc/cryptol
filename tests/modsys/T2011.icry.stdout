@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading interface module T2011a
+Loading module T2011b
+
+Expression depends on definitions from a parameterized module:
+  T2011b::X
+
+[error] at T2011.icry:3:1--3:2
+    Value not in scope: x

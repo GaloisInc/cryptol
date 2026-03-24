@@ -34,6 +34,9 @@
 * Don't consider schemas with trivial `True` constraints to be polymorphic.
   ([#1576](https://github.com/GaloisInc/cryptol/issues/1576))
 
+* Don't panic when evaluating parameterized definitions at the REPL after a
+  type error.
+  ([#2011](https://github.com/GaloisInc/cryptol/issues/2011))
 
 # 3.5.0 -- 2026-01-27
 

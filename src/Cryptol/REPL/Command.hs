@@ -1737,6 +1737,11 @@ replCheckDecls ds = do
                                   , P.tlValue  = d }
   (names,ds',tyMap) <- liftModuleCmd (M.checkDecls (map mkTop npds))
 
+  -- Check if the declarations depend on definitions from a parameterized
+  -- module. If they do, make sure to error out here *before* adding the
+  -- declarations' names to the environments (as is done immediately below).
+  validEvalContext ds'
+
   -- extend the naming env and type synonym maps
   denv        <- getDynEnv
   setDynEnv denv { M.deNames  = names `M.shadowing` M.deNames denv
@@ -1877,7 +1882,6 @@ bindItVariables ty exprs = void $ bindItVariable seqTy seqExpr
 replEvalDecls :: [P.Decl P.PName] -> REPL ()
 replEvalDecls ds = do
   dgs <- replCheckDecls ds
-  validEvalContext dgs
   whenDebug (mapM_ (\dg -> (rPutStrLn (dump dg))) dgs)
   liftModuleCmd (M.evalDecls dgs)
 

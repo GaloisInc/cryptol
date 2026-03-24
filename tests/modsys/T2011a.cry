@@ -1,0 +1,3 @@
+interface module T2011a where
+
+type T : *
