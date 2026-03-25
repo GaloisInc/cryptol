@@ -1,0 +1,4 @@
+// Check that a `prime` constraint on its own does not constitute an
+// exhaustive set of numeric constraint guards.
+f : {a,n} [n]a -> ()
+f _ | prime n => ()

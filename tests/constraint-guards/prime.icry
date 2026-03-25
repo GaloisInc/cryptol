@@ -1,0 +1,9 @@
+// This tests #1658.
+:load prime.cry
+f (zero : [0])
+f (zero : [1])
+f (zero : [2])
+f (zero : [3])
+f (zero : [4])
+f (zero : [5])
+f (zero : [inf])

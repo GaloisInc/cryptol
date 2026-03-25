@@ -21,6 +21,9 @@
   intermediate Cryptol passes.
   ([#2000](https://github.com/GaloisInc/cryptol/issues/2000))
 
+* Support `prime` constraints in numeric constraint guards.
+  ([#1658](https://github.com/GaloisInc/cryptol/issues/1658))
+
 ## Bug fixes
 
 * Fix interface constraint scoping.  Interface constraints are kept in

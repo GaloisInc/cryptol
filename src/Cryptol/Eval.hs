@@ -69,6 +69,8 @@ import qualified Data.Map.Strict as Map
 import           Data.Semigroup
 import           Control.Applicative
 
+import Math.NumberTheory.Primes.Testing (isPrime)
+
 import Prelude ()
 import Prelude.Compat
 
@@ -259,8 +261,10 @@ checkProp = \case
       PC PNeq | [n1, n2] <- ns -> n1 /= n2
       PC PGeq | [n1, n2] <- ns -> n1 >= n2
       PC PFin | [n] <- ns -> n /= Inf
-      -- TODO: instantiate UniqueFactorization for Nat'?
-      -- PC PPrime | [n] <- ns -> isJust (isPrime n)
+      PC PPrime | [n] <- ns ->
+        case n of
+          Nat n' -> isPrime n'
+          Inf -> False
       PC PTrue -> True
       TError {} -> False
       _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ TCon tcon ts ]

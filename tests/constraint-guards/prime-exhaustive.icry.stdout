@@ -1,0 +1,5 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at prime-exhaustive.cry:4:7--4:14:
+  Could not prove that the constraint guards used in defining Main::f were exhaustive.
