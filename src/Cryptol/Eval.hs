@@ -260,7 +260,7 @@ checkProp = \case
       PC PGeq | [n1, n2] <- ns -> n1 >= n2
       PC PFin | [n] <- ns -> n /= Inf
       -- TODO: instantiate UniqueFactorization for Nat'?
-      -- PC PPrime | [n] <- ns -> isJust (isPrime n) 
+      -- PC PPrime | [n] <- ns -> isJust (isPrime n)
       PC PTrue -> True
       TError {} -> False
       _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ TCon tcon ts ]
@@ -641,7 +641,7 @@ evalSetSel sym tyv e sel v =
 
   setList n =
     case e of
-      VSeq i mp | TVSeq _ elty <- tyv -> 
+      VSeq i mp | TVSeq _ elty <- tyv ->
         mkSeq sym (Nat i) elty $ updateSeqMap mp n v
       VStream mp -> pure $ VStream $ updateSeqMap mp n v
       VWord m    -> VWord <$> updateWordValue sym m n asBit
