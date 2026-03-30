@@ -1,0 +1,3 @@
+f : {n} [n] -> Bit
+f _ | prime n => False
+    | n == n  => True

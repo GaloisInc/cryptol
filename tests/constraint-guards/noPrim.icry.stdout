@@ -1,7 +1,0 @@
-Loading module Cryptol
-Loading module Cryptol
-Loading module Main
-
-[error] at noPrim.cry:3:7--3:14:
-  `prime` may not be used in a constraint guard.
-  Constraint guards support only numeric comparisons and `fin`.

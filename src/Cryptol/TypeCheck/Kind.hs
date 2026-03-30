@@ -92,7 +92,7 @@ checkPropGuards props =
     do let p = thing lp
        (_,ps) <- withTParams NoWildCards schemaParam [] (checkProp p)
        case tNoUser ps of
-         TCon (PC x) _ | x `elem` [PEqual,PNeq,PGeq,PFin,PTrue] -> pure ()
+         TCon (PC x) _ | x `elem` [PEqual,PNeq,PGeq,PFin,PPrime,PTrue] -> pure ()
          _ -> recordError (InvalidConstraintGuard ps)
        pure ps
 
