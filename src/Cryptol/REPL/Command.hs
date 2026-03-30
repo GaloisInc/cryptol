@@ -781,7 +781,7 @@ rethrowErrorCall m = REPL (\r -> unREPL m r `X.catches` hs)
 -- | Attempts to prove the given term is safe for all inputs
 safeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-safeCmd "" _pos _fnm = 
+safeCmd "" _pos _fnm =
   do  rPutStrLn $ invalidCommandArgument ":safe"
       return emptyCommandResult {crSuccess = False}
 
@@ -1112,7 +1112,7 @@ mkSolverResult thing rng result earg =
 
 specializeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-specializeCmd "" _pos _fnm = 
+specializeCmd "" _pos _fnm =
   do  rPutStrLn $ invalidCommandArgument ":debug_specialize"
       return emptyCommandResult {crSuccess = False}
 
@@ -1131,7 +1131,7 @@ specializeCmd str pos fnm = do
 
 refEvalCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-refEvalCmd "" _pos _fnm = 
+refEvalCmd "" _pos _fnm =
   do  rPutStrLn $ invalidCommandArgument ":eval"
       return emptyCommandResult {crSuccess = False}
 
@@ -1148,7 +1148,7 @@ refEvalCmd str pos fnm = do
 
 astOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-astOfCmd "" _pos _fnm = 
+astOfCmd "" _pos _fnm =
   do  rPutStrLn $ invalidCommandArgument ":ast"
       return emptyCommandResult {crSuccess = False}
 
@@ -1167,7 +1167,7 @@ extractCoqCmd = do
 
 typeOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-typeOfCmd "" _pos _fnm = 
+typeOfCmd "" _pos _fnm =
   do  rPutStrLn $ invalidCommandArgument ":type"
       return emptyCommandResult {crSuccess = False}
 
@@ -1180,7 +1180,7 @@ typeOfCmd str pos fnm = do
   whenDebug (rPutStrLn (dump def))
 
   --- Get module context parameters
-  modCtxtParams <-  M.mctxParams <$> getFocusedEnv 
+  modCtxtParams <-  M.mctxParams <$> getFocusedEnv
   --- Get the map that maps variable names to module type parameters
   let modParamMap = T.mpnTypes (M.modContextParamNames modCtxtParams)
   --- Get a list of type parameters from all module type parameterss in the Map
@@ -1189,7 +1189,7 @@ typeOfCmd str pos fnm = do
       cfg = defaultPPCfg
       --- Load module type param into a new empty NameMap
       ns = T.addTNames cfg modTParams emptyNameMap
-      --- Create a pretty printed string 
+      --- Create a pretty printed string
       ppAll = ppWithNames ns sig
 
   fDisp <- M.mctxNameDisp <$> getFocusedEnv
@@ -1202,7 +1202,7 @@ typeOfCmd str pos fnm = do
 
 timeCmd :: String -> (Int, Int) -> Maybe FilePath -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-timeCmd "" _pos _fnm = 
+timeCmd "" _pos _fnm =
   do  rPutStrLn $ invalidCommandArgument ":time"
       return emptyCommandResult {crSuccess = False}
 
@@ -1737,6 +1737,11 @@ replCheckDecls ds = do
                                   , P.tlValue  = d }
   (names,ds',tyMap) <- liftModuleCmd (M.checkDecls (map mkTop npds))
 
+  -- Check if the declarations depend on definitions from a parameterized
+  -- module. If they do, make sure to error out here *before* adding the
+  -- declarations' names to the environments (as is done immediately below).
+  validEvalContext ds'
+
   -- extend the naming env and type synonym maps
   denv        <- getDynEnv
   setDynEnv denv { M.deNames  = names `M.shadowing` M.deNames denv
@@ -1877,7 +1882,6 @@ bindItVariables ty exprs = void $ bindItVariable seqTy seqExpr
 replEvalDecls :: [P.Decl P.PName] -> REPL ()
 replEvalDecls ds = do
   dgs <- replCheckDecls ds
-  validEvalContext dgs
   whenDebug (mapM_ (\dg -> (rPutStrLn (dump dg))) dgs)
   liftModuleCmd (M.evalDecls dgs)
 
@@ -1979,9 +1983,9 @@ findNbCommand False str = lookupTrie      str nbCommands
 -- | Construct a helpful error message for commad parse errors where
 -- a cryptol command is not given expression arg when its expecting one.
 invalidCommandArgument :: String -> String
-invalidCommandArgument cmd = concat ["ERROR: Command `", cmd 
-                                    , "` needs an EXPR argument. See `:help " 
-                                    , cmd, "` for more details."] 
+invalidCommandArgument cmd = concat ["ERROR: Command `", cmd
+                                    , "` needs an EXPR argument. See `:help "
+                                    , cmd, "` for more details."]
 
 -- | Parse a line as a command.
 parseCommand :: (String -> [CommandDescr]) -> String -> Maybe Command
@@ -2072,11 +2076,11 @@ data SubcommandResult = SubcommandResult
   }
 
 printBlock :: [T.Text] -> REPL ()
-printBlock block = 
+printBlock block =
   mapM_ printLine (continuedLines block)
 
 printLine :: T.Text -> REPL ()
-printLine line 
+printLine line
   | T.all isSpace line = pure ()
   | otherwise =
       case parseCommand (findNbCommand True) (T.unpack line) of
@@ -2103,7 +2107,7 @@ checkBlock = isolated . go . continuedLines
        do let tab n = replicate n ' '
           rPutStrLn (tab 4 ++ T.unpack line)
           let doErr msg =
-               do rPutStrLn (tab 6 ++ msg) 
+               do rPutStrLn (tab 6 ++ msg)
                   pure [SubcommandResult
                     { srInput = line
                     , srLog = msg
@@ -2174,7 +2178,7 @@ captureLog m = do
       ['\n'] -> "\n"
       '\n' : more -> '\n' : tab ++ postTab more
       c : more -> c : postTab more
-        
+
 
 -- | Apply control character semantics to the result of the logger
 interpretControls :: String -> String
@@ -2409,11 +2413,11 @@ loadProjectREPL mode cfg =
                             let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Nothing }) (Proj.CacheInFile path) fpAcc
                             pure (fpAcc', (path, m) : needCheck, success)
                         _ ->
-                          do 
+                          do
                             rPrint ("Checking module" <+> hcat [pp name, ": FAIL (cached)"])
                             let fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Just False }) (Proj.CacheInFile path) fpAcc
                             pure (fpAcc', needCheck, False) -- preserve fail
-                        
+
                     Nothing -> pure (fpAcc', newNeedCheck, success)
                       where
                       fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Nothing }) (Proj.CacheInFile path) fpAcc
@@ -2421,10 +2425,10 @@ loadProjectREPL mode cfg =
                         case mode of
                           Proj.ModifiedMode -> needCheck
                           _                 -> (path, m) : needCheck
-                     
+
           Proj.Scanned Proj.Changed _ ms -> pure (fpAcc', reverse pms ++ needCheck_, success_)
             where pms = [ (path, m) | (m, _) <- ms ]
-                  fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Nothing }) (Proj.CacheInFile path) fpAcc_              
+                  fpAcc' = Map.adjust (\e -> e{ Proj.cacheDocstringResult = Nothing }) (Proj.CacheInFile path) fpAcc_
 
 -- | Get the path to the SAW command.
 -- Search options, in order:

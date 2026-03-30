@@ -1,0 +1,6 @@
+module T2011b where
+
+import interface T2011a
+
+X : [16]
+X = 0x1234
