@@ -27,16 +27,16 @@ import Cryptol.TypeCheck.PP(emptyNameMap,ppWithNames)
 
 import Cryptol.REPL.Monad
 
-helpForNamed :: P.PName -> REPL Bool           
-helpForNamed pn =                                  
+helpForNamed :: P.PName -> REPL Bool
+helpForNamed pn =
   -- Prefix operators @~@ and @-@ are syntactic sugar for @complement@
-  -- and @negate@ respectively.  Redirect so that @:? ~@ and @:? -@  
+  -- and @negate@ respectively.  Redirect so that @:? ~@ and @:? -@
   -- display the help for the underlying function instead.
-  helpForNamed' (fromMaybe pn (prefixOpRedirect pn))                          
-                                                                  
-helpForNamed' :: P.PName -> REPL Bool                                         
-helpForNamed' qname =                                                         
-  do fe <- getFocusedEnv 
+  helpForNamed' (fromMaybe pn (prefixOpRedirect pn))
+
+helpForNamed' :: P.PName -> REPL Bool
+helpForNamed' qname =
+  do fe <- getFocusedEnv
      let params = M.mctxParams fe
          env    = M.mctxDecls  fe
          rnEnv  = M.mctxNames  fe
@@ -63,15 +63,15 @@ helpForNamed' qname =
 
 
 -- | Prefix operators @~@ and @-@ are syntactic sugar for @complement@
--- and @negate@ respectively.  Redirect to the underlying function name       
--- so that @:? ~@ and @:? -@ show the right documentation.                    
-prefixOpRedirect :: P.PName -> Maybe P.PName                                  
-prefixOpRedirect (P.UnQual' i _)                                              
-  | isInfixIdent i, identText i == "~" = Just (P.mkUnqual (P.mkIdent          
-"complement"))                                          
-  | isInfixIdent i, identText i == "-" = Just (P.mkUnqual (P.mkIdent          
-"negate"))                                              
-prefixOpRedirect _ = Nothing  
+-- and @negate@ respectively.  Redirect to the underlying function name
+-- so that @:? ~@ and @:? -@ show the right documentation.
+prefixOpRedirect :: P.PName -> Maybe P.PName
+prefixOpRedirect (P.UnQual' i _)
+  | isInfixIdent i, identText i == "~" =
+      Just (P.mkUnqual (P.mkIdent "complement"))
+  | isInfixIdent i, identText i == "-" =
+      Just (P.mkUnqual (P.mkIdent "negate"))
+prefixOpRedirect _ = Nothing
 
 noInfo :: NameDisp -> M.Name -> REPL ()
 noInfo nameEnv name =
