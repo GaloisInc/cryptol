@@ -249,6 +249,7 @@ library
                        Cryptol.Testing.Random,
 
                        Cryptol.Symbolic,
+                       Cryptol.Symbolic.DIMACS,
                        Cryptol.Symbolic.SBV,
                        Cryptol.Symbolic.What4,
 

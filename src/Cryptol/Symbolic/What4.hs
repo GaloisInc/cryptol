@@ -68,6 +68,8 @@ import           Cryptol.Eval.Type (TValue)
 import           Cryptol.Eval.What4
 
 import           Data.RME.What4 (rmeAdapter)
+import qualified Cryptol.Symbolic.DIMACS as DIMACS
+import           Cryptol.Symbolic.DIMACS (dimacsSatAdapter, dimacsQbfAdapter)
 
 import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.Symbolic
@@ -211,6 +213,8 @@ proverConfigs =
 
   , ("w4-abc"       , W4ProverConfig (AnAdapter W4.externalABCAdapter))
   , ("w4-rme"       , W4ProverConfig (AnAdapter rmeAdapter))
+  , ("w4-sat"       , W4ProverConfig (AnAdapter dimacsSatAdapter))
+  , ("w4-qbf"       , W4ProverConfig (AnAdapter dimacsQbfAdapter))
 
   , ("w4-offline"   , W4OfflineConfig )
   , ("w4-any"       , allSolvers)
@@ -387,6 +391,11 @@ prepareQuery sym ProverCommand { .. } = do
                     do q <- W4.andPred (w4 sym) safety' b
                        q' <- W4.andPred (w4 sym) defs q
                        pure (ts,args,safety',q')
+
+                  CountQuery ->
+                    do q <- W4.andPred (w4 sym) safety' b
+                       q' <- W4.andPred (w4 sym) defs q
+                       pure (ts,args,safety',q')
   where
   simulate ntEnv args =
     do let lPutStrLn = M.withLogger logPutStrLn
@@ -423,7 +432,9 @@ prepareQuery sym ProverCommand { .. } = do
                 do Eval.forceValue appliedVal
                    pure (W4.truePred (w4 sym))
 
-              _ -> pure (Eval.fromVBit appliedVal)
+              ProveQuery  -> pure (Eval.fromVBit appliedVal)
+              SatQuery _  -> pure (Eval.fromVBit appliedVal)
+              CountQuery  -> pure (Eval.fromVBit appliedVal)
 
 
 satProve ::
@@ -459,6 +470,7 @@ satProve solverCfg hashConsing warnUninterp timeoutMs pc@ProverCommand {..} =
                                   CryptolState
                                   globalNonceGenerator
        setupAdapterOptions solverCfg w4sym
+       W4.extendConfig DIMACS.sharpSATOptions (W4.getConfiguration w4sym)
        when hashConsing (W4.startCaching w4sym)
        when (timeoutMs > 0) (setTimeout solverCfg (fromIntegral timeoutMs) w4sym)
        pure w4sym
@@ -483,6 +495,11 @@ satProve solverCfg hashConsing warnUninterp timeoutMs pc@ProverCommand {..} =
 
           SatQuery num ->
             multiSATQuery sym solverCfg pc primMap logData ts args query num
+
+          CountQuery ->
+            either (\err -> (Nothing, ProverError (text err)))
+                   (\n   -> (Nothing, CountResult n))
+              <$> DIMACS.countModels (w4 sym) logData [query]
 
 printUninterpWarn :: Logger -> Set Text -> IO ()
 printUninterpWarn lg uninterpWarns =
