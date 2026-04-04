@@ -14,7 +14,7 @@ import Data.Foldable (for_)
 import Control.Monad(when,guard,unless,msum,mplus)
 
 import Cryptol.Utils.PP
-import Cryptol.Utils.Ident(OrigName(..),identIsNormal,identText,isInfixIdent)
+import Cryptol.Utils.Ident(OrigName(..),identIsNormal,identText)
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Name as M
@@ -67,9 +67,9 @@ helpForNamed' qname =
 -- so that @:? ~@ and @:? -@ show the right documentation.
 prefixOpRedirect :: P.PName -> Maybe P.PName
 prefixOpRedirect (P.UnQual' i _)
-  | isInfixIdent i, identText i == "~" =
+  | identText i == "~" =
       Just (P.mkUnqual (P.mkIdent "complement"))
-  | isInfixIdent i, identText i == "-" =
+  | identText i == "-" =
       Just (P.mkUnqual (P.mkIdent "negate"))
 prefixOpRedirect _ = Nothing
 
