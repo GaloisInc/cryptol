@@ -35,7 +35,7 @@ echo "# Generated environment variables. Manual changes will get clobbered by de
 
 GHCUP_URL="https://downloads.haskell.org/~ghcup"
 GHC_VERSION="9.6.7"
-CABAL_VERSION="3.10.3.0"
+CABAL_VERSION="3.14.1.0"
 
 WHAT4_SOLVERS_SNAPSHOT="snapshot-20260119"
 WHAT4_SOLVERS_URL="https://github.com/GaloisInc/what4-solvers/releases/download/$WHAT4_SOLVERS_SNAPSHOT"
