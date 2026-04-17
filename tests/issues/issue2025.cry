@@ -44,10 +44,6 @@ rSeqB = { rSeqA | getR2 = repeat 22 }
 
 // Newtypes
 
-// Commented out to avoid a Cryptol panic
-// TODO(#2025): Remove this workaround.
-
-/*
 newtype N = { getN1 : [8], getN2 : [16] }
 
 nA : N
@@ -67,4 +63,3 @@ nSeqA = repeat nA
 
 nSeqB : [2]N
 nSeqB = { nSeqA | getN2 = repeat 22 }
-*/

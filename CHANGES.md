@@ -41,6 +41,10 @@
   type error.
   ([#2011](https://github.com/GaloisInc/cryptol/issues/2011))
 
+* Fix a bug in `coreLint` that would trigger a panic when checking record
+  updates on newtype values.
+  ([#2025](https://github.com/GaloisInc/cryptol/issues/2025))
+
 # 3.5.0 -- 2026-01-27
 
 ## Administrative changes
