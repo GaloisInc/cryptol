@@ -1,0 +1,2 @@
+:set coreLint=on
+:load issue2025.cry
