@@ -394,39 +394,19 @@ checkHas t sel =
              unless (n < sz) $ reportError (TupleSelectorOutOfRange n sz)
              return $ ts !! n
 
-        TCon (TC TCSeq) [s,elT] ->
-           do res <- checkHas elT sel
-              return (TCon (TC TCSeq) [s,res])
-
-        TCon (TC TCFun) [a,b] ->
-            do res <- checkHas b sel
-               return (TCon (TC TCFun) [a,res])
-
         _ -> reportError $ BadSelector sel t
 
 
     RecordSel f mb ->
       case tNoUser t of
         TRec fs ->
+          checkRecordSel UnexpectedRecordShape f mb fs
 
-          do case mb of
-               Nothing -> return ()
-               Just fs1 ->
-                 do let ns  = Set.toList (fieldSet fs)
-                        ns1 = sort fs1
-                    unless (ns == ns1) $
-                      reportError $ UnexpectedRecordShape ns1 ns
-
-             case lookupField f fs of
-               Nothing -> reportError $ MissingField f $ displayOrder fs
-               Just ft -> return ft
-
-        TCon (TC TCSeq) [s,elT] -> do res <- checkHas elT sel
-                                      return (TCon (TC TCSeq) [s,res])
-
-        TCon (TC TCFun) [a,b]   -> do res <- checkHas b sel
-                                      return (TCon (TC TCFun) [a,res])
-
+        TNominal nt _ ->
+          case ntDef nt of
+            Struct con ->
+              checkRecordSel UnexpectedNewtypeShape f mb (ntFields con)
+            _ -> reportError $ BadSelector sel t
 
         _ -> reportError $ BadSelector sel t
 
@@ -448,8 +428,31 @@ checkHas t sel =
 
         _ -> reportError $ BadSelector sel t
 
+-- | Check that a record selection or update expression is well-formed. This is
+-- written to work for both record values and newtype values.
+checkRecordSel ::
+  -- | What error to raise if the record or newtype value is malformed.
+  ([Ident] -> [Ident] -> Error) ->
+  -- | The field name being selected.
+  Ident ->
+  -- | The expected field names for the record or newtype.
+  Maybe [Ident] ->
+  -- | The actual field names for the record or newtype.
+  RecordMap Ident Type ->
+  -- | The type of the field being selected.
+  TcM Type
+checkRecordSel unexpectedShape f mb fs =
+  do case mb of
+       Nothing -> return ()
+       Just fs1 ->
+         do let ns  = Set.toList (fieldSet fs)
+                ns1 = sort fs1
+            unless (ns == ns1) $
+              reportError $ unexpectedShape ns1 ns
 
-
+     case lookupField f fs of
+       Nothing -> reportError $ MissingField f $ displayOrder fs
+       Just ft -> return ft
 
 -- | Check if the one type is convertible to the other.
 convertible :: Type -> Type -> TcM ()
@@ -638,6 +641,7 @@ data Error =
   | MissingField Ident [Ident]
   | UnexpectedTupleShape Int Int
   | UnexpectedRecordShape [Ident] [Ident]
+  | UnexpectedNewtypeShape [Ident] [Ident]
   | UnexpectedSequenceShape Int Type
   | BadSelector Selector Type
   | BadInstantiation
@@ -749,6 +753,12 @@ instance PP Error where
 
       UnexpectedRecordShape expected actual ->
         ppErr "Unexpected record shape"
+          [ "Expected:" <+> commaSep (map pp expected)
+          , "Actual  :" <+> commaSep (map pp actual)
+          ]
+
+      UnexpectedNewtypeShape expected actual ->
+        ppErr "Unexpected newtype shape"
           [ "Expected:" <+> commaSep (map pp expected)
           , "Actual  :" <+> commaSep (map pp actual)
           ]

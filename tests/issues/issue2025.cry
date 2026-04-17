@@ -1,0 +1,65 @@
+// Tuples
+
+type T = ([8], [16])
+
+tA : T
+tA = (1, 2)
+
+tB : T
+tB = { tA | 1 = 22 }
+
+tFunA : () -> T
+tFunA () = tA
+
+tFunB : () -> T
+tFunB = { tFunA | 1 = \() -> 22 }
+
+tSeqA : [2]T
+tSeqA = repeat tA
+
+tSeqB : [2]T
+tSeqB = { tSeqA | 1 = repeat 22 }
+
+// Records
+
+type R = { getR1 : [8], getR2 : [16] }
+
+rA : R
+rA = { getR1 = 1, getR2 = 2 }
+
+rB : R
+rB = { rA | getR2 = 22 }
+
+rFunA : () -> R
+rFunA () = rA
+
+rFunB : () -> R
+rFunB = { rFunA | getR2 = \() -> 22 }
+
+rSeqA : [2]R
+rSeqA = repeat rA
+
+rSeqB : [2]R
+rSeqB = { rSeqA | getR2 = repeat 22 }
+
+// Newtypes
+
+newtype N = { getN1 : [8], getN2 : [16] }
+
+nA : N
+nA = N { getN1 = 1, getN2 = 2 }
+
+nB : N
+nB = { nA | getN2 = 22 }
+
+nFunA : () -> N
+nFunA () = nA
+
+nFunB : () -> N
+nFunB = { nFunA | getN2 = \() -> 22 }
+
+nSeqA : [2]N
+nSeqA = repeat nA
+
+nSeqB : [2]N
+nSeqB = { nSeqA | getN2 = repeat 22 }
