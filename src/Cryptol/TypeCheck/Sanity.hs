@@ -394,14 +394,6 @@ checkHas t sel =
              unless (n < sz) $ reportError (TupleSelectorOutOfRange n sz)
              return $ ts !! n
 
-        TCon (TC TCSeq) [s,elT] ->
-           do res <- checkHas elT sel
-              return (TCon (TC TCSeq) [s,res])
-
-        TCon (TC TCFun) [a,b] ->
-            do res <- checkHas b sel
-               return (TCon (TC TCFun) [a,res])
-
         _ -> reportError $ BadSelector sel t
 
 
@@ -415,13 +407,6 @@ checkHas t sel =
             Struct con ->
               checkRecordSel UnexpectedNewtypeShape f mb (ntFields con)
             _ -> reportError $ BadSelector sel t
-
-        TCon (TC TCSeq) [s,elT] -> do res <- checkHas elT sel
-                                      return (TCon (TC TCSeq) [s,res])
-
-        TCon (TC TCFun) [a,b]   -> do res <- checkHas b sel
-                                      return (TCon (TC TCFun) [a,res])
-
 
         _ -> reportError $ BadSelector sel t
 
