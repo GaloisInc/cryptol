@@ -182,7 +182,7 @@ finType ty =
     TVSeq n t           -> FTSeq n <$> doSub 0 (finType t)
     TVTuple ts          -> FTTuple <$> zipWithM doSub [ 0 .. ] (map finType ts)
     TVRec fields        -> FTRecord <$> doFields fields
-      where 
+      where
     TVNominal u ts nv   -> setHere $ FTNominal u ts <$>
       case nv of
         TVStruct body -> FStruct <$> traverse finType body

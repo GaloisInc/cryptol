@@ -26,7 +26,7 @@
 
 module Cryptol.Eval.Value
   ( -- * GenericValue
-    GenValue 
+    GenValue
       (VRecord, VTuple
       , VEnum, VBit
       , VInteger, VRational
@@ -435,14 +435,14 @@ mkSeq sym len elty vals = case len of
   Inf             -> pure $ VStream vals
 
 -- | Construct a finite sequence of word values.
-wordSeq :: 
-  Backend sym => 
+wordSeq ::
+  Backend sym =>
   sym ->
   -- | The length of the sequence.
   Integer ->
   -- | The word size of the element type.
   Integer ->
-  SeqMap sym (GenValue sym) -> 
+  SeqMap sym (GenValue sym) ->
   SEval sym (GenValue sym)
 wordSeq sym n w vals = mkSeq sym (Nat n) (TVSeq w TVBit) vals
 

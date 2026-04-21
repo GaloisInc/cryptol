@@ -150,8 +150,8 @@ doW4Eval sym m =
 
 -- | Wraps a 'W4.ConfigOption' to provide a consistent interface for setting
 --   solver goal timeouts (see 'configTimeoutMilliSeconds', 'configTimeoutSeconds', 'setConfigTimeout').
-data ConfigTimeout = 
-        ConfigTimeout 
+data ConfigTimeout =
+        ConfigTimeout
           (W4.ConfigOption W4.BaseIntegerType)
           -- | Translate a 'W4.SolverGoalTimeout' into the integer backing this config option.
           (W4.SolverGoalTimeout -> Integer)
@@ -162,19 +162,19 @@ configTimeoutMilliSeconds :: W4.ConfigOption W4.BaseIntegerType -> ConfigTimeout
 configTimeoutMilliSeconds opt = ConfigTimeout opt W4.getGoalTimeoutInMilliSeconds
 
 -- | Construct a 'ConfigTimeout' from a 'W4.ConfigOption', where the given
---   option configures a solver-specific timeout measured in seconds. 
---   Rounds up to at least 1 second when setting a non-zero timeout 
+--   option configures a solver-specific timeout measured in seconds.
+--   Rounds up to at least 1 second when setting a non-zero timeout
 --   (see 'W4.getGoalTimeoutInSeconds').
 configTimeoutSeconds :: W4.ConfigOption W4.BaseIntegerType -> ConfigTimeout
 configTimeoutSeconds opt = ConfigTimeout opt W4.getGoalTimeoutInSeconds
 
-setConfigTimeout :: 
+setConfigTimeout ::
   W4.IsExprBuilder sym =>
   ConfigTimeout ->
   W4.SolverGoalTimeout ->
   sym ->
   IO ()
-setConfigTimeout (ConfigTimeout opt toOpt) t sym = 
+setConfigTimeout (ConfigTimeout opt toOpt) t sym =
   do optSetting <- W4.getOptionSetting opt (W4.getConfiguration sym)
      _ <- W4.trySetOpt optSetting (toOpt t)
      pure ()
@@ -807,7 +807,7 @@ varShapeToConcrete evalFn v =
       VarEnum <$> W4.groundEval evalFn tag
               <*> traverse (traverse (varShapeToConcrete evalFn)) cons
 
-setAdapterTimeout :: 
+setAdapterTimeout ::
   W4.IsExprBuilder sym =>
   AnAdapter ->
   W4.SolverGoalTimeout ->
