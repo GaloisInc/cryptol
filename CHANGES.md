@@ -45,6 +45,10 @@
   updates on newtype values.
   ([#2025](https://github.com/GaloisInc/cryptol/issues/2025))
 
+* Fix a bug that would cause Bitwuzla-based provers to fail when reasoning
+  about enums.
+  ([#2027](https://github.com/GaloisInc/cryptol/issues/2027))
+
 # 3.5.0 -- 2026-01-27
 
 ## Administrative changes

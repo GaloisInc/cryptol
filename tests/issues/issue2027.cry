@@ -1,0 +1,11 @@
+// `MyBoolean` requires 1 bit to encode its tags
+enum MyBoolean = MyFalse | MyTrue deriving (Eq)
+
+myBooleanEqReflexive : MyBoolean -> Bit
+property myBooleanEqReflexive mb = mb == mb
+
+// `Grade` requires 3 bits to encode its tags
+enum Grade = A | B | C | D | E | F deriving (Eq)
+
+gradeEqReflexive : Grade -> Bit
+property gradeEqReflexive g = g == g

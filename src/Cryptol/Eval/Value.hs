@@ -127,11 +127,13 @@ data EvalOpts = EvalOpts
 data GenValue sym
   = VRecord !(RecordMap Ident (SEval sym (GenValue sym))) -- ^ @ { .. } @
   | VTuple ![SEval sym (GenValue sym)]              -- ^ @ ( .. ) @
-  | VEnum !(SInteger sym) !(IntMap (ConValue sym))
-    -- ^ As an example, consider the enum value @Just ()@. The 'SInteger' is the
+  | VEnum !(SWord sym) !(IntMap (ConValue sym))
+    -- ^ As an example, consider the enum value @Just ()@. The 'SWord' is the
     -- tag (e.g., 'Just' would have the tag @0@), and the 'IntMap' contains the
     -- fields (e.g., @{ 0 -> ("Just",()) }@. The 'IntMap' is only really needed
     -- to represent symbolic values.
+    --
+    -- See also @Note [Represent enum tags as words]@.
   | VBit !(SBit sym)                           -- ^ @ Bit    @
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
   | VRational !(SRational sym)                 -- ^ @ Rational @
@@ -158,6 +160,43 @@ pattern VSeq len vals <- VSeqCtor len vals
 {-# COMPLETE VRecord, VTuple, VEnum, VBit, VInteger,
              VRational, VFloat, VWord, VStream,
              VFun, VPoly, VNumPoly, VSeq #-}
+
+{-
+Note [Represent enum tags as words]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+When translating enum values to Cryptol's various backends, we encode an enum
+constructor by its tag, i.e., an index (starting at zero) representing the
+constructor's position in the overall enum. For instance, given:
+
+  enum Option a = None | Some a
+
+Cryptol would give `None` the tag 0, and it would give `Some` the tag 1.
+
+There is a design question of how best to represent these tags when translating
+to symbolic backends. Two reasonable options that come to mind are:
+
+1. Represent the tag as an integer (i.e., SMT-Lib's `Int` type).
+2. Represent the tag as a word (i.e., SMT-Lib's `BitVec` type).
+
+Option (1) comes with a severe downside that not all solvers support SMT-LIB's
+`Int` type (notably, Bitwuzla does not). Moreover, solvers tend to be slightly
+faster on purely bitvector-oriented queries than they do with integer-oriented
+queries. As such, Cryptol picks option (2).
+
+There is a catch to option (2), however: in addition to knowing what the value
+of the tag will be as a word, one must also know the word size in bits.
+Different enums will require different word sizes. For instance, `Option` only
+has two constructors, so a word size with 1 bit suffices to encode all of its
+constructors. On the other hand, it would not suffice to encode all of the
+constructors in an an enum like this one:
+
+  enum Grade = A | B | C | D | E | F
+
+Since `Grade` has 6 constructors, we'd need a minimum of three bits to encode
+all of its constructors. As such, several parts of the enum implementation in
+Cryptol must keep track of the total number of constructors for the sake of
+computing the tag's bit width.
+-}
 
 type ConValue sym = ConInfo (SEval sym (GenValue sym))
 
@@ -243,8 +282,8 @@ ppValuePrec x opts = loop
     CanonicalOrder -> canonicalFields
 
   ppEnumVal prec i mp =
-    case integerAsLit x i of
-      Just c ->
+    case wordAsLit x i of
+      Just (_, c) ->
         case IMap.lookup (fromInteger c) mp of
           Just con
             | isNullaryCon con -> pure (pp (conIdent con))
@@ -544,7 +583,7 @@ fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record", show val]
 
-fromVEnum :: Backend sym => GenValue sym -> (SInteger sym, IntMap (ConValue sym))
+fromVEnum :: Backend sym => GenValue sym -> (SWord sym, IntMap (ConValue sym))
 fromVEnum val =
   case val of
     VEnum c xs -> (c,xs)
@@ -585,20 +624,20 @@ data CaseCont sym = CaseCont
 
 caseValue :: Backend sym =>
   sym ->
-  SInteger sym ->
+  SWord sym ->
   IntMap (ConValue sym) ->
   CaseCont sym ->
   SEval sym (GenValue sym)
 caseValue sym tag alts k
-  | Just c <- integerAsLit sym tag =
+  | Just (_, c) <- wordAsLit sym tag =
     case IMap.lookup (fromInteger c) alts of
       Just conV -> doCase conV
       Nothing -> panic "caseValue" ["Missing constructor for tag", show c]
   | otherwise = foldr doSymCase (doDefault Nothing) (IMap.toList alts)
   where
   doSymCase (n,con) otherOpts =
-    do expect <- integerLit sym (toInteger n)
-       yes    <- intEq sym tag expect
+    do expect <- wordLit sym (wordLen sym tag) (toInteger n)
+       yes    <- wordEq sym tag expect
        iteValue sym yes (doCase con) otherOpts
 
   doDefault mb =
@@ -639,7 +678,7 @@ mergeValue sym c v1 v2 =
            Right r -> pure (VRecord r)
 
     (VEnum c1 fs1, VEnum c2 fs2) ->
-      VEnum <$> iteInteger sym c c1 c2
+      VEnum <$> iteWord sym c c1 c2
             <*> pure (IMap.unionWith (mergeConValue sym c) fs1 fs2)
 
     (VTuple vs1  , VTuple vs2  ) | length vs1 == length vs2  ->

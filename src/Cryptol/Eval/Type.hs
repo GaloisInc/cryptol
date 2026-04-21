@@ -127,6 +127,14 @@ finNat' n' =
     Nat x -> x
     Inf   -> panic "Cryptol.Eval.Value.finNat'" [ "Unexpected `inf`" ]
 
+-- | Compute the mininum number of bits needed to represent an enum tag with
+-- the given constructors. See @Note [Represent enum tags as words]@ in
+-- "Cryptol.Eval.Value".
+enumTagWidth :: Vector (ConInfo a) -> Integer
+enumTagWidth cons = widthInteger $ toInteger $ Vector.length cons - 1
+  -- Note the use of `- 1` above, which assumes that `cons` is non-empty. This
+  -- should always be the case because Cryptol requires enums to have at least
+  -- one constructor.
 
 -- Type Evaluation -------------------------------------------------------------
 

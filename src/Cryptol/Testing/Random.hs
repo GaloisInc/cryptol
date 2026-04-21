@@ -52,7 +52,7 @@ import Cryptol.Backend.WordValue (wordVal)
 
 import Cryptol.Eval(evalEnumCon)
 import Cryptol.Eval.Type      ( TValue(..), TNominalTypeValue(..), ConInfo(..)
-                              , isNullaryCon )
+                              , enumTagWidth, isNullaryCon )
 import Cryptol.Eval.Value     ( GenValue(..), ppValue, defaultPPOpts, fromVFun, mkSeq, unsafeToFinSeq, finSeq)
 import Cryptol.TypeCheck.Solver.InfNat (widthInteger, Nat' (..))
 import Cryptol.Utils.Ident    (Ident)
@@ -343,7 +343,7 @@ randomCon sym cons
                 let (v, g') = gen sz g in
                 seq v (g', v))
               g1 (conFields con) in
-      (($ flds') <$> evalEnumCon sym (conIdent con) num, g2)
+      (($ flds') <$> evalEnumCon sym (conIdent con) num (length cons), g2)
 
 randomFloat ::
   (Backend sym, RandomGen g) =>
@@ -513,10 +513,11 @@ typeValues ty =
       case nv of
         TVStruct tbody -> typeValues (TVRec tbody)
         TVEnum cons ->
-          [ VEnum (toInteger tag) (IntMap.singleton tag con')
+          [ VEnum tag' (IntMap.singleton tag con')
           | (tag,con) <- zip [0..] (Vector.toList cons)
           , vs        <- mapM typeValues (conFields con)
           , let con' = con { conFields = pure <$> vs }
+          , let tag' = BV (enumTagWidth cons) (toInteger tag)
           ]
         TVAbstract -> []
 

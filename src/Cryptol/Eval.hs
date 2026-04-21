@@ -53,7 +53,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector(ppSelector)
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat(Nat'(..),nMul)
+import Cryptol.TypeCheck.Solver.InfNat(Nat'(..),nMul,widthInteger)
 import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -344,14 +344,14 @@ evalNominalDecl ::
 evalNominalDecl sym nt env0 =
   case ntDef nt of
     Struct c -> pure (bindVarDirect (ntConName c) (mkCon structCon) env0)
-    Enum cs  -> foldM enumCon env0 cs
+    Enum cs  -> foldM (enumCon (length cs)) env0 cs
     Abstract -> pure env0
   where
   structCon = PFun PPrim
   mkCon c   = foldr tabs c (ntParams nt)
 
-  enumCon env c =
-    do con <- evalEnumCon sym (nameIdent (ecName c)) (ecNumber c)
+  enumCon numCons env c =
+    do con <- evalEnumCon sym (nameIdent (ecName c)) (ecNumber c) numCons
        let done        = PVal . con . Vector.fromList . reverse
            fu _t f xs  = PFun (\v -> f (v:xs))
        pure (bindVarDirect (ecName c)
@@ -368,14 +368,20 @@ evalNominalDecl sym nt env0 =
 
 {-# INLINE evalNominalDecl #-}
 
--- | Make the function for a known constructor
+-- | Make the function for a known constructor in an enum.
 evalEnumCon ::
   Backend sym =>
-  sym -> Ident -> Int ->
+  sym ->
+  -- | The constructor's name.
+  Ident ->
+  -- | The constructor's tag (zero-indexed).
+  Int ->
+  -- | The total number of constructors in the enum.
+  Int ->
   SEval sym (Vector (SEval sym (GenValue sym)) -> GenValue sym)
-evalEnumCon sym i n =
-  do tag <- integerLit sym (toInteger n)
-     pure (VEnum tag . IntMap.singleton n . ConInfo i)
+evalEnumCon sym i conIdx numCons =
+  do tag <- wordLit sym (widthInteger (toInteger numCons)) (toInteger conIdx)
+     pure (VEnum tag . IntMap.singleton conIdx . ConInfo i)
 
 
 
