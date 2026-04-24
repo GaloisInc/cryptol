@@ -1183,7 +1183,7 @@ instance PP (WithNames Type) where
       TNominal nt ts -> optParens (prec > 3)
                                   (fsep (pp (ntName nt) : map (go 5) ts))
       TRec fs -> ppRecord
-                    [ pp l <+> text ":" <+> go 0 t | (l,t) <- displayFields fs ]
+                    [ nest 1 (pp l <+> text ":" </> go 0 t) | (l,t) <- displayFields fs ]
 
       _ | Just tinf <- isTInfix ty0 -> optParens (prec > 2)
                                      $ ppInfix 2 isTInfix tinf
