@@ -66,6 +66,7 @@ import           Control.DeepSeq
 import           Data.Char(isAlpha,toUpper)
 import           Data.Functor.Identity(runIdentity)
 import qualified Data.Map as Map
+import           Data.Maybe
 import qualified Data.Monoid as M
 import qualified Data.Text as Text
 import           GHC.Generics (Generic)
@@ -260,9 +261,10 @@ nameToPNameWithQualifiers n =
 
                           where
                           ident = ogName og
+                          param = maybeToList (identText <$> ogFromParam og)
                           quals = case modPathSplit (ogModule og) of
-                                    (_top,[] ) -> []
-                                    (_top,ids) -> map identText ids
+                                    (_top,[] ) -> param
+                                    (_top,ids) -> map identText ids ++ param
 
 -- | Primtives must be in a top level module, at least for now.
 asPrim :: Name -> Maybe PrimIdent
