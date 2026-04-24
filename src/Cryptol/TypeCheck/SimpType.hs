@@ -300,6 +300,7 @@ tMax x y
   | Just t <- tOp TCMax (total (op2 nMax)) [x,y] = t
   | Just n <- tIsNat' x = maxK n y
   | Just n <- tIsNat' y = maxK n x
+  | x == y              = x
   | otherwise           = tf2 TCMax x y
   where
   maxK Inf _     = tInf
