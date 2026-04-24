@@ -66,7 +66,8 @@ import           Cryptol.Eval.Value
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Solver.InfNat
 import           Cryptol.Eval.Type
-  (TValue(..), TNominalTypeValue(..), evalType,tValTy,tNumValTy,ConInfo(..))
+  ( ConInfo(..), TValue(..), TNominalTypeValue(..)
+  , enumTagWidth, evalType, tValTy, tNumValTy )
 import           Cryptol.Utils.Ident (Ident,prelPrim,floatPrim)
 import           Cryptol.Utils.RecordMap
 import           Cryptol.Utils.Panic
@@ -182,7 +183,7 @@ finType ty =
     TVSeq n t           -> FTSeq n <$> doSub 0 (finType t)
     TVTuple ts          -> FTTuple <$> zipWithM doSub [ 0 .. ] (map finType ts)
     TVRec fields        -> FTRecord <$> doFields fields
-      where 
+      where
     TVNominal u ts nv   -> setHere $ FTNominal u ts <$>
       case nv of
         TVStruct body -> FStruct <$> traverse finType body
@@ -248,7 +249,8 @@ data VarShape sym
   | VarFinSeq Integer [VarShape sym]
   | VarTuple [VarShape sym]
   | VarRecord (RecordMap Ident (VarShape sym))
-  | VarEnum (SInteger sym) (Vector (ConInfo (VarShape sym)))
+  | VarEnum (SWord sym) (Vector (ConInfo (VarShape sym)))
+      -- See Note [Represent enum tags as words] in Cryptol.Eval.Value
 
 ppVarShape :: Backend sym => sym -> VarShape sym -> Doc
 ppVarShape _sym (VarBit _b) = text "<bit>"
@@ -309,7 +311,9 @@ varShapeToValue sym var =
 data FreshVarFns sym =
   FreshVarFns
   { freshBitVar     :: IO (SBit sym)
-  , freshWordVar    :: Integer -> IO (SWord sym)
+    -- | The @Maybe Integer@ field is an optional upper bound.
+  , freshWordVar    :: Integer -> Maybe Integer -> IO (SWord sym)
+    -- | The @Maybe Integer@ fields are optional lower and upper bounds.
   , freshIntegerVar :: Maybe Integer -> Maybe Integer -> IO (SInteger sym)
   , freshFloatVar   :: Integer -> Integer -> IO (SFloat sym)
   }
@@ -325,7 +329,7 @@ freshVar fns tp =
     FTIntMod 0    -> panic "freshVariable" ["0 modulus not allowed"]
     FTIntMod m    -> VarInteger  <$> freshIntegerVar fns (Just 0) (Just (m-1))
     FTFloat e p   -> VarFloat    <$> freshFloatVar fns e p
-    FTSeq n FTBit -> VarWord     <$> freshWordVar fns (toInteger n)
+    FTSeq n FTBit -> VarWord     <$> freshWordVar fns (toInteger n) Nothing
     FTSeq n t     -> VarFinSeq (toInteger n) <$> sequence (genericReplicate n (freshVar fns t))
     FTTuple ts    -> VarTuple    <$> mapM (freshVar fns) ts
     FTRecord fs   -> VarRecord   <$> traverse (freshVar fns) fs
@@ -334,7 +338,7 @@ freshVar fns tp =
         FStruct fs -> VarRecord <$> traverse (freshVar fns) fs
         FEnum conTs ->
           do let maxCon = toInteger (Vector.length conTs - 1)
-             tag <- freshIntegerVar fns (Just 0) (Just maxCon)
+             tag <- freshWordVar fns (enumTagWidth conTs) (Just maxCon)
              cons <- traverse (traverse (freshVar fns)) conTs
              pure (VarEnum tag cons)
 
@@ -392,9 +396,9 @@ varModelPred sym vx =
     (VarFinSeq _n vs, VarFinSeq _ xs) -> modelPred sym vs xs
     (VarTuple vs, VarTuple xs) -> modelPred sym vs xs
     (VarRecord vs, VarRecord xs) -> modelPred sym (recordElements vs) (recordElements xs)
-    (VarEnum vi vcons,  VarEnum i cons) ->
-      do tag     <- integerLit sym i
-         sameTag <- intEq sym tag vi
+    (VarEnum vi vcons,  VarEnum (Concrete.BV w i) cons) ->
+      do tag     <- wordLit sym w i
+         sameTag <- wordEq sym tag vi
          let i' = fromInteger i
              flds = Vector.toList . conFields
          sameFs  <- case (vcons Vector.!? i', cons Vector.!? i') of
@@ -428,7 +432,7 @@ varToExpr prims = go
                     f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar con) ts
                  in EApp f (ERec efs)
 
-      (FTNominal nt ts (FEnum cons), VarEnum tag conVs) ->
+      (FTNominal nt ts (FEnum cons), VarEnum (Concrete.BV _ tag) conVs) ->
          foldl EApp conName args
          where
          tag' = fromInteger tag

@@ -756,7 +756,7 @@ toSignedIntegerV sym =
   (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (SRational Concrete -> SRational Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (SFloat Concrete -> SFloat Concrete -> SEval Concrete a -> SEval Concrete a) ->
-  (SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
+  (SWord Concrete -> SWord Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (TValue -> GenValue Concrete -> GenValue Concrete -> SEval Concrete a -> SEval Concrete a)
   #-}
 
@@ -770,7 +770,7 @@ cmpValue ::
   (Integer -> SInteger sym -> SInteger sym -> SEval sym a -> SEval sym a) ->
   (SRational sym -> SRational sym -> SEval sym a -> SEval sym a) ->
   (SFloat sym -> SFloat sym -> SEval sym a -> SEval sym a) ->
-  (SInteger sym -> SInteger sym -> SEval sym a -> SEval sym a) -> -- ^ how to compare enum tags
+  (SWord sym -> SWord sym -> SEval sym a -> SEval sym a) -> -- ^ how to compare enum tags
   (TValue -> GenValue sym -> GenValue sym -> SEval sym a -> SEval sym a)
 cmpValue sym merge fb fw fi fz fq ff ftag = cmp
   where
@@ -818,8 +818,8 @@ cmpValue sym merge fb fw fi fz fq ff ftag = cmp
           -- first compare based on tag...
           ftag tag1 tag2
             -- if both tags are concrete...
-            case (integerAsLit sym tag1, integerAsLit sym tag2) of
-              (Just i, Just j)
+            case (wordAsLit sym tag1, wordAsLit sym tag2) of
+              (Just (_, i), Just (_, j))
                 -- ...then because the comparisons are lazy, this part should
                 -- only be evaluated if tag1 == tag2
                 | i == j -> do
@@ -837,7 +837,7 @@ cmpValue sym merge fb fw fi fz fq ff ftag = cmp
               _ -> do
                 -- in the symbolic case, here tag1 may or may not equal tag2, so
                 -- we need to explicitly check this
-                sameTag <- intEq sym tag1 tag2
+                sameTag <- wordEq sym tag1 tag2
                 -- if tag1 == tag2, then compare by field, otherwise we are done
                 -- comparing
                 mergeEval sym merge sameTag doFields k
@@ -852,9 +852,9 @@ cmpValue sym merge fb fw fi fz fq ff ftag = cmp
                       IMap.intersectionWith (,) cons1 cons2
                   doFieldsForTag i (con1, con2) doRest = do
                     -- if the tag is i, then compare fields for constructor i
-                    i' <- integerLit sym (toInteger i)
+                    i' <- wordLit sym (wordLen sym tag1) (toInteger i)
                     -- we know tag1 == tag2, so we arbitrarily use tag1 here
-                    isThisTag <- intEq sym tag1 i'
+                    isThisTag <- wordEq sym tag1 i'
                     mergeEval sym merge isThisTag
                       (cmpFields i con1 con2)
                       doRest
@@ -894,7 +894,7 @@ valEq sym ty v1 v2 = cmpValue sym (iteBit sym) fb fw fi fz fq ff ftag ty v1 v2 (
   fz m x y k = eqCombine sym (znEq sym m x y) k
   fq x y k   = eqCombine sym (rationalEq sym x y) k
   ff x y k   = eqCombine sym (fpEq sym x y) k
-  ftag       = fi
+  ftag       = fw
 
 {-# INLINE valLt #-}
 valLt :: Backend sym =>
@@ -907,7 +907,7 @@ valLt sym ty v1 v2 final = cmpValue sym (iteBit sym) fb fw fi fz fq ff ftag ty v
   fz _ _ _ _ = panic "valLt" ["Z_n is not in `Cmp`"]
   fq x y k   = lexCombine sym (rationalLessThan sym x y) (rationalEq sym x y) k
   ff x y k   = lexCombine sym (fpLessThan   sym x y) (fpEq   sym x y) k
-  ftag       = fi
+  ftag       = fw
 
 {-# INLINE valGt #-}
 valGt :: Backend sym =>
@@ -920,7 +920,7 @@ valGt sym ty v1 v2 final = cmpValue sym (iteBit sym) fb fw fi fz fq ff ftag ty v
   fz _ _ _ _ = panic "valGt" ["Z_n is not in `Cmp`"]
   fq x y k   = lexCombine sym (rationalGreaterThan sym x y) (rationalEq sym x y) k
   ff x y k   = lexCombine sym (fpGreaterThan   sym x y) (fpEq   sym x y) k
-  ftag       = fi
+  ftag       = fw
 
 {-# INLINE eqCombine #-}
 eqCombine :: Backend sym =>
@@ -989,7 +989,10 @@ signedLessThanV sym ty v1 v2 =
   fz m _ _ _ = panic "signedLessThan" ["Attempted to perform signed comparison on Z_" ++ show m ++ " type"]
   fq _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Rational type"]
   ff _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Float"]
-  ftag x y k = lexCombine sym (intLessThan sym x y) (intEq sym x y) k
+  ftag x y k = lexCombine sym (wordLessThan sym x y) (wordEq sym x y) k
+                 -- NB: Use `wordLessThan` to compare enum constructor tags,
+                 -- not `wordSignedLessThan`. We only used signed comparisons
+                 -- on the constructors' fields, not on the tags.
 
 
 

@@ -91,7 +91,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
                          Abstract -> panic "toExp" ["Asbtract vs Record"]
                    f = foldl (\x t -> ETApp x (tNumValTy t)) (EVar c) ts
                 in pure (EApp f (ERec efs))
-      (TVNominal nt ts (TVEnum tfss), VEnum i' vf_map) ->
+      (TVNominal nt ts (TVEnum tfss), VEnum (BV _ i') vf_map) ->
         let i = fromInteger i'
         in
         case tfss Vector.!? i of

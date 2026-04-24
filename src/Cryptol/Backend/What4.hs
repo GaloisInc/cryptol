@@ -175,9 +175,9 @@ instance W4.IsSymExprBuilder sym => MonadIO (W4Eval sym) where
 
 -- | Add a definitional equation.
 -- This will always be asserted when we make queries to the solver.
-addDefEqn :: W4.IsSymExprBuilder sym => What4 sym -> W4.Pred sym -> W4Eval sym ()
+addDefEqn :: W4.IsSymExprBuilder sym => What4 sym -> W4.Pred sym -> IO ()
 addDefEqn sym p =
-  liftIO (modifyMVar_ (w4defs sym) (W4.andPred (w4 sym) p))
+  modifyMVar_ (w4defs sym) (W4.andPred (w4 sym) p)
 
 -- | Add s safety condition.
 addSafety :: W4.IsSymExprBuilder sym => W4.Pred sym -> W4Eval sym ()
@@ -645,7 +645,7 @@ fpCvtToRational sym fp =
                W4.notPred (w4 sym) =<< W4.orPred (w4 sym) bad1 bad2
      assertSideCondition sym grd (BadValue "fpToRational")
      (rel,x,y) <- liftIO (FP.fpToRational (w4 sym) fp)
-     addDefEqn sym =<< liftIO (W4.impliesPred (w4 sym) grd rel)
+     liftIO (addDefEqn sym =<< W4.impliesPred (w4 sym) grd rel)
      ratio sym x y
 
 fpCvtFromRational ::
@@ -686,6 +686,6 @@ sModRecip sym m x
        z <- liftIO (W4.freshBoundedInt (w4 sym) W4.emptySymbol (Just 1) (Just (m-1)))
        xz <- liftIO (W4.intMul (w4 sym) x z)
        rel <- znEq sym m xz =<< liftIO (W4.intLit (w4 sym) 1)
-       addDefEqn sym =<< liftIO (W4.orPred (w4 sym) divZero rel)
+       liftIO (addDefEqn sym =<< W4.orPred (w4 sym) divZero rel)
 
        return z

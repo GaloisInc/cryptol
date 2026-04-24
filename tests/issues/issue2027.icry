@@ -1,0 +1,7 @@
+:load issue2027.cry
+:set prover=sbv-bitwuzla
+:prove myBooleanEqReflexive
+:prove gradeEqReflexive
+:set prover=w4-bitwuzla
+:prove myBooleanEqReflexive
+:prove gradeEqReflexive

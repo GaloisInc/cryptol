@@ -150,8 +150,8 @@ doW4Eval sym m =
 
 -- | Wraps a 'W4.ConfigOption' to provide a consistent interface for setting
 --   solver goal timeouts (see 'configTimeoutMilliSeconds', 'configTimeoutSeconds', 'setConfigTimeout').
-data ConfigTimeout = 
-        ConfigTimeout 
+data ConfigTimeout =
+        ConfigTimeout
           (W4.ConfigOption W4.BaseIntegerType)
           -- | Translate a 'W4.SolverGoalTimeout' into the integer backing this config option.
           (W4.SolverGoalTimeout -> Integer)
@@ -162,19 +162,19 @@ configTimeoutMilliSeconds :: W4.ConfigOption W4.BaseIntegerType -> ConfigTimeout
 configTimeoutMilliSeconds opt = ConfigTimeout opt W4.getGoalTimeoutInMilliSeconds
 
 -- | Construct a 'ConfigTimeout' from a 'W4.ConfigOption', where the given
---   option configures a solver-specific timeout measured in seconds. 
---   Rounds up to at least 1 second when setting a non-zero timeout 
+--   option configures a solver-specific timeout measured in seconds.
+--   Rounds up to at least 1 second when setting a non-zero timeout
 --   (see 'W4.getGoalTimeoutInSeconds').
 configTimeoutSeconds :: W4.ConfigOption W4.BaseIntegerType -> ConfigTimeout
 configTimeoutSeconds opt = ConfigTimeout opt W4.getGoalTimeoutInSeconds
 
-setConfigTimeout :: 
+setConfigTimeout ::
   W4.IsExprBuilder sym =>
   ConfigTimeout ->
   W4.SolverGoalTimeout ->
   sym ->
   IO ()
-setConfigTimeout (ConfigTimeout opt toOpt) t sym = 
+setConfigTimeout (ConfigTimeout opt toOpt) t sym =
   do optSetting <- W4.getOptionSetting opt (W4.getConfiguration sym)
      _ <- W4.trySetOpt optSetting (toOpt t)
      pure ()
@@ -340,13 +340,29 @@ setupAdapterOptions cfg sym =
   setupAnAdapter (AnOnlineAdapter _n _fs opts _ _p) =
     W4.extendConfig opts (W4.getConfiguration sym)
 
-what4FreshFns :: W4.IsSymExprBuilder sym => sym -> FreshVarFns (What4 sym)
+freshBV ::
+  W4.IsSymExprBuilder sym =>
+  What4 sym ->
+  Integer ->
+  Maybe Integer ->
+  IO (SW.SWord sym)
+freshBV sym w hi =
+  do x <- SW.freshBV (w4 sym) W4.emptySymbol w
+     case hi of
+       Just h ->
+         do sh <- SW.bvLit (w4 sym) w h
+            p <- SW.bvule (w4 sym) x sh
+            addDefEqn sym p
+       Nothing -> pure ()
+     pure x
+
+what4FreshFns :: W4.IsSymExprBuilder sym => What4 sym -> FreshVarFns (What4 sym)
 what4FreshFns sym =
   FreshVarFns
-  { freshBitVar     = W4.freshConstant sym W4.emptySymbol W4.BaseBoolRepr
-  , freshWordVar    = SW.freshBV sym W4.emptySymbol
-  , freshIntegerVar = W4.freshBoundedInt sym W4.emptySymbol
-  , freshFloatVar   = W4.fpFresh sym
+  { freshBitVar     = W4.freshConstant (w4 sym) W4.emptySymbol W4.BaseBoolRepr
+  , freshWordVar    = freshBV sym
+  , freshIntegerVar = W4.freshBoundedInt (w4 sym) W4.emptySymbol
+  , freshFloatVar   = W4.fpFresh (w4 sym)
   }
 
 -- | Simulate and manipulate query into a form suitable to be sent
@@ -363,7 +379,7 @@ prepareQuery sym ProverCommand { .. } = do
   case predArgTypes pcQueryType pcSchema of
     Left msg -> pure (Left msg)
     Right ts ->
-      do args <- liftIO (mapM (freshVar (what4FreshFns (w4 sym))) ts)
+      do args <- liftIO (mapM (freshVar (what4FreshFns sym)) ts)
          (safety,b) <- simulate ntEnv args
          liftIO
            do -- Ignore the safety condition if the flag is set
@@ -782,18 +798,17 @@ computeModelPred sym v c =
   snd <$> doW4Eval (w4 sym) (varModelPred sym (v, c))
 
 varShapeToConcrete ::
+  forall sym t fm.
+  sym ~ W4.ExprBuilder t CryptolState fm =>
   W4.GroundEvalFn t ->
-  VarShape (What4 (W4.ExprBuilder t CryptolState fm)) ->
+  VarShape (What4 sym) ->
   IO (VarShape Concrete.Concrete)
 varShapeToConcrete evalFn v =
   case v of
     VarBit b -> VarBit <$> W4.groundEval evalFn b
     VarInteger i -> VarInteger <$> W4.groundEval evalFn i
     VarRational n d -> VarRational <$> W4.groundEval evalFn n <*> W4.groundEval evalFn d
-    VarWord SW.ZBV -> pure (VarWord (Concrete.mkBv 0 0))
-    VarWord (SW.DBV x) ->
-      let w = W4.intValue (W4.bvWidth x)
-       in VarWord . Concrete.mkBv w . BV.asUnsigned <$> W4.groundEval evalFn x
+    VarWord w -> VarWord <$> sWordToConcrete w
     VarFloat fv@(W4.SFloat f) ->
       let (e,p) = W4.fpSize fv
        in VarFloat . FH.BF e p <$> W4.groundEval evalFn f
@@ -804,10 +819,16 @@ varShapeToConcrete evalFn v =
     VarRecord fs ->
       VarRecord <$> traverse (varShapeToConcrete evalFn) fs
     VarEnum tag cons ->
-      VarEnum <$> W4.groundEval evalFn tag
+      VarEnum <$> sWordToConcrete tag
               <*> traverse (traverse (varShapeToConcrete evalFn)) cons
+  where
+    sWordToConcrete :: SW.SWord sym -> IO Concrete.BV
+    sWordToConcrete SW.ZBV = pure (Concrete.mkBv 0 0)
+    sWordToConcrete (SW.DBV x) =
+      let w = W4.intValue (W4.bvWidth x)
+       in Concrete.mkBv w . BV.asUnsigned <$> W4.groundEval evalFn x
 
-setAdapterTimeout :: 
+setAdapterTimeout ::
   W4.IsExprBuilder sym =>
   AnAdapter ->
   W4.SolverGoalTimeout ->

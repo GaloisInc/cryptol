@@ -16,6 +16,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Cryptol.Symbolic.SBV
  ( SBVProverConfig
@@ -622,12 +623,14 @@ parseValue (FTNominal _ _ nv) cvs =
     FStruct r -> parseValue (FTRecord r) cvs
     FEnum cons ->
       fromMaybe (panic "Cryptol.Symbolic.parseValue" ["no enum"]) $
-      do (tag, cvs') <- SBV.genParse SBV.KUnbounded cvs
+      do let tagWidth = enumTagWidth cons
+         (tag, cvs') <-
+           SBV.genParse (SBV.KBounded False (fromInteger @Int tagWidth)) cvs
          let doCon input con =
                case parseValues (Vector.toList (conFields con)) input of
                  (vs,input') -> (input', con { conFields = Vector.fromList vs })
              (input3, conVs) = mapAccumL doCon cvs' cons
-         pure (VarEnum tag conVs, input3)
+         pure (VarEnum (Concrete.BV tagWidth tag) conVs, input3)
 
 parseValue (FTFloat e p) cvs =
    (VarFloat FH.BF { FH.bfValue = bfNaN
@@ -650,10 +653,16 @@ freshBoundedInt sym lo hi =
        Nothing -> pure ()
      return x
 
-freshBitvector :: SBV -> Integer -> IO SBV.SVal
-freshBitvector sym w
+freshBitvector :: SBV -> Integer -> Maybe Integer -> IO SBV.SVal
+freshBitvector sym w hi
   | w == 0 = pure (SBV.svInteger (SBV.KBounded False 0) 0)
-  | otherwise = freshBV_ sym (fromInteger w)
+  | otherwise =
+    do let w' = fromInteger @Int w
+       x <- freshBV_ sym w'
+       case hi of
+         Just h -> addDefEqn sym (SBV.svLessEq x (SBV.svInteger (SBV.KBounded False w') h))
+         Nothing -> pure ()
+       pure x
 
 sbvFreshFns :: SBV -> FreshVarFns SBV
 sbvFreshFns sym =

@@ -34,7 +34,7 @@ import Control.DeepSeq
 -- | An evaluated type of kind *.
 -- These types do not contain type variables, type synonyms, or type functions.
 data TValue
-  = TVBit                     -- ^ @ Bit @  
+  = TVBit                     -- ^ @ Bit @
   | TVInteger                 -- ^ @ Integer @
   | TVFloat Integer Integer   -- ^ @ Float e p @
   | TVIntMod Integer          -- ^ @ Z n @
@@ -127,6 +127,14 @@ finNat' n' =
     Nat x -> x
     Inf   -> panic "Cryptol.Eval.Value.finNat'" [ "Unexpected `inf`" ]
 
+-- | Compute the mininum number of bits needed to represent an enum tag with
+-- the given constructors. See @Note [Represent enum tags as words]@ in
+-- "Cryptol.Eval.Value".
+enumTagWidth :: Vector (ConInfo a) -> Integer
+enumTagWidth cons = widthInteger $ toInteger $ Vector.length cons - 1
+  -- Note the use of `- 1` above, which assumes that `cons` is non-empty. This
+  -- should always be the case because Cryptol requires enums to have at least
+  -- one constructor.
 
 -- Type Evaluation -------------------------------------------------------------
 
@@ -256,7 +264,7 @@ instance PP TValue where
       TVFloat e p -> wrapAfter 1 ("Float" <+> integer e <+> integer p)
       TVIntMod m -> wrapAfter 1 ("Z" <+> integer m)
       TVRational -> "Rational"
-      TVArray a b -> wrapAfter 1 ("Array" <+> pp2 0 a <+> pp2 1 b) 
+      TVArray a b -> wrapAfter 1 ("Array" <+> pp2 0 a <+> pp2 1 b)
       TVSeq m v ->
         case v of
           TVBit -> brackets (integer m)

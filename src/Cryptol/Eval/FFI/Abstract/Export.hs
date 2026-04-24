@@ -60,7 +60,7 @@ exportValue v =
     VSeq n sm    -> exportValues (enumerateSeqMap n sm)
 
     -- 1. tag, 2. constructor values
-    VEnum tag mp
+    VEnum (BV _ tag) mp
       | 0 <= tag && tag <= toInteger (maxBound :: Int)
       , let n = fromInteger tag
       , Just con <- IntMap.lookup n mp ->
