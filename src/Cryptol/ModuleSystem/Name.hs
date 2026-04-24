@@ -240,11 +240,17 @@ nameFixity = nFixity
 nameToDefPName :: Name -> PName
 nameToDefPName n =
   case nInfo n of
-    GlobalName ns og -> PName.origNameToDefPName og ns
+    GlobalName ns og   -> PName.origNameToDefPName og ns
     LocalName ns _ txt -> PName.UnQual' txt ns
 
--- | Compute a `PName` from `Name`, this preserves all qualifiers in the name,
--- whereas `nameToDefPName` does not.
+-- | Compute a `PName` from `Name`.
+--
+-- This function preserves module qualifiers in the name, as compared
+-- to `nameToDefPName` which does *not* preserve module qualifiers.
+--
+--     FIXME: this should qualify names that come from module
+--            parameters (as `nameToDefPName` does).
+--
 nameToPNameWithQualifiers :: Name -> PName
 nameToPNameWithQualifiers n =
   case nameInfo n of
