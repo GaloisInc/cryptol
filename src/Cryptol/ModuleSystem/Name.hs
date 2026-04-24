@@ -254,19 +254,16 @@ nameToDefPName n =
 nameToPNameWithQualifiers :: Name -> PName
 nameToPNameWithQualifiers n =
   case nameInfo n of
-    GlobalName ns og   -> origNameToPName og ns
     LocalName ns _ txt -> PName.UnQual' txt ns
+    GlobalName ns og   -> case quals of
+                            [] -> PName.UnQual' ident ns
+                            ms -> PName.Qual (packModName ms) ident
 
-  where
-  origNameToPName :: OrigName -> NameSource -> PName
-  origNameToPName og vis =
-    case modPathSplit (ogModule og) of
-      (_top,[] ) -> PName.UnQual' ident vis
-      (_top,ids) -> PName.Qual (packModName (map identText ids)) ident
-
-    where
-    ident = ogName og
-
+                          where
+                          ident = ogName og
+                          quals = case modPathSplit (ogModule og) of
+                                    (_top,[] ) -> []
+                                    (_top,ids) -> map identText ids
 
 -- | Primtives must be in a top level module, at least for now.
 asPrim :: Name -> Maybe PrimIdent
