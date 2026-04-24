@@ -63,16 +63,15 @@ module Cryptol.ModuleSystem.Name (
   ) where
 
 import           Control.DeepSeq
+import           Data.Char(isAlpha,toUpper)
+import           Data.Functor.Identity(runIdentity)
 import qualified Data.Map as Map
 import qualified Data.Monoid as M
-import           Data.Functor.Identity(runIdentity)
+import qualified Data.Text as Text
 import           GHC.Generics (Generic)
 import           MonadLib
 import           Prelude ()
 import           Prelude.Compat
-import qualified Data.Text as Text
-import           Data.Char(isAlpha,toUpper)
-
 
 import           Cryptol.Parser.Name (PName, NameSource(..))
 import qualified Cryptol.Parser.Name as PName
