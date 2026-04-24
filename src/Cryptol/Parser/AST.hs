@@ -969,10 +969,10 @@ ppL :: PP a => Located a -> Doc
 ppL = pp . thing
 
 ppNamed :: PP a => String -> Named a -> Doc
-ppNamed s x = ppL (name x) <+> text s <+> pp (value x)
+ppNamed s x = nest 1 (ppL (name x) <+> text s </> pp (value x))
 
 ppNamed' :: PP a => String -> (Ident, (Range, a)) -> Doc
-ppNamed' s (i,(_,v)) = pp i <+> text s <+> pp v
+ppNamed' s (i,(_,v)) = nest 1 (pp i <+> text s </> pp v)
 
 
 
@@ -1378,7 +1378,7 @@ instance (Show name, PPName name) => PP (Expr name) where
                                        , nest 2 (vcat (map pp as))
                                        ]
 
-      ETyped e t    -> wrap n 0 (ppPrec 2 e <+> text ":" <+> pp t)
+      ETyped e t    -> wrap n 0 (ppPrec 2 e <+> text ":" </> pp t)
 
       EWhere  e ds  -> wrap n 0 $ align $ vsep
                          [ pp e
@@ -1479,9 +1479,9 @@ instance PPName name => PP (Type name) where
   ppPrec n ty =
     case ty of
       TWild          -> text "_"
-      TTuple ts      -> parens $ commaSep $ map pp ts
+      TTuple ts      -> ppTuple $ map pp ts
       TTyApp fs      -> braces $ commaSep $ map (ppNamed " = ") fs
-      TRecord fs     -> braces $ commaSep $ map (ppNamed' ":") (displayFields fs)
+      TRecord fs     -> ppRecord $ map (ppNamed' ":") (displayFields fs)
       TBit           -> text "Bit"
       TNum x         -> integer x
       TChar x        -> text (show x)
