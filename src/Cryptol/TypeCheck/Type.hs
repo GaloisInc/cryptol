@@ -1178,6 +1178,7 @@ instance PP (WithNames NominalType) where
 --   * 5: @atype@
 instance PP (WithNames Type) where
   ppPrec prec ty0@(WithNames ty nmMap) =
+    withNameDisp $ \disp ->
     case ty of
       TVar a  -> ppWithNames nmMap a
       TNominal nt ts -> optParens (prec > 3)
@@ -1185,11 +1186,10 @@ instance PP (WithNames Type) where
       TRec fs -> ppRecord
                     [ nest 1 (pp l <+> text ":" </> go 0 t) | (l,t) <- displayFields fs ]
 
-      _ | Just tinf <- isTInfix ty0 -> optParens (prec > 2)
-                                     $ ppInfix 2 isTInfix tinf
+      _ | Just tinf <- isTInfix disp ty0 ->
+          optParens (prec > 2) $ ppInfix 2 (isTInfix disp) tinf
 
       TUser c ts t ->
-        withNameDisp $ \disp ->
         case asOrigName c of
           Just og | NotInScope <- getNameFormat og disp ->
               go prec t -- unfold type synonym if not in scope
@@ -1247,13 +1247,15 @@ instance PP (WithNames Type) where
     where
     go p t = ppWithNamesPrec nmMap p t
 
-    isTInfix (WithNames (TCon tc [ieLeft',ieRight']) _) =
+    isTInfix _ (WithNames (TCon tc [ieLeft',ieRight']) _) =
       do let ieLeft  = WithNames ieLeft' nmMap
              ieRight = WithNames ieRight' nmMap
          (ieOp, ieFixity) <- infixPrimTy tc
          return Infix { .. }
 
-    isTInfix (WithNames (TUser n [ieLeft',ieRight'] _) _)
+    isTInfix disp (WithNames (TUser n [ieLeft',ieRight'] n') env)
+      | Just og <- asOrigName n, NotInScope <- getNameFormat og disp =
+        isTInfix disp (WithNames n' env)
       | isInfixIdent (nameIdent n) =
       do let ieLeft   = WithNames ieLeft' nmMap
              ieRight  = WithNames ieRight' nmMap
@@ -1261,7 +1263,7 @@ instance PP (WithNames Type) where
              ieOp     = nameIdent n
          return Infix { .. }
 
-    isTInfix _ = Nothing
+    isTInfix _ _ = Nothing
 
 
 
