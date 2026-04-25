@@ -313,14 +313,19 @@ unqualifiedEnv IfaceDecls { .. } =
 interpImportEnv :: ImportG name  {- ^ The import declaration -} ->
                    Set Name      {- ^ All public things coming in -} ->
                    NamingEnv
-interpImportEnv imp = interpImportEnv' (iAs imp) (iSpec imp)
+interpImportEnv imp =
+  interpImportEnv'
+    nameToDefPName
+    (iAs imp)
+    (iSpec imp)
 
--- | A more general version of `interpImportEnv`
-interpImportEnv' :: Maybe ModName    {- ^ prefix with this qualifier -} ->
+-- | A more general version of `interpImportEnv`.
+interpImportEnv' :: (Name -> PName)  {- ^ used to create the naming env -}  ->
+                    Maybe ModName    {- ^ prefix with this qualifier -} ->
                     Maybe ImportSpec {- ^ restrict per ImportSpec    -} ->
                     Set Name       {- ^ All public things coming in -} ->
                     NamingEnv
-interpImportEnv' iAs' iSpec' public = qualified
+interpImportEnv' nameToPName iAs' iSpec' public = qualified
   where
   
   -- optionally qualify names in NamingEnv if the import is "qualified",
@@ -328,7 +333,7 @@ interpImportEnv' iAs' iSpec' public = qualified
   qualified | Just pfx <- iAs' = qualify pfx names
             | otherwise        = names
 
-  names = namingEnvFromNames restricted
+  names = namingEnvFromNames' nameToPName restricted
 
   -- restrict or hide imported symbols
   restricted
