@@ -261,10 +261,14 @@ nameToPNameWithQualifiers n =
 
                           where
                           ident = ogName og
-                          param = maybeToList (identText <$> ogFromParam og)
+
+                          -- add the rest of needed qualifiers to `quals`:
                           quals = case modPathSplit (ogModule og) of
                                     (_top,[] ) -> param
                                     (_top,ids) -> map identText ids ++ param
+
+                          -- if name from a Parameter, we start with qualifier for that:
+                          param = maybeToList (identText <$> ogFromParam og)
 
 -- | Primtives must be in a top level module, at least for now.
 asPrim :: Name -> Maybe PrimIdent
