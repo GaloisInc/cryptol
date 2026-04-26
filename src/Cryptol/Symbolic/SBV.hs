@@ -42,9 +42,8 @@ import qualified Control.Exception as X
 import System.Exit (ExitCode(ExitSuccess))
 import qualified Data.Vector as Vector
 
-import LibBF(bfNaN)
-
 import qualified Data.SBV as SBV (sObserve, symbolicEnv, SMTReasonUnknown (..))
+import qualified Data.SBV.Float as SBV
 import qualified Data.SBV.Internals as SBV (SBV(..), SMTModel(..))
 import qualified Data.SBV.Dynamic as SBV
 import qualified Data.SBV.Trans.Control as SBV (SMTOption(..))
@@ -664,13 +663,17 @@ parseValue (FTNominal _ _ nv) cvs =
          pure (VarEnum (Concrete.BV tagWidth tag) conVs, input3)
 
 parseValue (FTFloat e p) cvs =
-   (VarFloat FH.BF { FH.bfValue = bfNaN
-                   , FH.bfExpWidth = e
-                   , FH.bfPrecWidth = p
-                   }
-   , cvs
-   )
-   -- XXX: NOT IMPLEMENTED
+  case cvs of
+    SBV.CV _ (SBV.CFP fp):cvs'
+      | e == toInteger @Int (SBV.fpExponentSize fp)
+      , p == toInteger @Int (SBV.fpSignificandSize fp) ->
+        (VarFloat FH.BF { FH.bfValue = SBV.fpValue fp
+                        , FH.bfExpWidth = e
+                        , FH.bfPrecWidth = p
+                        }
+        , cvs'
+        )
+    _ -> panic "Cryptol.Symbolic.parseValue" ["no float"]
 
 
 freshBoundedInt :: SBV -> Maybe Integer -> Maybe Integer -> IO SBV.SVal
@@ -701,5 +704,5 @@ sbvFreshFns sym =
   { freshBitVar     = freshSBool_ sym
   , freshWordVar    = freshBitvector sym
   , freshIntegerVar = freshBoundedInt sym
-  , freshFloatVar   = \_ _ -> return () -- TODO
+  , freshFloatVar   = freshSFloat_ sym
   }
