@@ -31,6 +31,9 @@
   virtual submodule named after the parameter (e.g., `M::I::x`).
   ([#1699](https://github.com/GaloisInc/cryptol/issues/1699))
 
+* SBV-based provers can now prove properties about `Float`s.
+  ([#1997](https://github.com/GaloisInc/cryptol/issues/1997))
+
 ## Bug fixes
 
 * Fix pretty printing of types in errors messages
