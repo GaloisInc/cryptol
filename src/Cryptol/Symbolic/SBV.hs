@@ -670,5 +670,5 @@ sbvFreshFns sym =
   { freshBitVar     = freshSBool_ sym
   , freshWordVar    = freshBitvector sym
   , freshIntegerVar = freshBoundedInt sym
-  , freshFloatVar   = \_ _ -> return () -- TODO
+  , freshFloatVar   = freshSFloat_ sym
   }

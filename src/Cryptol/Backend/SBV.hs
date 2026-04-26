@@ -14,6 +14,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -23,6 +24,7 @@ module Cryptol.Backend.SBV
   , freshSBool_
   , freshBV_
   , freshSInteger_
+  , freshSFloat_
   , addDefEqn
   , ashr
   , lshr
@@ -35,16 +37,20 @@ module Cryptol.Backend.SBV
 import qualified Control.Exception as X
 import           Control.Concurrent.MVar
 import           Control.Monad.IO.Class (MonadIO(..))
-import           Data.Bits (bit, complement)
+import           Data.Bits (bit, complement, shiftL)
 import           Data.List (foldl')
+import           LibBF (BigFloat, BFOpts, RoundMode, Status)
+import qualified LibBF as BF
 
 import qualified GHC.Num.Compat as Integer
 
 import Data.SBV.Dynamic as SBV
+import qualified Data.SBV.Float as SBV
 import qualified Data.SBV.Internals as SBV
 
 import Cryptol.Backend
 import Cryptol.Backend.Concrete ( integerToChar )
+import Cryptol.Backend.FloatHelpers (BF(..), fpCheckStatus, fpOpts)
 import Cryptol.Backend.Monad
   ( Eval(..), blackhole, delayFill, evalSpark
   , EvalError(..), EvalErrorEx(..), Unsupported(..)
@@ -92,6 +98,12 @@ freshSBool_ (SBV stateVar _) =
 freshSInteger_ :: SBV -> IO (SInteger SBV)
 freshSInteger_ (SBV stateVar _) =
   withMVar stateVar (svMkSymVar_ Nothing KUnbounded Nothing)
+
+freshSFloat_ :: SBV -> Integer -> Integer -> IO (SFloat SBV)
+freshSFloat_ (SBV stateVar _) e p =
+  withMVar stateVar (svMkSymVar_ Nothing (SBV.KFP e' p') Nothing)
+    where
+      (e', p') = fpExpAndPrec e p
 
 
 -- SBV Evaluation monad -------------------------------------------------------
@@ -151,7 +163,7 @@ instance Backend SBV where
   type SBit SBV = SVal
   type SWord SBV = SVal
   type SInteger SBV = SVal
-  type SFloat SBV = ()        -- XXX: not implemented
+  type SFloat SBV = SVal
   type SEval SBV = SBVEval
 
   raiseError _ err = SBVEval $
@@ -334,36 +346,44 @@ instance Backend SBV where
   znNegate sym m a  = sModNegate sym m a
   znRecip = sModRecip
 
-  fpAsLit _ _               = Nothing
-  iteFloat _ _ _ _          = unsupported "iteFloat"
-  fpNaN _ _ _               = unsupported "fpNaN"
-  fpPosInf _ _ _            = unsupported "fpPosInf"
-  fpExactLit _ _            = unsupported "fpExactLit"
-  fpLit _ _ _ _             = unsupported "fpLit"
-  fpLogicalEq _ _ _         = unsupported "fpLogicalEq"
-  fpEq _ _ _                = unsupported "fpEq"
-  fpLessThan _ _ _          = unsupported "fpLessThan"
-  fpGreaterThan _ _ _       = unsupported "fpGreaterThan"
-  fpPlus _ _ _ _            = unsupported "fpPlus"
-  fpMinus _ _ _ _           = unsupported "fpMinus"
-  fpMult _ _ _ _            = unsupported "fpMult"
-  fpDiv _ _ _ _             = unsupported "fpDiv"
-  fpAbs _ _                 = unsupported "fpAbs"
-  fpSqrt _ _ _              = unsupported "fpSqrt"
-  fpFMA _ _ _ _ _           = unsupported "fpFMA"
-  fpNeg _ _                 = unsupported "fpNeg"
-  fpFromInteger _ _ _ _ _   = unsupported "fpFromInteger"
-  fpToInteger _ _ _ _       = unsupported "fpToInteger"
-  fpIsZero _ _              = unsupported "fpIsZero"
-  fpIsInf _ _               = unsupported "fpIsInf"
-  fpIsNeg _ _               = unsupported "fpIsNeg"
-  fpIsNaN _ _               = unsupported "fpIsNaN"
-  fpIsNorm _ _              = unsupported "fpIsNorm"
-  fpIsSubnorm _ _           = unsupported "fpIsSubnorm"
-  fpToBits _ _              = unsupported "fpToBits"
-  fpFromBits _ _ _ _        = unsupported "fpFromBits"
-  fpToRational _ _          = unsupported "fpToRational"
-  fpFromRational _ _ _ _ _  = unsupported "fpFromRational"
+  fpAsLit _                 = fmap fpToBF . svAsFP
+  iteFloat _ b x y          = pure $! svSymbolicMerge (kindOf x) True b x y
+  fpNaN _ e p               = pure $! svFPNaN e p
+  fpPosInf _ e p            = pure $! svFPInf False e p
+  fpExactLit _ bf           = pure $! svFloatingPoint (fpFromBF bf)
+  fpLit _ e p r             = pure $! svFPFromRationalLit e p r
+  fpLogicalEq _ a b         = pure $! svStrongEqual a b
+  fpEq _ a b                = pure $! svEqual a b
+  fpLessThan _ a b          = pure $! svLessThan a b
+  fpGreaterThan _ a b       = pure $! svGreaterThan a b
+  fpPlus sym r a b          = do m <- fpRoundingMode sym r
+                                 pure $! svFPPlus m a b
+  fpMinus sym r a b         = do m <- fpRoundingMode sym r
+                                 pure $! svFPSub m a b
+  fpMult sym r a b          = do m <- fpRoundingMode sym r
+                                 pure $! svFPMul m a b
+  fpDiv sym r a b           = do m <- fpRoundingMode sym r
+                                 pure $! svFPDiv m a b
+  fpAbs _ a                 = pure $! svFPAbs a
+  fpSqrt sym r a            = do m <- fpRoundingMode sym r
+                                 pure $! svFPSqrt m a
+  fpFMA sym r a b c         = do m <- fpRoundingMode sym r
+                                 pure $! svFPFMA m a b c
+  fpNeg _ a                 = pure $! svFPNeg a
+  fpFromInteger sym e p r a = do m <- fpRoundingMode sym r
+                                 pure $! svFPFromInteger e p m a
+  -- fpToInteger _ _ _ _       = unsupported "fpToInteger"
+  fpIsZero _ a              = pure $! svFPIsZero a
+  fpIsInf _ a               = pure $! svFPIsInfinite a
+  fpIsNeg _ a               = pure $! svFPIsNegative a
+  fpIsNaN _ a               = pure $! svFPIsNaN a
+  fpIsNorm _ a              = pure $! svFPIsNormal a
+  fpIsSubnorm _ a           = pure $! svFPIsSubnormal a
+  fpToBits sym a            = fpCvtToBits sym a
+  fpFromBits _ e p a        = pure $! svFPFromBits e p a
+  fpToRational sym a        = fpCvtToRational sym a
+  fpFromRational sym e p r a = do m <- fpRoundingMode sym r
+                                  pure $! svFPFromRational e p m a
 
 
 unsupported :: String -> SEval SBV a
@@ -488,3 +508,387 @@ shl x idx =
   case SBV.svAsInteger idx of
     Just i  -> SBV.svShl x (fromInteger i)
     Nothing -> SBV.svShiftLeft x idx
+
+-- TODO RGS: Docs for everything below
+
+-- | Convert the exponent and significand (precision) sizes from 'Integer's to
+-- 'Int's. While 'Integer'-to-'Int' conversions are not safe in general,
+-- Cryptol's floating-point functionality maintains the invariant that the
+-- exponent and significand sizes will not exceed the maximum size of an 'Int'.
+fpExpAndPrec :: Integer -> Integer -> (Int, Int)
+fpExpAndPrec e p = (fromInteger @Int e, fromInteger @Int p)
+
+fpToBF :: SBV.FP -> BF
+fpToBF fp =
+  BF { bfExpWidth = toInteger @Int (SBV.fpExponentSize fp)
+     , bfPrecWidth = toInteger @Int (SBV.fpSignificandSize fp)
+     , bfValue = SBV.fpValue fp
+     }
+
+fpFromBF :: BF -> SBV.FP
+fpFromBF bf =
+  SBV.FP { SBV.fpExponentSize = e'
+         , SBV.fpSignificandSize = p'
+         , SBV.fpValue = bfValue bf
+         }
+  where
+    (e', p') = fpExpAndPrec (bfExpWidth bf) (bfPrecWidth bf)
+
+fpRoundingMode ::
+  SBV -> SWord SBV -> SEval SBV SBV.RoundingMode
+fpRoundingMode sym v =
+  case wordAsLit sym v of
+    Just (_w,i) ->
+      case i of
+        0 -> pure SBV.RoundNearestTiesToEven
+        1 -> pure SBV.RoundNearestTiesToAway
+        2 -> pure SBV.RoundTowardPositive
+        3 -> pure SBV.RoundTowardNegative
+        4 -> pure SBV.RoundTowardZero
+        x -> raiseError sym (BadRoundingMode x)
+    _ -> liftIO $ X.throwIO $ UnsupportedSymbolicOp "rounding mode"
+
+roundingModeToRoundMode :: SBV.RoundingMode -> RoundMode
+roundingModeToRoundMode r =
+  case r of
+    SBV.RoundNearestTiesToEven -> BF.NearEven
+    SBV.RoundNearestTiesToAway -> BF.NearAway
+    SBV.RoundTowardPositive -> BF.ToPosInf
+    SBV.RoundTowardNegative -> BF.ToNegInf
+    SBV.RoundTowardZero -> BF.ToZero
+
+-- TODO RGS: This is broken
+fpCvtToBits :: SBV -> SFloat SBV -> SEval SBV (SWord SBV)
+fpCvtToBits sym x@(SBV.SVal kindFrom@(SBV.KFP e p) _)
+  | Just x' <- svAsFP x
+  = pure $ svInteger kindTo $ fpLiftOpts BF.bfToBits x'
+  | otherwise
+  = do n <- liftIO $ freshBV_ sym w
+       pure $ SBV.SVal kindTo $ Right $ SBV.cache $ result n
+  where
+    w = e + p
+    kindTo = SBV.KBounded False w
+
+    -- TODO RGS: Document what is going on here
+    result n st = do
+      n' <- SBV.svToSV st n
+      ysw <- SBV.newExpr st kindFrom $ SBV.SBVApp (SBV.IEEEFP (SBV.FP_Reinterpret kindTo kindFrom)) [n']
+      SBV.internalConstraint st False [] $ x `svStrongEqual` SBV.SVal kindFrom (Right (SBV.cache (\_ -> pure ysw)))
+      let qnan = svInteger kindTo $ shiftL (2 ^ (e + 1) - 1) (p - 2)
+      SBV.svToSV st $ svIte (svFPIsNaN x) qnan n
+fpCvtToBits _ (SBV.SVal kindFrom _) =
+  evalPanic "fpCvtToBits" ["non-float type: " ++ show kindFrom]
+
+{-
+fpCvtToInteger :: SBV -> String -> SWord SBV -> SFloat SBV -> SEval SBV (SInteger SBV)
+fpCvtToInteger sym fun r x = do
+  let grd = svTrue -- TODO RGS: Fill me in
+  assertSideCondition sym grd (BadValue fun)
+  rnd <- fpRoundingMode sym r
+  let y = svFPToReal rnd x
+  case rnd of
+    SBV.RoundNearestTiesToEven -> error "TODO RGS" -- W4.realRoundEven (w4 sym) y
+    SBV.RoundNearestTiesToAway -> error "TODO RGS" -- W4.realRound (w4 sym) y
+    SBV.RoundTowardPositive -> error "TODO RGS" -- W4.realCeil (w4 sym) y
+    SBV.RoundTowardNegative -> error "TODO RGS" -- W4.realFloor (w4 sym) y
+    SBV.RoundTowardZero -> error "TODO RGS" -- W4.realTrunc (w4 sym) y
+-}
+
+fpCvtToRational :: SBV -> SFloat SBV -> SEval SBV (SRational SBV)
+fpCvtToRational sym fp = do
+  let grd = svNot (svOr (svFPIsInfinite fp) (svFPIsNaN fp))
+  assertSideCondition sym grd (BadValue "fpToRational")
+  let r = svFPToReal SBV.RoundNearestTiesToEven fp -- TODO RGS: Note that the rounding mode is an arbitrary choice
+  x <- liftIO $ freshSInteger_ sym
+  y <- liftIO $ freshSInteger_ sym
+  liftIO $ addDefEqn sym $ SBV.svLessEq (SBV.svInteger SBV.KUnbounded 1) y
+  let num = svFromIntegral SBV.KReal x
+  let den = svFromIntegral SBV.KReal y
+  let res = svDivide num den
+  let same = svEqual r res
+  liftIO $ addDefEqn sym $ SBV.svOr (svNot grd) same
+  pure $ SRational x y
+
+-- TODO RGS: Upstream some of these operations to Data.SBV.Dynamic
+
+fpLift ::
+  (BigFloat -> r) ->
+  SBV.FP -> r
+fpLift f (SBV.FP _ _ a) = f a
+
+fpLiftOpts ::
+  (BFOpts -> BigFloat -> r) ->
+  SBV.FP -> r
+fpLiftOpts f (SBV.FP eb sb a) = f (fpOpts eb' sb' BF.NearEven) a
+  where
+    eb' = toInteger @Int eb
+    sb' = toInteger @Int sb
+
+fpArith1 ::
+  (BigFloat -> BigFloat) ->
+  SBV.FP -> SBV.FP
+fpArith1 f (SBV.FP eb sb a) = SBV.FP eb sb $ f a
+
+fpArithRM1 ::
+  (BFOpts -> BigFloat -> (BigFloat, Status)) ->
+  SBV.RoundingMode -> SBV.FP -> SBV.FP
+fpArithRM1 f r (SBV.FP eb sb a) =
+    SBV.FP eb sb $ fpCheckStatus $ f (fpOpts eb' sb' r') a
+  where
+    r'  = roundingModeToRoundMode r
+    eb' = toInteger @Int eb
+    sb' = toInteger @Int sb
+
+fpArithRM2 ::
+  (BFOpts -> BigFloat -> BigFloat -> (BigFloat, Status)) ->
+  SBV.RoundingMode -> SBV.FP -> SBV.FP -> SBV.FP
+fpArithRM2 f r (SBV.FP eb sb a) (SBV.FP _ _ b) =
+    SBV.FP eb sb $ fpCheckStatus $ f (fpOpts eb' sb' r') a b
+  where
+    r'  = roundingModeToRoundMode r
+    eb' = toInteger @Int eb
+    sb' = toInteger @Int sb
+
+fpArithRM3 ::
+  (BFOpts -> BigFloat -> BigFloat -> BigFloat -> (BigFloat, Status)) ->
+  SBV.RoundingMode -> SBV.FP -> SBV.FP -> SBV.FP -> SBV.FP
+fpArithRM3 f r (SBV.FP eb sb a) (SBV.FP _ _ b) (SBV.FP _ _ c) =
+    SBV.FP eb sb $ fpCheckStatus $ f (fpOpts eb' sb' r') a b c
+  where
+    r'  = roundingModeToRoundMode r
+    eb' = toInteger @Int eb
+    sb' = toInteger @Int sb
+
+svRoundingMode :: SBV.RoundingMode -> SVal
+svRoundingMode r = SBV.unSBV $ SBV.literal r
+
+svAsFP :: SVal -> Maybe SBV.FP
+svAsFP (SBV.SVal _ (Left (CV _ (CFP fp)))) = Just fp
+svAsFP _ = Nothing
+
+svFPNaN :: Integer -> Integer -> SFloat SBV
+svFPNaN e p = SBV.SVal kind $ Left $ SBV.CV kind $ CFP $ SBV.fpNaN e' p'
+  where
+    (e', p') = fpExpAndPrec e p
+    kind = SBV.KFP e' p'
+
+svFPInf :: Bool -> Integer -> Integer -> SFloat SBV
+svFPInf sign e p = SBV.SVal kind $ Left $ SBV.CV kind $ CFP $ SBV.fpInf sign e' p'
+  where
+    (e', p') = fpExpAndPrec e p
+    kind = SBV.KFP e' p'
+
+svFPFromRationalLit :: Integer -> Integer -> Rational -> SFloat SBV
+svFPFromRationalLit e p r = SBV.SVal kind $ Left $ SBV.CV kind $ CFP $ SBV.fpFromRational e' p' r
+  where
+    (e', p') = fpExpAndPrec e p
+    kind = SBV.KFP e' p'
+
+-- TODO RGS: Factor out some of this boilerplate code
+
+svPred ::
+  (BigFloat -> Bool) ->
+  SBV.FPOp ->
+  SFloat SBV -> SBit SBV
+svPred concreteOp symbolicOp x
+  | Just x' <- svAsFP x
+  = svBool $ fpLift concreteOp x'
+  | otherwise
+  = SBV.SVal SBV.KBool $ Right $ SBV.cache result
+  where
+    result st = do
+      x' <- SBV.svToSV st x
+      SBV.newExpr st SBV.KBool $ SBV.SBVApp (SBV.IEEEFP symbolicOp) [x']
+
+svPredOpts ::
+  (BFOpts -> BigFloat -> Bool) ->
+  SBV.FPOp ->
+  SFloat SBV -> SBit SBV
+svPredOpts concreteOp symbolicOp x
+  | Just x' <- svAsFP x
+  = svBool $ fpLiftOpts concreteOp x'
+  | otherwise
+  = SBV.SVal SBV.KBool $ Right $ SBV.cache result
+  where
+    result st = do
+      x' <- SBV.svToSV st x
+      SBV.newExpr st SBV.KBool $ SBV.SBVApp (SBV.IEEEFP symbolicOp) [x']
+
+svArith1 ::
+  (BigFloat -> BigFloat) ->
+  SBV.FPOp ->
+  SFloat SBV -> SFloat SBV
+svArith1 concreteOp symbolicOp x
+  | Just x' <- svAsFP x
+  = svFloatingPoint $ fpArith1 concreteOp x'
+  | otherwise
+  = SBV.SVal kind $ Right $ SBV.cache result
+  where
+    kind = kindOf x
+    result st = do
+      x' <- SBV.svToSV st x
+      SBV.newExpr st kind $ SBV.SBVApp (SBV.IEEEFP symbolicOp) [x']
+
+svArithRM1 ::
+  (BFOpts -> BigFloat -> (BigFloat, Status)) ->
+  SBV.FPOp ->
+  SBV.RoundingMode -> SFloat SBV -> SFloat SBV
+svArithRM1 concreteOp symbolicOp r x
+  | Just x' <- svAsFP x
+  = svFloatingPoint $ fpArithRM1 concreteOp r x'
+  | otherwise
+  = SBV.SVal kind $ Right $ SBV.cache result
+  where
+    kind = kindOf x
+    result st = do
+      r' <- SBV.svToSV st (svRoundingMode r)
+      x' <- SBV.svToSV st x
+      SBV.newExpr st kind $ SBV.SBVApp (SBV.IEEEFP symbolicOp) [r', x']
+
+svArithRM2 ::
+  (BFOpts -> BigFloat -> BigFloat -> (BigFloat, Status)) ->
+  SBV.FPOp ->
+  SBV.RoundingMode -> SFloat SBV -> SFloat SBV -> SFloat SBV
+svArithRM2 concreteOp symbolicOp r x y
+  | Just x' <- svAsFP x, Just y' <- svAsFP y
+  = svFloatingPoint $ fpArithRM2 concreteOp r x' y'
+  | otherwise
+  = SBV.SVal kind $ Right $ SBV.cache result
+  where
+    kind = kindOf x
+    result st = do
+      r' <- SBV.svToSV st (svRoundingMode r)
+      x' <- SBV.svToSV st x
+      y' <- SBV.svToSV st y
+      SBV.newExpr st kind $ SBV.SBVApp (SBV.IEEEFP symbolicOp) [r', x', y']
+
+svArithRM3 ::
+  (BFOpts -> BigFloat -> BigFloat -> BigFloat -> (BigFloat, Status)) ->
+  SBV.FPOp ->
+  SBV.RoundingMode -> SFloat SBV -> SFloat SBV -> SFloat SBV -> SFloat SBV
+svArithRM3 concreteOp symbolicOp r x y z
+  | Just x' <- svAsFP x, Just y' <- svAsFP y, Just z' <- svAsFP z
+  = svFloatingPoint $ fpArithRM3 concreteOp r x' y' z'
+  | otherwise
+  = SBV.SVal kind $ Right $ SBV.cache result
+  where
+    kind = kindOf x
+    result st = do
+      r' <- SBV.svToSV st (svRoundingMode r)
+      x' <- SBV.svToSV st x
+      y' <- SBV.svToSV st y
+      z' <- SBV.svToSV st z
+      SBV.newExpr st kind $ SBV.SBVApp (SBV.IEEEFP symbolicOp) [r', x', y', z']
+
+svFPPlus :: SBV.RoundingMode -> SFloat SBV -> SFloat SBV -> SFloat SBV
+svFPPlus = svArithRM2 BF.bfAdd SBV.FP_Add
+
+svFPSub :: SBV.RoundingMode -> SFloat SBV -> SFloat SBV -> SFloat SBV
+svFPSub = svArithRM2 BF.bfSub SBV.FP_Sub
+
+svFPMul :: SBV.RoundingMode -> SFloat SBV -> SFloat SBV -> SFloat SBV
+svFPMul = svArithRM2 BF.bfMul SBV.FP_Mul
+
+svFPDiv :: SBV.RoundingMode -> SFloat SBV -> SFloat SBV -> SFloat SBV
+svFPDiv = svArithRM2 BF.bfDiv SBV.FP_Div
+
+svFPAbs :: SFloat SBV -> SFloat SBV
+svFPAbs = svArith1 BF.bfAbs SBV.FP_Abs
+
+svFPSqrt :: SBV.RoundingMode -> SFloat SBV -> SFloat SBV
+svFPSqrt = svArithRM1 BF.bfSqrt SBV.FP_Sqrt
+
+svFPFMA :: SBV.RoundingMode -> SFloat SBV -> SFloat SBV -> SFloat SBV -> SFloat SBV
+svFPFMA = svArithRM3 BF.bfFMA SBV.FP_FMA
+
+svFPNeg :: SFloat SBV -> SFloat SBV
+svFPNeg = svArith1 BF.bfNeg SBV.FP_Neg
+
+svFPFromInteger :: Integer -> Integer -> SBV.RoundingMode -> SInteger SBV -> SFloat SBV
+svFPFromInteger e p r x
+  | Just x' <- svAsInteger x
+  = svFloatingPoint $ SBV.FP e' p' $ fpCheckStatus $ BF.bfRoundFloat (fpOpts e p rm) (BF.bfFromInteger x')
+  | otherwise
+  = SBV.SVal kindTo $ Right $ SBV.cache result
+  where
+    (e', p') = fpExpAndPrec e p
+    rm = roundingModeToRoundMode r
+    sr = svRoundingMode r
+    kindFrom = SBV.KUnbounded
+    kindTo = SBV.KFP e' p'
+
+    result st = do
+      sr' <- SBV.svToSV st sr
+      x' <- SBV.svToSV st x
+      SBV.newExpr st kindTo $ SBV.SBVApp (SBV.IEEEFP (SBV.FP_Cast kindFrom kindTo sr')) [x']
+
+svFPFromReal :: Integer -> Integer -> SBV.RoundingMode -> SBV.SVal -> SFloat SBV
+svFPFromReal e p r x =
+    SBV.SVal kindTo $ Right $ SBV.cache result
+  where
+    (e', p') = fpExpAndPrec e p
+    sr = svRoundingMode r
+    kindFrom = SBV.KReal
+    kindTo = SBV.KFP e' p'
+
+    result st = do
+      sr' <- SBV.svToSV st sr
+      x' <- SBV.svToSV st x
+      SBV.newExpr st kindTo $ SBV.SBVApp (SBV.IEEEFP (SBV.FP_Cast kindFrom kindTo sr')) [x']
+
+-- TODO RGS: Document the precondition that this only works if the float is
+-- representable as a rational
+svFPToReal :: SBV.RoundingMode -> SFloat SBV -> SBV.SVal
+svFPToReal r x@(SBV.SVal kindFrom _)
+  | Just x' <- svAsFP x
+  = svReal $ toRational x'
+  | otherwise
+  = SBV.SVal kindTo $ Right $ SBV.cache result
+  where
+    sr = svRoundingMode r
+    kindTo = SBV.KReal
+
+    result st = do
+      sr' <- SBV.svToSV st sr
+      x' <- SBV.svToSV st x
+      SBV.newExpr st kindTo $ SBV.SBVApp (SBV.IEEEFP (SBV.FP_Cast kindFrom kindTo sr')) [x']
+
+svFPIsZero :: SFloat SBV -> SBit SBV
+svFPIsZero = svPred BF.bfIsZero SBV.FP_IsZero
+
+svFPIsInfinite :: SFloat SBV -> SBit SBV
+svFPIsInfinite = svPred BF.bfIsInf SBV.FP_IsInfinite
+
+svFPIsNegative :: SFloat SBV -> SBit SBV
+svFPIsNegative = svPred BF.bfIsNeg SBV.FP_IsNegative
+
+svFPIsNaN :: SFloat SBV -> SBit SBV
+svFPIsNaN = svPred BF.bfIsNaN SBV.FP_IsNaN
+
+svFPIsNormal :: SFloat SBV -> SBit SBV
+svFPIsNormal = svPredOpts BF.bfIsNormal SBV.FP_IsNormal
+
+svFPIsSubnormal :: SFloat SBV -> SBit SBV
+svFPIsSubnormal = svPredOpts BF.bfIsSubnormal SBV.FP_IsSubnormal
+
+svFPFromBits :: Integer -> Integer -> SWord SBV -> SFloat SBV
+svFPFromBits e p x
+  | Just x' <- svAsInteger x
+  = svFloatingPoint $ SBV.FP e' p' $ BF.bfFromBits (fpOpts e p BF.NearEven) x'
+  | otherwise
+  = SBV.SVal kindTo $ Right $ SBV.cache result
+  where
+    (e', p') = fpExpAndPrec e p
+    kindFrom = SBV.KBounded False (e' + p')
+    kindTo = SBV.KFP e' p'
+
+    result st = do
+      x' <- SBV.svToSV st x
+      SBV.newExpr st kindTo $ SBV.SBVApp (SBV.IEEEFP (SBV.FP_Reinterpret kindFrom kindTo)) [x']
+
+svFPFromRational :: Integer -> Integer -> SBV.RoundingMode -> SRational SBV -> SFloat SBV
+svFPFromRational e p r x =
+  let num = svFromIntegral SBV.KReal (sNum x) in
+  let den = svFromIntegral SBV.KReal (sDenom x) in
+  let res = svDivide num den in
+  svFPFromReal e p r res
