@@ -42,6 +42,9 @@
   existing modules, functors, or interfaces.
   ([#1591](https://github.com/GaloisInc/cryptol/issues/1591))
 
+* SBV-based provers can now prove properties about `Float`s.
+  ([#1997](https://github.com/GaloisInc/cryptol/issues/1997))
+
 ## Bug fixes
 
 * Fix pretty printing of types in errors messages

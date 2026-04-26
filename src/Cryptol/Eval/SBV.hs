@@ -51,6 +51,7 @@ type Value = GenValue SBV
 -- See also Cryptol.Eval.Concrete.primTable
 primTable :: SBV -> IO EvalOpts -> Map.Map PrimIdent (Prim SBV)
 primTable sym getEOpts =
+  Map.union (genericFloatTable sym) $
   Map.union (genericPrimTable sym getEOpts) $
   Map.fromList $ map (\(n, v) -> (prelPrim (T.pack n), v))
 

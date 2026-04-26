@@ -14,6 +14,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -23,6 +24,7 @@ module Cryptol.Backend.SBV
   , freshSBool_
   , freshBV_
   , freshSInteger_
+  , freshSFloat_
   , addDefEqn
   , ashr
   , lshr
@@ -35,16 +37,19 @@ module Cryptol.Backend.SBV
 import qualified Control.Exception as X
 import           Control.Concurrent.MVar
 import           Control.Monad.IO.Class (MonadIO(..))
-import           Data.Bits (bit, complement)
+import           Data.Bits (bit, complement, shiftL)
 import           Data.List (foldl')
+import qualified LibBF as BF
 
 import qualified GHC.Num.Compat as Integer
 
 import Data.SBV.Dynamic as SBV
+import qualified Data.SBV.Float as SBV
 import qualified Data.SBV.Internals as SBV
 
 import Cryptol.Backend
 import Cryptol.Backend.Concrete ( integerToChar )
+import Cryptol.Backend.FloatHelpers (BF(..), fpOpts)
 import Cryptol.Backend.Monad
   ( Eval(..), blackhole, delayFill, evalSpark
   , EvalError(..), EvalErrorEx(..), Unsupported(..)
@@ -92,6 +97,10 @@ freshSBool_ (SBV stateVar _) =
 freshSInteger_ :: SBV -> IO (SInteger SBV)
 freshSInteger_ (SBV stateVar _) =
   withMVar stateVar (svMkSymVar_ Nothing KUnbounded Nothing)
+
+freshSFloat_ :: SBV -> Integer -> Integer -> IO (SFloat SBV)
+freshSFloat_ (SBV stateVar _) e p =
+  withMVar stateVar (svMkSymVar_ Nothing (kFP e p) Nothing)
 
 
 -- SBV Evaluation monad -------------------------------------------------------
@@ -151,7 +160,7 @@ instance Backend SBV where
   type SBit SBV = SVal
   type SWord SBV = SVal
   type SInteger SBV = SVal
-  type SFloat SBV = ()        -- XXX: not implemented
+  type SFloat SBV = SVal
   type SEval SBV = SBVEval
 
   raiseError _ err = SBVEval $
@@ -334,40 +343,46 @@ instance Backend SBV where
   znNegate sym m a  = sModNegate sym m a
   znRecip = sModRecip
 
-  fpAsLit _ _               = Nothing
-  iteFloat _ _ _ _          = unsupported "iteFloat"
-  fpNaN _ _ _               = unsupported "fpNaN"
-  fpPosInf _ _ _            = unsupported "fpPosInf"
-  fpExactLit _ _            = unsupported "fpExactLit"
-  fpLit _ _ _ _             = unsupported "fpLit"
-  fpLogicalEq _ _ _         = unsupported "fpLogicalEq"
-  fpEq _ _ _                = unsupported "fpEq"
-  fpLessThan _ _ _          = unsupported "fpLessThan"
-  fpGreaterThan _ _ _       = unsupported "fpGreaterThan"
-  fpPlus _ _ _ _            = unsupported "fpPlus"
-  fpMinus _ _ _ _           = unsupported "fpMinus"
-  fpMult _ _ _ _            = unsupported "fpMult"
-  fpDiv _ _ _ _             = unsupported "fpDiv"
-  fpAbs _ _                 = unsupported "fpAbs"
-  fpSqrt _ _ _              = unsupported "fpSqrt"
-  fpFMA _ _ _ _ _           = unsupported "fpFMA"
-  fpNeg _ _                 = unsupported "fpNeg"
-  fpFromInteger _ _ _ _ _   = unsupported "fpFromInteger"
-  fpToInteger _ _ _ _       = unsupported "fpToInteger"
-  fpIsZero _ _              = unsupported "fpIsZero"
-  fpIsInf _ _               = unsupported "fpIsInf"
-  fpIsNeg _ _               = unsupported "fpIsNeg"
-  fpIsNaN _ _               = unsupported "fpIsNaN"
-  fpIsNorm _ _              = unsupported "fpIsNorm"
-  fpIsSubnorm _ _           = unsupported "fpIsSubnorm"
-  fpToBits _ _              = unsupported "fpToBits"
-  fpFromBits _ _ _ _        = unsupported "fpFromBits"
-  fpToRational _ _          = unsupported "fpToRational"
-  fpFromRational _ _ _ _ _  = unsupported "fpFromRational"
-
-
-unsupported :: String -> SEval SBV a
-unsupported x = liftIO (X.throw (UnsupportedSymbolicOp x))
+  fpAsLit _                  = fmap fpToBF . svAsFP
+  iteFloat _ b x y           = pure $! svSymbolicMerge (kindOf x) True b x y
+  fpNaN _ e p                = pure $! svFPNaN $ kFP e p
+  fpPosInf _ e p             = pure $! svFPInf (kFP e p) False
+  fpExactLit _ bf            = pure $! svFloatingPoint (fpFromBF bf)
+  fpLit _ e p r              = pure $! svFPFromRationalLit (kFP e p) r
+  fpLogicalEq _ a b          = pure $! svStrongEqual a b
+  fpEq _ a b                 = pure $! svEqual a b
+  fpLessThan _ a b           = pure $! svLessThan a b
+  fpGreaterThan _ a b        = pure $! svGreaterThan a b
+  fpPlus sym r a b           = do m <- fpRoundingMode sym r
+                                  pure $! svFPAdd (svRoundingMode m) a b
+  fpMinus sym r a b          = do m <- fpRoundingMode sym r
+                                  pure $! svFPSub (svRoundingMode m) a b
+  fpMult sym r a b           = do m <- fpRoundingMode sym r
+                                  pure $! svFPMul (svRoundingMode m) a b
+  fpDiv sym r a b            = do m <- fpRoundingMode sym r
+                                  pure $! svFPDiv (svRoundingMode m) a b
+  fpAbs _ a                  = pure $! svFPAbs a
+  fpSqrt sym r a             = do m <- fpRoundingMode sym r
+                                  pure $! svFPSqrt (svRoundingMode m) a
+  fpFMA sym r a b c          = do m <- fpRoundingMode sym r
+                                  pure $! svFPFMA (svRoundingMode m) a b c
+  fpNeg _ a                  = pure $! svFPNeg a
+  fpFromInteger sym e p r a  = do let (e', p') = fpExpAndPrec e p
+                                  m <- fpRoundingMode sym r
+                                  pure $! svCastToFP (KFP e' p') (svRoundingMode m) a
+  fpToInteger                = fpCvtToInteger
+  fpIsZero _ a               = pure $! svFPIsZero a
+  fpIsInf _ a                = pure $! svFPIsInfinite a
+  fpIsNeg _ a                = pure $! svFPIsNegative a
+  fpIsNaN _ a                = pure $! svFPIsNaN a
+  fpIsNorm _ a               = pure $! svFPIsNormal a
+  fpIsSubnorm _ a            = pure $! svFPIsSubnormal a
+  fpToBits _ a               = pure $! svFPToBits a
+  fpFromBits _ e p a         = let (e', p') = fpExpAndPrec e p in
+                               pure $! svSWordAsFloatingPoint e' p' a
+  fpToRational sym a         = fpCvtToRational sym a
+  fpFromRational sym e p r a = do m <- fpRoundingMode sym r
+                                  pure $! svFPFromRational e p m a
 
 
 svToInteger :: SWord SBV -> SInteger SBV
@@ -488,3 +503,136 @@ shl x idx =
   case SBV.svAsInteger idx of
     Just i  -> SBV.svShl x (fromInteger i)
     Nothing -> SBV.svShiftLeft x idx
+
+-- Floats ----------------------------------------------------------------------
+--
+-- Note the following naming conventions used in the functions below:
+--
+-- * fpCvt*: A floating-point operation that lives in the SEval monad (e.g.,
+--   because it needs to add assumptions or assert side conditions).
+--
+-- * sv*: A pure function that is intended to mimic the API in
+--   Data.SBV.Dynamic. (In principle, all of these functions could be
+--   upstreamed to SBV.)
+
+-- | Convert the exponent and significand (precision) sizes from 'Integer's to
+-- 'Int's. While 'Integer'-to-'Int' conversions are not safe in general,
+-- Cryptol's floating-point functionality maintains the invariant that the
+-- exponent and significand sizes will not exceed the maximum size of an 'Int'.
+fpExpAndPrec :: Integer -> Integer -> (Int, Int)
+fpExpAndPrec e p = (fromInteger @Int e, fromInteger @Int p)
+
+-- | Construct a 'KFP' kind from the number of exponent and significand bits.
+kFP :: Integer -> Integer -> Kind
+kFP e p = KFP e' p'
+  where
+    (e', p') = fpExpAndPrec e p
+
+-- | Convert an 'SBV.FP' to a Cryptol 'BF'.
+fpToBF :: SBV.FP -> BF
+fpToBF fp =
+  BF { bfExpWidth = toInteger @Int (SBV.fpExponentSize fp)
+     , bfPrecWidth = toInteger @Int (SBV.fpSignificandSize fp)
+     , bfValue = SBV.fpValue fp
+     }
+
+-- | Convert a Cryptol 'BF' to an 'SBV.FP'.
+fpFromBF :: BF -> SBV.FP
+fpFromBF bf =
+  SBV.FP { SBV.fpExponentSize = e'
+         , SBV.fpSignificandSize = p'
+         , SBV.fpValue = bfValue bf
+         }
+  where
+    (e', p') = fpExpAndPrec (bfExpWidth bf) (bfPrecWidth bf)
+
+-- | Convert a Cryptol rounding mode value (represented as a 3-bit word) to an
+-- 'SBV.RoundingMode'. Precondition: the Cryptol rounding mode value must be
+-- concrete.
+fpRoundingMode ::
+  SBV -> SWord SBV -> SEval SBV SBV.RoundingMode
+fpRoundingMode sym v =
+  case wordAsLit sym v of
+    Just (_w,i) ->
+      case i of
+        0 -> pure SBV.RoundNearestTiesToEven
+        1 -> pure SBV.RoundNearestTiesToAway
+        2 -> pure SBV.RoundTowardPositive
+        3 -> pure SBV.RoundTowardNegative
+        4 -> pure SBV.RoundTowardZero
+        x -> raiseError sym (BadRoundingMode x)
+    _ -> liftIO $ X.throwIO $ UnsupportedSymbolicOp "rounding mode"
+
+-- | Convert a float to an integer using the supplied rounding mode. While
+-- SMT-LIB does have an @fp.roundToIntegral@ operation, it returns a float
+-- rather than an integer. As such, we roundtrip through real numbers instead.
+--
+-- Precondition: the input float is finite and not a NaN.
+fpCvtToInteger :: SBV -> String -> SWord SBV -> SFloat SBV -> SEval SBV (SInteger SBV)
+fpCvtToInteger sym fun r x = do
+  let grd = svNot (svOr (svFPIsInfinite x) (svFPIsNaN x))
+  assertSideCondition sym grd (BadValue fun)
+  rnd <- fpRoundingMode sym r
+  pure $! svCastFromFP KUnbounded (svRoundingMode rnd) x
+
+-- | Convert a float to a rational. SMT-LIB doesn't have an operation quite
+-- like this, so we create one ourselves by round-tripping through real
+-- numbers.
+--
+-- Precondition: the input float is finite and not a NaN.
+fpCvtToRational :: SBV -> SFloat SBV -> SEval SBV (SRational SBV)
+fpCvtToRational sym fp = do
+  let grd = svNot (svOr (svFPIsInfinite fp) (svFPIsNaN fp))
+  assertSideCondition sym grd (BadValue "fpToRational")
+  -- Convert the input float to a real number `r`. Also create two fresh
+  -- integers `x` and `y` and assume that `r = x/y`.
+  --
+  -- Note that the choice of rounding mode here is arbitrary. Ultimately, SBV
+  -- does not make use of this rounding mode anyway, as converting a float to a
+  -- real number does not require rounding.
+  let r = svCastFromFP KReal (svRoundingMode SBV.RoundNearestTiesToEven) fp
+  x <- liftIO $ freshSInteger_ sym
+  y <- liftIO $ freshSInteger_ sym
+  -- In order for `x/y` to be well-defined, `y` cannot be zero.
+  liftIO $ addDefEqn sym $ SBV.svLessEq (SBV.svInteger KUnbounded 1) y
+  let num = svFromIntegral KReal x
+  let den = svFromIntegral KReal y
+  let res = svDivide num den
+  let same = svEqual r res
+  liftIO $ addDefEqn sym $ SBV.svOr (svNot grd) same
+  -- Finally, return the rational number `x/y`.
+  pure $ SRational x y
+
+-- | Convert a float to a bitvector of the same size.
+
+-- Note that SBV's 'svFloatingPointAsSWord' returns a symbolic value when given
+-- a NaN value as an argument. Cryptol's semantics for @fpToBits@, on the other
+-- hand, prescribes a specific bit pattern to return when given a NaN value as
+-- an argument. As such, 'svFloatingPointAsSWord' alone is not enough to
+-- implement @fpToBits@, and this function defines special cases for NaN values
+-- that 'svFloatingPointAsSWord' does not leverage.
+svFPToBits :: SFloat SBV -> SWord SBV
+svFPToBits x@(SBV.SVal (KFP e p) _)
+  | Just (SBV.FP eb sb x') <- svAsFP x
+  = let eb' = toInteger @Int eb in
+    let sb' = toInteger @Int sb in
+    svInteger kindTo $ BF.bfToBits (fpOpts eb' sb' BF.NearEven) x'
+  | otherwise
+  = svIte (svFPIsNaN x) qnan (svFloatingPointAsSWord x)
+  where
+    w = e + p
+    kindTo = KBounded False w
+    qnan = svInteger kindTo $ shiftL (2 ^ (e + 1) - 1) (p - 2)
+svFPToBits (SBV.SVal kindFrom _) =
+  evalPanic "svFPToBits" ["non-float type: " ++ show kindFrom]
+
+-- | Convert a 'Rational' to a float, subject to the given rounding mode.
+-- SMT-LIB doesn't have an operation quite like this, so we create one
+-- ourselves by round-tripping through real numbers.
+svFPFromRational :: Integer -> Integer -> SBV.RoundingMode -> SRational SBV -> SFloat SBV
+svFPFromRational e p r x =
+  let num = svFromIntegral KReal (sNum x) in
+  let den = svFromIntegral KReal (sDenom x) in
+  let res = svDivide num den in
+  let (e', p') = fpExpAndPrec e p in
+  svCastToFP (KFP e' p') (svRoundingMode r) res
