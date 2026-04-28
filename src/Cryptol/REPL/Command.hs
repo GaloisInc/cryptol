@@ -280,6 +280,15 @@ nbCommandList  =
   , CommandDescr [ ":safe" ] ["[ EXPR ]"] (ExprArg safeCmd)
     "Use an external solver to prove that an expression is safe\n(does not encounter run-time errors) for all inputs."
     ""
+  , CommandDescr [ ":count" ] ["EXPR"] (ExprArg countCmd)
+    "Use a #SAT solver to count the number of satisfying assignments."
+    (unlines
+      [ "Counts the number of inputs for which the predicate returns true."
+      , "Uses an external model-counting solver (sharpSAT by default)."
+      , "Configure the solver command with :set solver.sharpsat.command."
+      , "Requires the w4-sat prover: :set prover = w4-sat"
+      ]
+    )
   , CommandDescr [ ":debug_specialize" ] ["EXPR"](ExprArg specializeCmd)
     "Do type specialization on a closed expression."
     ""
@@ -761,6 +770,41 @@ satCmd, proveCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
 satCmd = cmdProveSat True
 proveCmd = cmdProveSat False
 
+countCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+countCmd "" _pos _fnm =
+  do rPutStrLn ":count requires an expression argument"
+     pure emptyCommandResult { crSuccess = False }
+countCmd str pos fnm =
+  do pexpr <- replParseExpr str pos fnm
+     (_,texpr,schema) <- replCheckExpr pexpr
+     proverName <- getKnownUser "prover"
+     fileName   <- getKnownUser "smtFile"
+     let mfile = if fileName == "-" then Nothing else Just fileName
+     (firstProver,result,stats) <- rethrowErrorCall
+       (onlineProveSat proverName CountQuery texpr schema mfile)
+     success <- case result of
+       CountResult n ->
+        do rPutStrLn ("Model count: " ++ show n)
+           pure True
+       ProverError msg ->
+        do rPrintDoc msg
+           pure False
+       EmptyResult ->
+        do rPutStrLn "Empty result from model counting"
+           pure False
+       ThmResult _ ->
+        do rPutStrLn "Model count: 0"
+           pure True
+       CounterExample {} ->
+        do rPutStrLn "Unexpected counterexample from model counting"
+           pure False
+       AllSatResult {} ->
+        do rPutStrLn "Unexpected AllSat result from model counting"
+           pure False
+     seeStats <- getUserShowProverStats
+     when seeStats (showProverStats firstProver stats)
+     pure emptyCommandResult { crSuccess = success }
+
 showProverStats :: Maybe String -> ProverStats -> REPL ()
 showProverStats mprover stat = rPutStrLn msg
   where
@@ -828,8 +872,11 @@ safeCmd str pos fnm = do
 
             pure emptyCommandResult { crSuccess = False }
 
-          AllSatResult _ -> do
+          AllSatResult _ ->
             panic "REPL.Command" ["Unexpected AllSAtResult for ':safe' call"]
+
+          CountResult _ ->
+            panic "REPL.Command" ["Unexpected CountResult for ':safe' call"]
 
         seeStats <- getUserShowProverStats
         when seeStats (showProverStats firstProver stats)
@@ -954,6 +1001,10 @@ proveSatExpr isSat rng exprDoc texpr schema = do
 
             pure True
 
+          CountResult n ->
+           do rPutStrLn ("Model count: " ++ show n)
+              pure True
+
         seeStats <- getUserShowProverStats
         when seeStats (showProverStats firstProver stats)
         pure success
@@ -1037,6 +1088,7 @@ offlineProveSat proverName qtype expr schema mfile = do
                            SatQuery _  -> "satisfiability"
                            ProveQuery  -> "validity"
                            SafetyQuery -> "safety"
+                           CountQuery  -> "model count"
            putLn $
                "Writing to SMT-Lib file " ++ filename ++ "..."
            putLn $

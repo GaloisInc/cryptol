@@ -321,6 +321,7 @@ runProver timeoutSecs proverConfig pc@ProverCommand{..} lPutStrLn x =
                      SatQuery AllSat -> Nothing
                      ProveQuery -> Nothing
                      SafetyQuery -> Nothing
+                     CountQuery -> Nothing
 
      case proverConfig of
        SBVPortfolio ps ->
@@ -335,6 +336,7 @@ runProver timeoutSecs proverConfig pc@ProverCommand{..} lPutStrLn x =
           case pcQueryType of
             ProveQuery  -> runMultiProvers pc lPutStrLn ps' proveWith thmSMTResults x
             SafetyQuery -> runMultiProvers pc lPutStrLn ps' proveWith thmSMTResults x
+            CountQuery  -> fail "SBV backend does not support model counting; use :set prover = w4-sat"
             SatQuery (SomeSat 1) -> runMultiProvers pc lPutStrLn ps' satWith satSMTResults x
             _ -> return (Nothing,
                    [SBV.ProofError p
@@ -355,6 +357,7 @@ runProver timeoutSecs proverConfig pc@ProverCommand{..} lPutStrLn x =
           case pcQueryType of
             ProveQuery  -> runSingleProver pc lPutStrLn p2 proveWith thmSMTResults x
             SafetyQuery -> runSingleProver pc lPutStrLn p2 proveWith thmSMTResults x
+            CountQuery  -> fail "SBV backend does not support model counting; use :set prover = w4-sat"
             SatQuery (SomeSat 1) -> runSingleProver pc lPutStrLn p2 satWith satSMTResults x
             SatQuery _           -> runSingleProver pc lPutStrLn p2 allSatWith allSatSMTResults x
   where
@@ -409,7 +412,8 @@ prepareQuery evo ProverCommand{..} =
      let addAsm = case pcQueryType of
            ProveQuery  -> \x y -> SBV.svOr (SBV.svNot x) y
            SafetyQuery -> \x y -> SBV.svOr (SBV.svNot x) y
-           SatQuery _ -> \x y -> SBV.svAnd x y
+           SatQuery _  -> \x y -> SBV.svAnd x y
+           CountQuery  -> \x y -> SBV.svAnd x y
 
      case predArgTypes pcQueryType pcSchema of
        Left msg -> return (Left msg)
@@ -468,9 +472,10 @@ processResults ::
   M.ModuleT IO ProverResult
 processResults ProverCommand{..} ts results =
  do let isSat = case pcQueryType of
-          ProveQuery -> False
+          ProveQuery  -> False
           SafetyQuery -> False
-          SatQuery _ -> True
+          SatQuery _  -> True
+          CountQuery  -> True
 
     prims <- M.getPrimMap
 
@@ -551,9 +556,10 @@ satProveOffline _proverCfg pc@ProverCommand {..} =
   protectStack (\msg minp -> return (Right (Left msg, M.minpModuleEnv minp), [])) $
   \minp -> M.runModuleM minp $
      do let isSat = case pcQueryType of
-              ProveQuery -> False
+              ProveQuery  -> False
               SafetyQuery -> False
-              SatQuery _ -> True
+              SatQuery _  -> True
+              CountQuery  -> True
 
 #if MIN_VERSION_sbv(10,0,0)
             generateSMTBenchmark
