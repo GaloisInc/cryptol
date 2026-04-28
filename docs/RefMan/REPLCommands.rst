@@ -201,10 +201,10 @@ Commands
 ``:set prover``
     **Default value:** ``z3``
 
-    **Valid values:** ``cvc4``, ``cvc5``, ``yices``, ``z3``, ``boolector``,
-    ``mathsat``, ``abc``, ``bitwuzla``, ``offline``, ``any``, ``sbv-cvc4``,
+    **Valid values:** ``cvc5``, ``yices``, ``z3``, ``boolector``,
+    ``mathsat``, ``abc``, ``bitwuzla``, ``offline``, ``any``,
     ``sbv-cvc5``, ``sbv-yices``, ``sbv-z3``, ``sbv-boolector``, ``sbv-mathsat``,
-    ``sbv-abc``, ``sbv-bitwuzla``, ``sbv-offline``, ``sbv-any``, ``w4-cvc4``,
+    ``sbv-abc``, ``sbv-bitwuzla``, ``sbv-offline``, ``sbv-any``,
     ``w4-cvc5``, ``w4-yices``, ``w4-z3``, ``w4-boolector``, ``w4-abc``,
     ``w4-bitwuzla``, ``w4-offline``, ``w4-any``
 
