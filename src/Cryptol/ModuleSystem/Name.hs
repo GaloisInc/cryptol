@@ -63,16 +63,16 @@ module Cryptol.ModuleSystem.Name (
   ) where
 
 import           Control.DeepSeq
-import qualified Data.Map as Map
-import qualified Data.Monoid as M
+import           Data.Char(isAlpha,toUpper)
 import           Data.Functor.Identity(runIdentity)
+import qualified Data.Map as Map
+import           Data.Maybe
+import qualified Data.Monoid as M
+import qualified Data.Text as Text
 import           GHC.Generics (Generic)
 import           MonadLib
 import           Prelude ()
 import           Prelude.Compat
-import qualified Data.Text as Text
-import           Data.Char(isAlpha,toUpper)
-
 
 import           Cryptol.Parser.Name (PName, NameSource(..))
 import qualified Cryptol.Parser.Name as PName
@@ -240,27 +240,35 @@ nameFixity = nFixity
 nameToDefPName :: Name -> PName
 nameToDefPName n =
   case nInfo n of
-    GlobalName ns og -> PName.origNameToDefPName og ns
+    GlobalName ns og   -> PName.origNameToDefPName og ns
     LocalName ns _ txt -> PName.UnQual' txt ns
 
--- | Compute a `PName` from `Name`, this preserves all qualifiers in the name,
--- whereas `nameToDefPName` does not.
+-- | Compute a `PName` from `Name`.
+--
+-- This function preserves module qualifiers in the name, as compared
+-- to `nameToDefPName` which does *not* preserve module qualifiers.
+--
+--     FIXME: this should qualify names that come from module
+--            parameters (as `nameToDefPName` does).
+--
 nameToPNameWithQualifiers :: Name -> PName
 nameToPNameWithQualifiers n =
   case nameInfo n of
-    GlobalName ns og   -> origNameToPName og ns
     LocalName ns _ txt -> PName.UnQual' txt ns
+    GlobalName ns og   -> case quals of
+                            [] -> PName.UnQual' ident ns
+                            ms -> PName.Qual (packModName ms) ident
 
-  where
-  origNameToPName :: OrigName -> NameSource -> PName
-  origNameToPName og vis =
-    case modPathSplit (ogModule og) of
-      (_top,[] ) -> PName.UnQual' ident vis
-      (_top,ids) -> PName.Qual (packModName (map identText ids)) ident
+                          where
+                          ident = ogName og
 
-    where
-    ident = ogName og
+                          -- add the rest of needed qualifiers to `quals`:
+                          quals = case modPathSplit (ogModule og) of
+                                    (_top,[] ) -> param
+                                    (_top,ids) -> map identText ids ++ param
 
+                          -- if name from a Parameter, we start with qualifier for that:
+                          param = maybeToList (identText <$> ogFromParam og)
 
 -- | Primtives must be in a top level module, at least for now.
 asPrim :: Name -> Maybe PrimIdent
