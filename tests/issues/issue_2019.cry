@@ -1,0 +1,9 @@
+module issue_2019 where
+
+type CD c d = c + d
+
+f : {a, b, c, d} (a == b * CD c d) => ([a], [b], [c], [d])
+f = zero
+
+g : {a, b, c, d} ([a], [b], [c], [d])
+g = f

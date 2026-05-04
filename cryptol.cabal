@@ -80,7 +80,7 @@ library
                        primitive,
                        process           >= 1.2,
                        rme-what4         ^>= 0.1,
-                       sbv               >= 9.1 && < 10.11,
+                       sbv               >= 9.1 && < 14.1,
                        simple-smt        >= 0.9.8,
                        stm               >= 2.4,
                        strict,
