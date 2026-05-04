@@ -83,7 +83,7 @@ type SatResult = [(TValue, Expr, Concrete.Value)]
 data SatNum = AllSat | SomeSat Int
   deriving (Show)
 
-data QueryType = SatQuery SatNum | ProveQuery | SafetyQuery
+data QueryType = SatQuery SatNum | ProveQuery | SafetyQuery | CountQuery
   deriving (Show)
 
 data ProverCommand = ProverCommand {
@@ -123,6 +123,7 @@ data CounterExampleType = SafetyViolation | PredicateFalsified
 data ProverResult = AllSatResult [SatResult] -- LAZY
                   | ThmResult    [TValue]
                   | CounterExample CounterExampleType SatResult
+                  | CountResult  Integer
                   | EmptyResult
                   | ProverError  Doc
 
