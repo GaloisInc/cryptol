@@ -8,6 +8,7 @@ module Cryptol.ModuleSystem.Renamer (
   , RenamerWarning(..)
   , resolveNameUse
   , renameModule
+  , renameSchema
   , renameTopDecls
   , RenamerInfo(..)
   , RenamedModule(..)
