@@ -1,0 +1,39 @@
+module issue_1923 where
+
+/**
+ * This typechecks
+ */
+f0: {n, ix} (fin n, Integral ix, Literal n ix) => [n][8] -> ix -> [8]
+f0 x i = undefined i0 x
+    where
+        i0 = i + `n
+
+/**
+ * This requires Literal (max n n) ix
+ */
+f1: {n, ix} (fin n, Integral ix, Literal n ix) => [n][8] -> ix -> [8]
+f1 x i = undefined i0 i1 x
+    where
+        i0 = i + `n
+        i1 = i + `n
+
+/**
+ * This requires Literal (max n (max n n)) ix
+ */
+f2: {n, ix} (fin n, Integral ix, Literal n ix) => [n][8] -> ix -> [8]
+f2 x i = undefined i0 i1 i2 x
+    where
+        i0 = i + `n
+        i1 = i + `n
+        i2 = i + `n
+
+/**
+ * This requires Literal (max n (max n (max n n))) ix
+ */
+f3: {n, ix} (fin n, Integral ix, Literal n ix) => [n][8] -> ix -> [8]
+f3 x i = undefined i0 i1 i2 i3 x
+    where
+        i0 = i + `n
+        i1 = i + `n
+        i2 = i + `n
+        i3 = i + `n
