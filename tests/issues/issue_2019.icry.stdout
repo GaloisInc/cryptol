@@ -1,0 +1,14 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module issue_2019
+
+[error] at issue_2019.cry:9:1--9:6:
+  Failed to validate user-specified signature.
+    in the definition of 'issue_2019::g', at issue_2019.cry:9:1--9:2,
+    we need to show that
+      for any type a, b, c, d
+      the following constraints hold:
+        • a == b * (c + d)
+            arising from
+            use of expression issue_2019::f
+            at issue_2019.cry:9:5--9:6

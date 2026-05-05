@@ -26,6 +26,9 @@
 
 ## Bug fixes
 
+* Fix pretty printing of types in errors messages
+  ([#2019](https://github.com/GaloisInc/cryptol/issues/2019))
+
 * Fix interface constraint scoping.  Interface constraints are kept in
   the order they were declared, but will be floated as early as possible.
   ([#1690](https://github.com/GaloisInc/cryptol/issues/1690))
