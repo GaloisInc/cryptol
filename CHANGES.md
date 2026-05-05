@@ -2,6 +2,9 @@
 
 ## Language changes
 
+* Add typechecker simplification rule: `max(a,a) == a`
+  ([#1923](https://github.com/GaloisInc/cryptol/issues/1923))
+
 * Allow comma separate parameters in functor `parameter` blocks
   ([#556](https://github.com/GaloisInc/cryptol/issues/556))
 
