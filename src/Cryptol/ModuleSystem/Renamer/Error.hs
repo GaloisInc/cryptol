@@ -59,6 +59,9 @@ data RenamerError
   | ModuleKindMismatch Range (ImpName Name) ModKind ModKind
     -- ^ Expected one kind (first one) but found the other (second one)
 
+  | ConflictingModParam Ident Name
+    -- ^ A functor parameter's name conflicts with a submodule definition.
+
     deriving (Show, Generic, NFData, Eq, Ord)
 
 
@@ -185,6 +188,12 @@ instance PP RenamerError where
       hang ("[error] at" <+> pp r)
         4 (vcat [ "• Expected" <+> pp expected
                 , "•" <+> backticks (pp x) <+> "is" <+> pp actual
+                ])
+
+    ConflictingModParam i n ->
+      hang ("[error] at" <+> pp (nameLoc n))
+        4 (vcat [ "Submodule" <+> backticks (pp n) <+>
+                  "conflicts with functor parameter" <+> backticks (pp i)
                 ])
 
 

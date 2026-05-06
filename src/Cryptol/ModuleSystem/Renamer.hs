@@ -246,6 +246,7 @@ makeVirtParamModules btParams mpath inst =
           vsubPath = Nested mpath vsubId
       vsubName <- liftSupply
                     (mkDeclared NSModule mpath UserName vsubId Nothing loc)
+
       -- Create fresh names inside the virtual submodule
       defs <- Map.fromList <$>
         forM paramEntries \(_old, paramName) -> do
@@ -736,6 +737,15 @@ doModParam mp =
         rng = srcRange x
         nm  = mpName mp
     mpath <- getCurModPath
+
+    -- Check that the virtual submodule name won't conflict with an
+    -- existing submodule definition.
+    let vsubId = if isAnonIfaceModIdnet nm then packIdent "Parameter" else nm
+    defs <- getCurTopDefs
+    case lookupNS NSModule (mkUnqual vsubId) defs of
+      Just ns -> recordError (ConflictingModParam vsubId (anyOne ns))
+      Nothing -> pure ()
+
     ren <- forM (Set.toList (modDefines mo)) \old ->
       do
         new <- newModParam mpath nm rng old
