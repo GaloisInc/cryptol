@@ -67,6 +67,7 @@ instance ModuleInstance Submodule where
   moduleInstance x = Submodule
     { smInScope = moduleInstance (smInScope x)
     , smIface = moduleInstance (smIface x)
+    , smVirtual = smVirtual x
     }
 
 instance ModuleInstance (ModuleG name) where

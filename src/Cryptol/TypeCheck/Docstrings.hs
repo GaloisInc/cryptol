@@ -24,6 +24,7 @@ import Cryptol.Utils.Panic (panic)
 import           Data.Map  (Map)
 import qualified Data.Map  as Map
 import           Data.Maybe (fromMaybe, maybeToList)
+import qualified Data.Set  as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
 
@@ -62,28 +63,35 @@ gatherModuleDocstrings nameToModule m =
     { docModContext = lookupModuleName n
     , docFor = DocForDef n
     , docText = maybeToList (tsDoc t)
-    } | (n, t) <- Map.assocs (mTySyns m)] ++
+    } | (n, t) <- Map.assocs (mTySyns m), not (inVirtual n)] ++
   [DocItem
     { docModContext = lookupModuleName n
     , docFor = DocForDef n
     , docText = maybeToList (ntDoc t)
-    } | (n, t) <- Map.assocs (mNominalTypes m)] ++
+    } | (n, t) <- Map.assocs (mNominalTypes m), not (inVirtual n)] ++
   [DocItem
     { docModContext = lookupModuleName (dName d)
     , docFor = DocForDef (dName d)
     , docText = maybeToList (dDoc d <> exhaustBoolProp d)
-    } | g <- mDecls m, d <- groupDecls g] ++
+    } | g <- mDecls m, d <- groupDecls g, not (inVirtual (dName d))] ++
   [DocItem
     { docModContext = ImpNested n
     , docFor = DocForMod (ImpNested n)
     , docText = ifsDoc (smIface s)
-    } | (n, s) <- Map.assocs (mSubmodules m)] ++
+    } | (n, s) <- Map.assocs (mSubmodules m), not (smVirtual s)] ++
   [DocItem
     { docModContext = ImpTop (mName m)
     , docFor = DocForMod (ImpNested n)
     , docText = maybeToList (mpnDoc s)
     } | (n, s) <- Map.assocs (mSignatures m)]
   where
+    virtModNames = Map.keysSet (Map.filter smVirtual (mSubmodules m))
+
+    inVirtual n =
+      case Map.lookup n nameToModule of
+        Just (ImpNested owner) -> owner `Set.member` virtModNames
+        _ -> False
+
     lookupModuleName n =
       case Map.lookup n nameToModule of
         Just x -> x

@@ -174,6 +174,7 @@ makeVirtParamModDefs vpmods =
                    , ifsDoc     = mempty
                    }
                , smInScope = mempty
+               , smVirtual = True
                })
            | ps <- vpmods
            ]

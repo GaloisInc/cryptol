@@ -1071,7 +1071,8 @@ endSubmodule =
                                     then mSubmodules y
                                     else let sm = Submodule
                                                     { smIface = genIfaceNames x1
-                                                    , smInScope = mInScope x }
+                                                    , smInScope = mInScope x
+                                                    , smVirtual = False }
                                          in Map.insert m sm
                                                (mSubmodules x <> mSubmodules y)
                  , mFunctors    = if isFun
