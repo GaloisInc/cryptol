@@ -40,6 +40,17 @@ test_no_as_value = KInst::I::x
 test_no_as_type : KInst::I::T
 test_no_as_type = KInst::I::y
 
+// Two parameters: one concrete, one backtick.
+// Only the concrete parameter gets a virtual submodule.
+submodule F2 where
+  import interface submodule I as A
+  import interface submodule I as B
+  f2 = A::x
+
+submodule F2Inst = submodule F2 { A = submodule Impl, B = _ }
+
+test_partial = F2Inst::A::x
+
 // Anonymous parameter block
 submodule G where
   parameter

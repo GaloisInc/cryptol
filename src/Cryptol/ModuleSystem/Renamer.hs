@@ -147,19 +147,32 @@ makeFunctorInstance f args =
     -- Note: currently the validation that the arguments match what the
     -- functor expects is done in the type checker.  We may want to do it
     -- here instead.
-    (defs,scope,inst) <- generateFunctorInstance moF
+    (defs,scope,inst) <- generateFunctorInstance (backtickParams newArgs) moF
     pure (defs, scope, FunctorInstance f { thing = newF } newArgs inst)
 
+-- | Determine which parameters are instantiated with @_@ (backtick).
+-- @Nothing@ means all parameters use @_@; @Just s@ lists specific ones.
+backtickParams :: ModuleInstanceArgs Name -> Maybe (Set Ident)
+backtickParams args =
+  case args of
+    DefaultInstArg l
+      | AddParams <- thing l -> Nothing
+      | otherwise -> Just Set.empty
+    DefaultInstAnonArg {} -> Just Set.empty
+    NamedInstArgs as -> Just $ Set.fromList
+      [ thing nm | ModuleInstanceNamedArg nm l <- as, AddParams <- [thing l] ]
 
 
-generateFunctorInstance :: Mod -> RenameM (Set Name, NamingEnv, ModuleInstance Name)
-generateFunctorInstance moF =
+
+generateFunctorInstance ::
+  Maybe (Set Ident) -> Mod -> RenameM (Set Name, NamingEnv, ModuleInstance Name)
+generateFunctorInstance btParams moF =
   do
     mpath <- getCurModPath
     (inst,newDefs) <- mkModInst mpath moF
     subI <- doSubs mpath inst
 
-    vparamMods <- makeVirtParamModules mpath inst
+    vparamMods <- makeVirtParamModules btParams mpath inst
 
     let vparamModDefs = Set.fromList [ vpmName s | s <- vparamMods ]
         allDefs = newDefs `Set.union` vparamModDefs
@@ -211,14 +224,20 @@ generateFunctorInstance moF =
 -- instance.  For each parameter (e.g., @import interface I@), we generate a
 -- nested module (e.g., @M::I@) containing fresh names that forward to the
 -- instantiated parameter values.
-makeVirtParamModules :: ModPath -> Map.Map Name Name -> RenameM [VirtParamMod Name]
-makeVirtParamModules mpath inst =
+-- Parameters instantiated with @_@ (backtick) are skipped.
+makeVirtParamModules ::
+  Maybe (Set Ident) -> ModPath -> Map.Map Name Name -> RenameM [VirtParamMod Name]
+makeVirtParamModules btParams mpath inst =
   do
     loc <- getCurLoc
-    let paramGroups = Map.fromListWith (<>)
+    let isBacktick i = case btParams of
+                         Nothing -> True
+                         Just s  -> i `Set.member` s
+        paramGroups = Map.fromListWith (<>)
           [ (paramId, [(old, new)])
           | (old, new) <- Map.toList inst
           , Just paramId <- [nameModParam old]
+          , not (isBacktick paramId)
           ]
     forM (Map.toList paramGroups) \(paramId, paramEntries) -> do
       let vsubId = if isAnonIfaceModIdnet paramId

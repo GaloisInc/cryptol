@@ -8,5 +8,6 @@ Loading module T041
 0x2a
 0x2a
 0x07
+test_partial : {a} {B'x : a, B'y : a} -> [8]
 0x0f
 0x05
