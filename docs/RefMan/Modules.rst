@@ -916,8 +916,21 @@ It is also possible to import the virtual parameter module directly:
     z = x + 1           // x is in scope from M::I
 
 The name of the virtual submodule corresponds to the ``as`` name used
-in the functor's interface import.  If the functor uses an anonymous
-``parameter`` block, the virtual submodule is called ``Parameters``.
+in the functor's interface import.  If no ``as`` is specified, the
+virtual submodule is named after the interface itself.  For example:
+
+.. code-block:: cryptol
+
+  submodule K where
+    import interface submodule I
+    k = x
+
+  submodule KInst = submodule K { I = submodule Impl }
+
+  test = KInst::I::x      // accessible via the interface name
+
+If the functor uses an anonymous ``parameter`` block, the virtual
+submodule is called ``Parameter``.
 
 
 

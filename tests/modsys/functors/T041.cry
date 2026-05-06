@@ -29,6 +29,17 @@ submodule UseImport where
   import submodule M::I
   z = x + y
 
+// Import interface without `as`
+submodule K where
+  import interface submodule I
+  k = x
+
+submodule KInst = submodule K { I = submodule Impl }
+
+test_no_as_value = KInst::I::x
+test_no_as_type : KInst::I::T
+test_no_as_type = KInst::I::y
+
 // Anonymous parameter block
 submodule G where
   parameter
@@ -39,4 +50,4 @@ submodule G where
 submodule H = submodule G where
   n = 5
 
-test_anon = H::Parameters::n
+test_anon = H::Parameter::n

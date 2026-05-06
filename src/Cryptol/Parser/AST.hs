@@ -204,7 +204,7 @@ data ModuleInstance name = ModuleInstance
 -- | A virtual submodule that exposes the definitions from a functor parameter.
 data VirtParamMod name = VirtParamMod
   { vpmIdent :: Ident
-    -- ^ The parameter identifier (or "Parameters" for inline params).
+    -- ^ The parameter identifier (or "Parameter" for inline params).
   , vpmName :: name
     -- ^ The module name for the virtual submodule.
   , vpmDefs :: Map name name

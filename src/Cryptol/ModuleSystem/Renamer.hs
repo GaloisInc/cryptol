@@ -222,7 +222,7 @@ makeVirtParamModules mpath inst =
           ]
     forM (Map.toList paramGroups) \(paramId, paramEntries) -> do
       let vsubId = if isAnonIfaceModIdnet paramId
-                   then packIdent "Parameters"
+                   then packIdent "Parameter"
                    else paramId
           vsubPath = Nested mpath vsubId
       vsubName <- liftSupply

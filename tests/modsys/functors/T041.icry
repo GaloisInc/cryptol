@@ -3,5 +3,8 @@ test_value
 test_type
 M::f
 UseImport::z
+KInst::k
+test_no_as_value
+test_no_as_type
 H::g
 test_anon
