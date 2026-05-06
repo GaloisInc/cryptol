@@ -52,7 +52,8 @@ module Cryptol.Parser.AST
   , ModuleInstanceArgs(..)
   , ModuleInstanceNamedArg(..)
   , ModuleInstanceArg(..)
-  , ModuleInstance
+  , ModuleInstance(..)
+  , VirtParamMod(..)
   , emptyModuleInstance
 
   , Program(..)
@@ -183,23 +184,40 @@ data ModuleDefinition name =
   | FunctorInstance (Located (ImpName name))
                     (ModuleInstanceArgs name)
                     (ModuleInstance name)
-    -- ^ The instance is filled in by the renamer.  It associates names
-    -- in the functor with the names in this instance. Note that this
-    -- includes all names in the functor, including ones in nested modules
-    -- inside it.
-    -- It is used by the type-checker when generating the module instantiation.
+    -- ^ The last field is filled in by the renamer and
+    -- it is used by the type-checker when generating the module instantiation.
 
   | InterfaceModule (Signature name)
     deriving (Show, Generic, NFData)
 
-{- | Maps names in the original functor with names in the instance.
-Does *NOT* include the parameters, just names for the definitions.
-This *DOES* include entries for all the name in the instantiated functor,
-including names in modules nested inside the functor. -}
-type ModuleInstance name = Map name name
+{- | Information about a functor instance, filled in by the renamer.  -}
+data ModuleInstance name = ModuleInstance
+  { modInstMap :: Map name name
+    -- ^ Maps names in the original functor with names in the instance.
+    -- Does *NOT* include the parameters, just names for the definitions.
+    -- This *DOES* include entries for all names in the instantiated functor,
+    -- including names in modules nested inside the functor.
+  , modInstVirtParamMods :: [VirtParamMod name]
+    -- ^ Virtual submodules exposing functor parameter definitions.
+  } deriving (Show, Generic, NFData)
+
+-- | A virtual submodule that exposes the definitions from a functor parameter.
+data VirtParamMod name = VirtParamMod
+  { vpmIdent :: Ident
+    -- ^ The parameter identifier (or "Parameters" for inline params).
+  , vpmName :: name
+    -- ^ The module name for the virtual submodule.
+  , vpmDefs :: Map name name
+    -- ^ Maps names defined in the virtual submodule to the corresponding
+    -- parameter names (from @modInstMap@).  The type-checker uses this
+    -- to generate forwarding definitions.
+  } deriving (Show, Generic, NFData)
 
 emptyModuleInstance :: Ord name => ModuleInstance name
-emptyModuleInstance = mempty
+emptyModuleInstance = ModuleInstance
+  { modInstMap = mempty
+  , modInstVirtParamMods = mempty
+  }
 
 
 -- XXX: Review all places this is used, that it actually makes sense
@@ -996,18 +1014,24 @@ instance (Show name, PPName name) => PP (ModuleDefinition name) where
   ppPrec _ def =
     case def of
       NormalModule ds -> "where" $$ indent 2 (vcat (map pp ds))
-      FunctorInstance f as inst -> vcat ( ("=" <+> pp (thing f) <+> pp as)
-                                        : ppInst
-                                        )
-        where
-        ppInst    = if null inst then [] else [ indent 2
-                                                  (vcat ("/* Instance:" :
-                                                        instLines ++ [" */"]))
-                                              ]
-        instLines = [ " *" <+> pp k <+> "->" <+> pp v
-                    | (k,v) <- Map.toList inst ]
+      FunctorInstance f as inst ->
+        vcat [ "=" <+> pp (thing f) <+> pp as
+             , indent 2 (pp inst)
+             ]
       InterfaceModule s -> ppInterface "where" s
 
+
+instance (Show name, PPName name) => PP (ModuleInstance name) where
+  ppPrec _ inst
+    | null imap && null psubs = mempty
+    | otherwise = vcat ("/* Instance:" : instLines ++ psubLines ++ [" */"])
+    where
+    imap      = modInstMap inst
+    psubs     = modInstVirtParamMods inst
+    instLines = [ " *" <+> pp k <+> "->" <+> pp v
+                | (k,v) <- Map.toList imap ]
+    psubLines = [ " * param" <+> pp (vpmIdent s) <+> "->" <+> pp (vpmName s)
+                | s <- psubs ]
 
 instance (Show name, PPName name) => PP (ModuleInstanceArgs name) where
   ppPrec _ arg =

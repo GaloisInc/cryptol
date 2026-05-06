@@ -1,0 +1,2 @@
+// Test virtual parameter submodules with top-level functor instance.
+module T042 = T042_F { P = T042_Impl }

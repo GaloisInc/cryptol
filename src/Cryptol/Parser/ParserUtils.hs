@@ -1253,7 +1253,7 @@ mkModuleInstanceAnon :: Located ModName ->
                       Module PName
 mkModuleInstanceAnon nm fun ds =
   Module { mName    = nm
-         , mDef     = FunctorInstance fun (DefaultInstAnonArg ds) mempty
+         , mDef     = FunctorInstance fun (DefaultInstAnonArg ds) emptyModuleInstance
          , mInScope = mempty
          , mDocTop  = Nothing
          }
@@ -1458,7 +1458,7 @@ desugarMod mo =
              pos    = from (srcRange nm)
              nm     = Located { srcRange = srcRange (mName mo), thing = i }
              as'    = DefaultInstArg (ModuleArg . toImpName <$> nm)
-         pure ( mo { mDef = FunctorInstance f as' mempty }
+         pure ( mo { mDef = FunctorInstance f as' emptyModuleInstance }
               , [ Module
                     { mName = nm
                     , mDef  = NormalModule lds'

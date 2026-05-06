@@ -157,10 +157,18 @@ generateFunctorInstance moF =
   do
     mpath <- getCurModPath
     (inst,newDefs) <- mkModInst mpath moF
-    let scope = nameDefsToNamingEnv newDefs -- XXX: figure out what we want this to be...
     subI <- doSubs mpath inst
-    pure (newDefs, scope, Map.union inst subI)
-  where  
+
+    vparamMods <- makeVirtParamModules mpath inst
+
+    let vparamModDefs = Set.fromList [ vpmName s | s <- vparamMods ]
+        allDefs = newDefs `Set.union` vparamModDefs
+        scope   = nameDefsToNamingEnv newDefs -- XXX: figure out what we want this to be...
+    pure (allDefs, scope, ModuleInstance
+            { modInstMap = Map.union inst subI
+            , modInstVirtParamMods = vparamMods
+            })
+  where
 
   -- Generate fresh instantiations for the modules contained in the
   -- module at this path
@@ -168,7 +176,7 @@ generateFunctorInstance moF =
     Map.unions <$>
     mapM (doSub mpath)
       [ def | def <- Map.toList inst, nameNamespace (fst def) == NSModule ]
-    
+
   -- Generate a fresh instantiation for the module at the given path.
   -- This module may be of any kind (normal, functor, interface).
   mkModInst mpath someMo =
@@ -198,6 +206,45 @@ generateFunctorInstance moF =
         }
       subMap <- doSubs newMPath newI
       pure (Map.union newI subMap)
+
+-- | Create virtual submodules exposing the parameter definitions of a functor
+-- instance.  For each parameter (e.g., @import interface I@), we generate a
+-- nested module (e.g., @M::I@) containing fresh names that forward to the
+-- instantiated parameter values.
+makeVirtParamModules :: ModPath -> Map.Map Name Name -> RenameM [VirtParamMod Name]
+makeVirtParamModules mpath inst =
+  do
+    loc <- getCurLoc
+    let paramGroups = Map.fromListWith (<>)
+          [ (paramId, [(old, new)])
+          | (old, new) <- Map.toList inst
+          , Just paramId <- [nameModParam old]
+          ]
+    forM (Map.toList paramGroups) \(paramId, paramEntries) -> do
+      let vsubId = if isAnonIfaceModIdnet paramId
+                   then packIdent "Parameters"
+                   else paramId
+          vsubPath = Nested mpath vsubId
+      vsubName <- liftSupply
+                    (mkDeclared NSModule mpath UserName vsubId Nothing loc)
+      -- Create fresh names inside the virtual submodule
+      defs <- Map.fromList <$>
+        forM paramEntries \(_old, paramName) -> do
+          defName <- liftSupply
+            (mkDeclared (nameNamespace paramName) vsubPath UserName
+                        (nameIdent paramName) (nameFixity paramName) loc)
+          pure (defName, paramName)
+      let defNames = Map.keysSet defs
+      addInstMod vsubName
+        Mod { modKind = AModule
+            , modDefines = defNames
+            , modPublic = defNames
+            }
+      pure VirtParamMod
+            { vpmIdent = vsubId
+            , vpmName = vsubName
+            , vpmDefs = defs
+            }
 
 instance Rename ModuleInstanceArgs where
   rename args =

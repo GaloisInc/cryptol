@@ -1,0 +1,7 @@
+// Functor for T042
+module T042_F where
+
+import interface module T042_I as P
+
+inc : [P::N]
+inc = P::val + 1

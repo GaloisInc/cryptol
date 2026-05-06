@@ -1,0 +1,4 @@
+:load T042.cry
+inc
+P::val
+:t P::val

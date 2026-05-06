@@ -15,7 +15,7 @@ import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident(Ident,Namespace(..),isInfixIdent)
 import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
-import Cryptol.ModuleSystem.Name(nameIdent)
+import Cryptol.ModuleSystem.Name(nameIdent,nameNamespace,nameFixity)
 import Cryptol.ModuleSystem.NamingEnv
           (NamingEnv(..), modParamNamesNamingEnv, shadowing, without, mapNamingEnv)
 import Cryptol.ModuleSystem.Interface
@@ -35,17 +35,20 @@ doFunctorInst ::
   Located (P.ImpName Name)    {- ^ Name for the new module -} ->
   Located (P.ImpName Name)    {- ^ Functor being instantiated -} ->
   P.ModuleInstanceArgs Name   {- ^ Instance arguments -} ->
-  Map Name Name
-  {- ^ Instantiation.  These is the renaming for the functor that arises from
-       generativity (i.e., it is something that will make the names "fresh").
+  P.ModuleInstance Name
+  {- ^ Instantiation.  Filled in by the renamer.
+       Contains the renaming for the functor that arises from
+       generativity (i.e., it is something that will make the names "fresh"),
+       and virtual submodule names for functor parameters.
   -} ->
   NamingEnv
   {- ^ Names in the enclosing scope of the instantiated module -} ->
   Maybe Text                  {- ^ Documentation for the module being generated -} ->
   InferM (Maybe TCTopEntity)
-doFunctorInst m f as instMap enclosingInScope doc =
+doFunctorInst m f as modInst enclosingInScope doc =
   inRange (srcRange m)
-  do mf    <- lookupFunctor (thing f)
+  do let instMap = P.modInstMap modInst
+     mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
      m2 <- do as2 <- mapM (checkArg instMap) argIs
               let (tySus,paramTySyns,decls) =
@@ -115,14 +118,76 @@ doFunctorInst m f as instMap enclosingInScope doc =
      mapM_ addTySyn     (Map.elems (mTySyns m2))
      mapM_ addNominal   (Map.elems (mNominalTypes m2))
      addSignatures      (mSignatures m2)
-     addSubmodules      (mSubmodules m2)
-     setNested          (mNested m2)
      addFunctors        (mFunctors m2)
      mapM_ addDecls     (mDecls m2)
+
+     (vpmSubs, vpmNested) <-
+       makeVirtParamModDefs (P.modInstVirtParamMods modInst)
+     addSubmodules      (mSubmodules m2 `Map.union` vpmSubs)
+     setNested          (mNested m2 `Set.union` vpmNested)
 
      case thing m of
        P.ImpTop {}    -> Just <$> endModule
        P.ImpNested {} -> endSubmodule >> pure Nothing
+
+
+-- | Generate forwarding definitions for virtual parameter submodules
+-- (e.g., @M::I::x@).  For each virtual parameter module we create value
+-- forwarding decls (@defName = paramName@) and type synonym aliases.
+-- Returns the submodule map and nested name set to be registered by the caller.
+makeVirtParamModDefs ::
+  [P.VirtParamMod Name] -> InferM (Map Name Submodule, Set Name)
+makeVirtParamModDefs vpmods =
+  do forM_ vpmods \ps ->
+       forM_ (Map.toList (P.vpmDefs ps)) \(defName, paramName) ->
+         case nameNamespace defName of
+           NSValue ->
+             do vt <- lookupVar paramName
+                let schema = case vt of
+                      ExtVar s -> s
+                      CurSCC {} -> bad "CurSCC for parameter variable"
+                    body = fwdDef schema paramName
+                addDecls $ NonRecursive Decl
+                  { dName       = defName
+                  , dSignature  = schema
+                  , dDefinition = DExpr body
+                  , dPragmas    = []
+                  , dInfix      = isInfixIdent (nameIdent defName)
+                  , dFixity     = nameFixity defName
+                  , dDoc        = Nothing
+                  }
+           NSType ->
+             do ts <- lookupTSyn paramName
+                case ts of
+                  Just origSyn ->
+                    addTySyn origSyn { tsName = defName }
+                  Nothing -> bad "Missing type synonym for parameter"
+           ns -> bad ("Unexpected namespace for parameter: " ++ show ns)
+
+     let submodules = Map.fromList
+           [ (P.vpmName ps, Submodule
+               { smIface = IfaceNames
+                   { ifsName    = P.vpmName ps
+                   , ifsNested  = mempty
+                   , ifsDefines = Map.keysSet (P.vpmDefs ps)
+                   , ifsPublic  = Map.keysSet (P.vpmDefs ps)
+                   , ifsDoc     = mempty
+                   }
+               , smInScope = mempty
+               })
+           | ps <- vpmods
+           ]
+         nested = Set.fromList [ P.vpmName ps | ps <- vpmods ]
+
+     pure (submodules, nested)
+  where
+  bad msg = panic "makeVirtParamModDefs" [msg]
+
+  fwdDef (Forall tps props _) name =
+    foldr ETAbs (foldr EProofAbs call props) tps
+    where
+    call = foldl (\e _ -> EProofApp e) tyApp props
+    tyApp = foldl ETApp (EVar name) (map (TVar . TVBound) tps)
 
 
 data ActualArg =

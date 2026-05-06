@@ -1,0 +1,7 @@
+:load T041.cry
+test_value
+test_type
+M::f
+UseImport::z
+H::g
+test_anon
