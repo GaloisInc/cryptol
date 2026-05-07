@@ -65,7 +65,6 @@ RUN ./bin/test-runner --ext=.icry --env-ext=.env --exe=./rootfs/usr/local/bin/cr
 ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
 RUN    ! $(cryptol -c ":s prover=yices" | tail -n +2 | grep -q .) \
     #    && ! $(cryptol -c ":s prover=mathsat" | tail -n +2 | grep -q .) \
-    && ! $(cryptol -c ":s prover=cvc4" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=cvc5" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=abc" | tail -n +2 | grep -q .) \
     && ! $(cryptol -c ":s prover=bitwuzla" | tail -n +2 | grep -q .) \
