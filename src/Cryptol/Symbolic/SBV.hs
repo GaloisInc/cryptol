@@ -507,6 +507,10 @@ processResults ProverCommand{..} ts results =
                         | otherwise = show $ SBV.ThmResult resultsHead
 
   where
+  mkTevs ::
+    PrimMap ->
+    SBV.SMTResult ->
+    M.ModuleT IO (Bool, [(TValue, Expr, Concrete.Value)])
   mkTevs prims result = do
     -- It's a bit fragile, but the value of the safety predicate seems
     -- to always be the first value in the model assignment list.
