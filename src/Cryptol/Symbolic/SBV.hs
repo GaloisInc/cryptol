@@ -45,7 +45,7 @@ import qualified Data.Vector as Vector
 import LibBF(bfNaN)
 
 import qualified Data.SBV as SBV (sObserve, symbolicEnv, SMTReasonUnknown (..))
-import qualified Data.SBV.Internals as SBV (SBV(..))
+import qualified Data.SBV.Internals as SBV (SBV(..), SMTModel(..))
 import qualified Data.SBV.Dynamic as SBV
 import qualified Data.SBV.Trans.Control as SBV (SMTOption(..))
 import           Data.SBV (Timing(SaveTiming))
@@ -452,12 +452,16 @@ prepareQuery evo ProverCommand{..} =
 
                  -- "observe" the value of the safety predicate.  This makes its value
                  -- avaliable in the resulting model.
-                 SBV.sObserve "safety" (SBV.SBV safety' :: SBV.SBV Bool)
+                 SBV.sObserve safetyObservableName (SBV.SBV safety' :: SBV.SBV Bool)
 
                  -- read any definitional relations that were asserted
                  defRels <- liftIO (readMVar defRelsVar)
 
                  return (addAsm defRels (SBV.svAnd safety' b)))
+
+-- | A distinguished name to use when observing the safety predicate.
+safetyObservableName :: String
+safetyObservableName = "safety"
 
 -- | Turn the SMT results from SBV into a @ProverResult@ that is ready for the Cryptol REPL.
 --   There may be more than one result if we made a multi-sat query.
@@ -477,13 +481,13 @@ processResults ProverCommand{..} ts results =
     case results of
        -- allSat can return more than one as long as
        -- they're satisfiable
-       (SBV.Satisfiable {} : _) | isSat -> do
-         tevss <- map snd <$> mapM (mkTevs prims) results
+       (SBV.Satisfiable {} : _) | isSat, Just ms <- allSatResults -> do
+         tevss <- map snd <$> mapM (mkTevs prims) ms
          return $ AllSatResult tevss
 
        -- prove should only have one counterexample
-       [r@SBV.Satisfiable{}] -> do
-         (safety, res) <- mkTevs prims r
+       [SBV.Satisfiable _ m] -> do
+         (safety, res) <- mkTevs prims m
          let cexType = if safety then PredicateFalsified else SafetyViolation
          return $ CounterExample cexType res
 
@@ -507,18 +511,41 @@ processResults ProverCommand{..} ts results =
                         | otherwise = show $ SBV.ThmResult resultsHead
 
   where
+  -- | If all of the 'SBV.SMTResult's are 'SBV.Satisfiable', return the
+  -- underlying 'SBV.SMTModel's. Otherwise, return 'Nothing'.
+  allSatResults :: Maybe [SBV.SMTModel]
+  allSatResults =
+    traverse
+      (\case SBV.Satisfiable _ m -> Just m
+             _ -> Nothing)
+      results
+
   mkTevs ::
     PrimMap ->
-    SBV.SMTResult ->
+    SBV.SMTModel ->
     M.ModuleT IO (Bool, [(TValue, Expr, Concrete.Value)])
-  mkTevs prims result = do
-    -- It's a bit fragile, but the value of the safety predicate seems
-    -- to always be the first value in the model assignment list.
-    let (safetyCV, cvs) =
-          case SBV.getModelAssignment result of
-            Right (_, (safetyCV' : cvs')) -> (safetyCV', cvs')
-            _ -> error "processResults: SBV.getModelAssignment failure"
-        safety = SBV.cvToBool safetyCV
+  mkTevs prims m = do
+    -- Look for a CV in the SMTModel's modelAssocs with a name matching the
+    -- safety predicate. Note that it is not safe to assume that the safety
+    -- predicate will appear in a particular order in this list. Not only is
+    -- this considered an implementation detail, different SBV versions use
+    -- different conventions
+    -- (see https://github.com/LeventErkok/sbv/issues/779), so it is important
+    -- to be able to handle any convention.
+    let mAssocs = SBV.modelAssocs m
+    let (nonSafetyAssocs1, otherAssocs) =
+          break (\(name, _) -> name == safetyObservableName) mAssocs
+    (safetyCV, cvs) <-
+      case otherAssocs of
+        (_, safetyCV):nonSafetyAssocs2 ->
+          pure (safetyCV, map snd (nonSafetyAssocs1 ++ nonSafetyAssocs2))
+        [] ->
+          panic
+            "processResults"
+            [ "Model did not contain safety predicate:"
+            , show mAssocs
+            ]
+    let safety = SBV.cvToBool safetyCV
         (vs, _) = parseValues ts cvs
         mdl = computeModel prims ts vs
     return (safety, mdl)
