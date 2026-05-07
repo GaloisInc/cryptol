@@ -142,26 +142,29 @@ makeVirtParamModDefs vpmods =
        forM_ (Map.toList (P.vpmDefs ps)) \(defName, paramName) ->
          case nameNamespace defName of
            NSValue ->
-             do vt <- lookupVar paramName
-                let schema = case vt of
-                      ExtVar s -> s
-                      CurSCC {} -> bad "CurSCC for parameter variable"
-                    body = fwdDef schema paramName
-                addDecls $ NonRecursive Decl
-                  { dName       = defName
-                  , dSignature  = schema
-                  , dDefinition = DExpr body
-                  , dPragmas    = []
-                  , dInfix      = isInfixIdent (nameIdent defName)
-                  , dFixity     = nameFixity defName
-                  , dDoc        = Nothing
-                  }
+             do mb <- tryLookupVar paramName
+                case mb of
+                  Nothing -> pure ()
+                  Just vt ->
+                    do let schema = case vt of
+                             ExtVar s -> s
+                             CurSCC {} -> bad "CurSCC for parameter variable"
+                           body = fwdDef schema paramName
+                       addDecls $ NonRecursive Decl
+                         { dName       = defName
+                         , dSignature  = schema
+                         , dDefinition = DExpr body
+                         , dPragmas    = []
+                         , dInfix      = isInfixIdent (nameIdent defName)
+                         , dFixity     = nameFixity defName
+                         , dDoc        = Nothing
+                         }
            NSType ->
              do ts <- lookupTSyn paramName
                 case ts of
                   Just origSyn ->
                     addTySyn origSyn { tsName = defName }
-                  Nothing -> bad "Missing type synonym for parameter"
+                  Nothing -> pure ()
            ns -> bad ("Unexpected namespace for parameter: " ++ show ns)
 
      let submodules = Map.fromList
