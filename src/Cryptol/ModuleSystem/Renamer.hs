@@ -732,19 +732,21 @@ doImport limp =
 doModParam :: ModParam PName -> RenameM (ModParam Name, Set Name)
 doModParam mp =
   do
-    x   <- rnLocated (resolveModName ASignature) (mpSignature mp)
-    let mo  = snd (thing x)
-        rng = srcRange x
-        nm  = mpName mp
-    mpath <- getCurModPath
+    let nm  = mpName mp
 
     -- Check that the virtual submodule name won't conflict with an
-    -- existing submodule definition.
+    -- existing submodule definition.  We do this before resolving the
+    -- signature so that fake names from failed resolution don't interfere.
     let vsubId = if isAnonIfaceModIdnet nm then packIdent "Parameter" else nm
     defs <- getCurTopDefs
     case lookupNS NSModule (mkUnqual vsubId) defs of
       Just ns -> recordError (ConflictingModParam vsubId (anyOne ns))
       Nothing -> pure ()
+
+    x   <- rnLocated (resolveModName ASignature) (mpSignature mp)
+    let mo  = snd (thing x)
+        rng = srcRange x
+    mpath <- getCurModPath
 
     ren <- forM (Set.toList (modDefines mo)) \old ->
       do
