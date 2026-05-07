@@ -1,4 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module T037
+[warning] at T037.cry:15:3--15:21
+    The import shadows the existing binding at
+    T037.cry:3:21--3:22
 0x0c
