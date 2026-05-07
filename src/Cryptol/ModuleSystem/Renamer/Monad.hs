@@ -354,7 +354,7 @@ addResolvedMod names mo =
             }
           where expSpec = exportedDecls ds
             
-        FunctorInstance f _ inst ->
+        FunctorInstance f _ modInst ->
           do
             -- Here we don't validate the functor again, to avoid duplicated
             -- error.
@@ -363,13 +363,18 @@ addResolvedMod names mo =
             -- is *not* a functor `inst` would be empty.  We just leave
             -- the name as is in this case, which shouldn't matter as we'll
             -- stop after the renamer due to errors.
-            let remap x = Map.findWithDefault x x inst
-
+            let inst = modInstMap modInst
+                remap x = Map.findWithDefault x x inst
+                -- Virtual submodules created for parameters are not in the
+                -- original functor, so they won't be reached by remapping.
+                vpNames = Set.fromList
+                              [ vpmName s | s <- modInstVirtParamMods modInst ]
 
             pure Mod {
               modKind = AModule,
               modDefines = names,
               modPublic = Set.map remap (modPublic fmo)
+                            `Set.union` vpNames
             }
               
         InterfaceModule {} ->

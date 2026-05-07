@@ -873,6 +873,64 @@ This, in turn, is syntactic sugar for creating an anonymous module:
   import submodule M
 
 
+Accessing Parameter Values of an Instance
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When a functor is instantiated, the values provided for its parameters
+are accessible through a virtual submodule named after the parameter.
+This allows users to refer to the concrete types and values that were
+used to instantiate a functor.
+
+.. code-block:: cryptol
+
+  interface submodule I where
+    type T : *
+    x : T
+
+  submodule F where
+    import interface submodule I as I
+    f : I::T
+    f = I::x
+
+  submodule Impl where
+    type T = [8]
+    x = 42
+
+  submodule M = submodule F { I = submodule Impl }
+
+After this instantiation, the parameter values are available through
+``M::I``:
+
+.. code-block:: cryptol
+
+  test = M::I::x        // 42
+  y : M::I::T           // type [8]
+  y = M::I::x + 1
+
+It is also possible to import the virtual parameter module directly:
+
+.. code-block:: cryptol
+
+  submodule N where
+    import submodule M::I
+    z = x + 1           // x is in scope from M::I
+
+The name of the virtual submodule corresponds to the ``as`` name used
+in the functor's interface import.  If no ``as`` is specified, the
+virtual submodule is named after the interface itself.  For example:
+
+.. code-block:: cryptol
+
+  submodule K where
+    import interface submodule I
+    k = x
+
+  submodule KInst = submodule K { I = submodule Impl }
+
+  test = KInst::I::x      // accessible via the interface name
+
+If the functor uses an anonymous ``parameter`` block, the virtual
+submodule is called ``Parameter``.
 
 
 

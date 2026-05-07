@@ -1,0 +1,7 @@
+// Interface for T042
+interface module T042_I where
+
+type N : #
+type constraint (fin N, N >= 1)
+
+val : [N]

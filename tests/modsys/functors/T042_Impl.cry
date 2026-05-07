@@ -1,0 +1,7 @@
+// Implementation for T042
+module T042_Impl where
+
+type N = 16
+
+val : [N]
+val = 100

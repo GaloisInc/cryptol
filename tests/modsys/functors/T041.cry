@@ -1,0 +1,64 @@
+// Test virtual parameter submodules with nested modules.
+module T041 where
+
+interface submodule I where
+  type T : *
+  x : T
+  y : T
+
+submodule F where
+  import interface submodule I as I
+  f : I::T
+  f = I::x
+
+submodule Impl where
+  type T = [8]
+  x = 42
+  y = 7
+
+submodule M = submodule F { I = submodule Impl }
+
+// Access parameter values through virtual submodule
+test_value = M::I::x
+
+test_type : M::I::T
+test_type = M::I::y
+
+// Import the virtual submodule
+submodule UseImport where
+  import submodule M::I
+  z = x + y
+
+// Import interface without `as`
+submodule K where
+  import interface submodule I
+  k = x
+
+submodule KInst = submodule K { I = submodule Impl }
+
+test_no_as_value = KInst::I::x
+test_no_as_type : KInst::I::T
+test_no_as_type = KInst::I::y
+
+// Two parameters: one concrete, one backtick.
+// Only the concrete parameter gets a virtual submodule.
+submodule F2 where
+  import interface submodule I as A
+  import interface submodule I as B
+  f2 = A::x
+
+submodule F2Inst = submodule F2 { A = submodule Impl, B = _ }
+
+test_partial = F2Inst::A::x
+
+// Anonymous parameter block
+submodule G where
+  parameter
+    n : [8]
+
+  g = n + 10
+
+submodule H = submodule G where
+  n = 5
+
+test_anon = H::Parameter::n

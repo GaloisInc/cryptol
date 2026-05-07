@@ -389,7 +389,7 @@ instance RangedVars (ModuleDefinition Name) where
   rangedVars mdef =
     case mdef of
       NormalModule tds -> rangedVars tds
-      FunctorInstance f as is -> rangedVars (f,(as, map mk (Map.toList is)))
+      FunctorInstance f as is -> rangedVars (f,(as, map mk (Map.toList (modInstMap is))))
         where mk (x,y) = Def' False x y
       InterfaceModule sig -> rangedVars sig
 

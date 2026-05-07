@@ -775,19 +775,27 @@ varsWithAsmps =
 -- | Lookup the type of a variable.
 lookupVar :: Name -> InferM VarType
 lookupVar x =
-  do mb <- IM $ asks $ Map.lookup x . iVars
+  do mb <- tryLookupVar x
      case mb of
        Just a  -> pure a
        Nothing ->
+         do mp <- IM $ asks iVars
+            panic "lookupVar" $ [ "Undefined variable"
+                                , show x
+                                , "IVARS"
+                                ] ++ map (show . debugShowUniques . pp) (Map.keys mp)
+
+-- | Like 'lookupVar' but returns 'Nothing' instead of panicking.
+-- Used by 'makeVirtParamModDefs' where a parameter variable may not exist
+-- because the functor argument was invalid (error already reported).
+tryLookupVar :: Name -> InferM (Maybe VarType)
+tryLookupVar x =
+  do mb <- IM $ asks $ Map.lookup x . iVars
+     case mb of
+       Just a  -> pure (Just a)
+       Nothing ->
          do mb1 <- Map.lookup x . iBindTypes <$> IM get
-            case mb1 of
-              Just a -> pure (ExtVar a)
-              Nothing ->
-                do mp <- IM $ asks iVars
-                   panic "lookupVar" $ [ "Undefined variable"
-                                     , show x
-                                     , "IVARS"
-                                     ] ++ map (show . debugShowUniques . pp) (Map.keys mp)
+            pure (ExtVar <$> mb1)
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
@@ -1071,7 +1079,8 @@ endSubmodule =
                                     then mSubmodules y
                                     else let sm = Submodule
                                                     { smIface = genIfaceNames x1
-                                                    , smInScope = mInScope x }
+                                                    , smInScope = mInScope x
+                                                    , smVirtual = False }
                                          in Map.insert m sm
                                                (mSubmodules x <> mSubmodules y)
                  , mFunctors    = if isFun

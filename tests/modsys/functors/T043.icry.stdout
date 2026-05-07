@@ -1,0 +1,6 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module T043
+
+[error] at T043.cry:10:13--10:14
+    Submodule `T043::F::P` conflicts with functor parameter `P`

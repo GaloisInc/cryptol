@@ -1,0 +1,12 @@
+// Test that a functor cannot use `as X` if it also defines submodule X.
+module T043 where
+
+interface submodule I where
+  type T : *
+  x : T
+
+submodule F where
+  import interface submodule I as P
+  submodule P where
+    w = 100 : [8]
+  j = P::w

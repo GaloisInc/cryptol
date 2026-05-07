@@ -27,6 +27,10 @@
 * Support `prime` constraints in numeric constraint guards.
   ([#1658](https://github.com/GaloisInc/cryptol/issues/1658))
 
+* Parameter values of a functor instance are now accessible through a
+  virtual submodule named after the parameter (e.g., `M::I::x`).
+  ([#1699](https://github.com/GaloisInc/cryptol/issues/1699))
+
 ## Bug fixes
 
 * Fix pretty printing of types in errors messages
