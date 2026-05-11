@@ -1191,10 +1191,10 @@ onlySimpleImports = mapM_ check
           , "A workaround would be to do the instantion in the outer context."
           ]
 
-mkInterface' :: [Located (ImportG (ImpName PName))] ->
+mkInterface' :: [SigImport PName] ->
              [ParamDecl PName] -> Signature PName
 mkInterface' is =
-  foldl' add 
+  foldl' add
     Signature { sigImports     = is
               , sigTypeParams  = []
               , sigDecls       = []
@@ -1212,11 +1212,13 @@ mkInterface' is =
 
 
 
-mkInterface :: [Located (ImportG (ImpName PName))] ->
+-- | The imports are in reverse order from the parser.
+mkInterface :: [SigImport PName] ->
              [ParamDecl PName] -> ParseM (Signature PName)
 mkInterface is ps =
-  do onlySimpleImports is
-     pure (mkInterface' is ps)
+  do let is' = reverse is
+     onlySimpleImports [ li | SigImport li <- is' ]
+     pure (mkInterface' is' ps)
 
 mkIfacePropSyn :: Maybe Text -> Decl PName -> ParamDecl PName
 mkIfacePropSyn mbDoc d =
@@ -1253,7 +1255,7 @@ mkModuleInstanceAnon :: Located ModName ->
                       Module PName
 mkModuleInstanceAnon nm fun ds =
   Module { mName    = nm
-         , mDef     = FunctorInstance fun (DefaultInstAnonArg ds) emptyModuleInstance
+         , mDef     = FunctorInstance fun (DefaultInstAnonArg ds) emptyModuleInstance ModuleInst
          , mInScope = mempty
          , mDocTop  = Nothing
          }
@@ -1265,9 +1267,38 @@ mkModuleInstance ::
   Module PName
 mkModuleInstance m f as =
   Module { mName    = m
-         , mDef     = FunctorInstance f as emptyModuleInstance
+         , mDef     = FunctorInstance f as emptyModuleInstance ModuleInst
          , mInScope = mempty
          , mDocTop  = Nothing
+         }
+
+-- | Nested interface functor instantiation
+mkNestedIfaceInst ::
+  Maybe (Located Text) ->
+  Located PName ->
+  Located (ImpName PName) ->
+  ModuleInstanceArgs PName ->
+  ParseM [TopDecl PName]
+mkNestedIfaceInst doc nm fun as =
+  do nested <- mkNested (mkIfaceInst Nothing (fmap toModName nm) fun as)
+     pure [exportModule doc nested]
+  where
+  toModName n = case n of
+    UnQual i -> mkModName [identText i]
+    _        -> panic "mkNestedIfaceInst" ["Unexpected qualified name"]
+
+-- | Interface functor instantiation
+mkIfaceInst ::
+  Maybe (Located Text) ->
+  Located ModName ->
+  Located (ImpName PName) ->
+  ModuleInstanceArgs PName ->
+  Module PName
+mkIfaceInst doc nm fun as =
+  Module { mName    = nm
+         , mDef     = FunctorInstance fun as emptyModuleInstance SignatureInst
+         , mInScope = mempty
+         , mDocTop  = doc
          }
 
 
@@ -1443,7 +1474,7 @@ desugarMod :: MkAnon name => ModuleG name PName -> ParseM (ModuleG name PName, [
 desugarMod mo =
   case mDef mo of
 
-    FunctorInstance f as _ | DefaultInstAnonArg lds <- as ->
+    FunctorInstance f as _ k | DefaultInstAnonArg lds <- as ->
       do (ms,lds') <- desugarTopDs (mName mo) lds
          case ms of
            m : _ | InterfaceModule si <- mDef m
@@ -1458,7 +1489,7 @@ desugarMod mo =
              pos    = from (srcRange nm)
              nm     = Located { srcRange = srcRange (mName mo), thing = i }
              as'    = DefaultInstArg (ModuleArg . toImpName <$> nm)
-         pure ( mo { mDef = FunctorInstance f as' emptyModuleInstance }
+         pure ( mo { mDef = FunctorInstance f as' emptyModuleInstance k }
               , [ Module
                     { mName = nm
                     , mDef  = NormalModule lds'
@@ -1522,7 +1553,7 @@ desugarTopDs ownerName = go (NoAnonParamBlock [])
                 let nm = mkAnon AnonIfaceMod <$> ownerName
                     mo =
                       Module { mName = nm
-                             , mDef = InterfaceModule ds' { sigImports = reverse is }
+                             , mDef = InterfaceModule ds' { sigImports = map SigImport (reverse is) }
                              , mInScope = mempty
                              , mDocTop = Nothing
                              }
@@ -1564,7 +1595,7 @@ desugarInstImport i inst =
   do (m, ms) <- desugarMod
            Module { mName    = iname
                   , mDef     = FunctorInstance
-                                 origMod inst emptyModuleInstance
+                                 origMod inst emptyModuleInstance ModuleInst
                   , mInScope = mempty
                   , mDocTop  = Nothing
                   }

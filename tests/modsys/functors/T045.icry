@@ -1,0 +1,3 @@
+:load T045/T045.cry
+test
+G::g 0xF

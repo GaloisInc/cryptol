@@ -1,0 +1,5 @@
+interface module S where
+  import interface I
+  type m : #
+  type constraint (m <= n)
+  f : [m] -> [n]

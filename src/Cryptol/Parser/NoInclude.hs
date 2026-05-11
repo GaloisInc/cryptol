@@ -195,7 +195,7 @@ noIncludeModule :: ModuleG mname PName -> NoIncM (ModuleG mname PName)
 noIncludeModule m =
   do newDef <- case mDef m of
                  NormalModule ds         -> NormalModule <$> doDecls ds
-                 FunctorInstance f as is -> pure (FunctorInstance f as is)
+                 FunctorInstance f as is k -> pure (FunctorInstance f as is k)
                  InterfaceModule s       -> pure (InterfaceModule s)
      pure m { mDef = newDef }
   where

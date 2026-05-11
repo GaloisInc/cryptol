@@ -93,15 +93,16 @@ depNameLoc x =
     ImportAt r -> Just r
 
 
-data ModKind = AFunctor | ASignature | AModule
+data ModKind = AFunctor | ASignature | AModule | AIfaceFunctor
     deriving (Show, Generic, NFData, Eq, Ord)
 
 instance PP ModKind where
   ppPrec _ e =
     case e of
-      AFunctor   -> "a functor"
-      ASignature -> "an interface"
-      AModule    -> "a module"
+      AFunctor       -> "a functor"
+      ASignature     -> "an interface"
+      AModule        -> "a module"
+      AIfaceFunctor  -> "a parameterized interface"
 
 
 

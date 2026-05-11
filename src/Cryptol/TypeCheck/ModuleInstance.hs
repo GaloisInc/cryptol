@@ -75,9 +75,17 @@ instance ModuleInstance (ModuleG name) where
     Module { mName             = mName m
            , mDoc              = mempty
            , mExports          = doNameInst (mExports m)
-           , mParamTypes       = doMap (mParamTypes m)
-           , mParamFuns        = doMap (mParamFuns m)
-           , mParamConstraints = moduleInstance (mParamConstraints m)
+           , mIsIfaceFunctor   = mIsIfaceFunctor m
+           , mParamDecls       = ParamDecls
+               { pdTypes       = doMap (mParamTypes m)
+               , pdFuns        = doMap (mParamFuns m)
+               , pdConstraints = moduleInstance (mParamConstraints m)
+               }
+           , mOutputParamDecls = ParamDecls
+               { pdTypes       = doMap (pdTypes (mOutputParamDecls m))
+               , pdFuns        = doMap (pdFuns (mOutputParamDecls m))
+               , pdConstraints = moduleInstance (pdConstraints (mOutputParamDecls m))
+               }
            , mParams           = moduleInstance <$> mParams m
            , mFunctors         = doMap (mFunctors m)
            , mNested           = doSet (mNested m)
@@ -162,9 +170,11 @@ instance ModuleInstance name => ModuleInstance (IfaceNames name) where
 
 instance ModuleInstance ModParamNames where
   moduleInstance si =
-    ModParamNames { mpnTypes       = doMap (mpnTypes si)
-                  , mpnConstraints = moduleInstance (mpnConstraints si)
-                  , mpnFuns        = doMap (mpnFuns si)
+    ModParamNames { mpnParams = ParamDecls
+                      { pdTypes       = doMap (mpnTypes si)
+                      , pdFuns        = doMap (mpnFuns si)
+                      , pdConstraints = moduleInstance (mpnConstraints si)
+                      }
                   , mpnTySyn       = doMap (mpnTySyn si)
                   , mpnDoc         = mpnDoc si
                   }

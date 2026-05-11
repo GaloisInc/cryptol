@@ -1,0 +1,3 @@
+:load T046/T046.cry
+test
+G::g 0xF

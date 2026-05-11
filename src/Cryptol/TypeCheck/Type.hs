@@ -50,9 +50,11 @@ type FunctorParams = Map Ident ModParam
 allParamNames :: FunctorParams -> ModParamNames
 allParamNames mps =
   ModParamNames
-    { mpnTypes       = Map.unions (map mpnTypes ps)
-    , mpnConstraints = concatMap mpnConstraints ps
-    , mpnFuns        = Map.unions (map mpnFuns ps)
+    { mpnParams = ParamDecls
+        { pdTypes       = Map.unions (map mpnTypes ps)
+        , pdFuns        = Map.unions (map mpnFuns ps)
+        , pdConstraints = concatMap mpnConstraints ps
+        }
     , mpnTySyn       = Map.unions (map mpnTySyn ps)
     , mpnDoc         = Nothing
     }
@@ -82,22 +84,24 @@ data ModParam = ModParam
 
 -- | Information about the names brought in through an "interface import".
 data ModParamNames = ModParamNames
-  { mpnTypes       :: Map Name ModTParam
-    -- ^ Type parameters
+  { mpnParams     :: ParamDecls
+    -- ^ Type parameters, value parameters, and constraints
 
   , mpnTySyn      :: !(Map Name TySyn)
     -- ^ Type synonyms
 
-  , mpnConstraints :: [Located Prop]
-    -- ^ Constraints on param. types
-
-
-  , mpnFuns        :: Map.Map Name ModVParam
-    -- ^ Value parameters
-
   , mpnDoc         :: !(Maybe Text)
     -- ^ Documentation about the interface.
   } deriving (Show, Generic, NFData)
+
+mpnTypes :: ModParamNames -> Map Name ModTParam
+mpnTypes = pdTypes . mpnParams
+
+mpnFuns :: ModParamNames -> Map.Map Name ModVParam
+mpnFuns = pdFuns . mpnParams
+
+mpnConstraints :: ModParamNames -> [Located Prop]
+mpnConstraints = pdConstraints . mpnParams
 
 -- | A type parameter of a module.
 data ModTParam = ModTParam
@@ -125,6 +129,14 @@ data ModVParam = ModVParam
   , mvpDoc    :: Maybe Text
   , mvpFixity :: Maybe Fixity       -- XXX: This should be in the name?
   } deriving (Show,Generic,NFData)
+
+-- | Type and value parameters declared directly by a module or interface.
+data ParamDecls = ParamDecls
+  { pdTypes       :: Map Name ModTParam
+  , pdFuns        :: Map Name ModVParam
+  , pdConstraints :: [Located Prop]
+  } deriving (Show, Generic, NFData)
+
 --------------------------------------------------------------------------------
 
 
@@ -1396,5 +1408,11 @@ instance PP ModTParam where
 
 instance PP ModVParam where
   ppPrec _ p = pp (mvpName p) <+> ":" <+> pp (mvpType p)
+
+instance PP ParamDecls where
+  ppPrec _ pd =
+    vcat (map pp (Map.elems (pdTypes pd)) ++
+          [ pp (thing c) | c <- pdConstraints pd ] ++
+          map pp (Map.elems (pdFuns pd)))
 
 

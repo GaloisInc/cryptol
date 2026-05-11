@@ -454,8 +454,8 @@ addPrelude m
   newDef =
     case mDef m of
       NormalModule ds -> NormalModule (P.DImport prel : ds)
-      FunctorInstance f as ins -> FunctorInstance f as ins
-      InterfaceModule s -> InterfaceModule s { sigImports = prel
+      FunctorInstance f as ins k -> FunctorInstance f as ins k
+      InterfaceModule s -> InterfaceModule s { sigImports = P.SigImport prel
                                              : sigImports s }
 
   importedMods  = map (P.thing . P.iModule . P.thing) (P.mImports m)
@@ -534,14 +534,14 @@ findDeps' :: P.ModuleG mname name -> (Any, Endo [ImportSource])
 findDeps' m =
   case mDef m of
     NormalModule ds -> mconcat (map depsOfDecl ds)
-    FunctorInstance f as _ ->
+    FunctorInstance f as _ _k ->
       let fds = loadImpName FromModuleInstance f
           ads = case as of
                   DefaultInstArg a -> loadInstArg a
                   DefaultInstAnonArg ds -> mconcat (map depsOfDecl ds)
                   NamedInstArgs args -> mconcat (map loadNamedInstArg args)
       in fds <> ads
-    InterfaceModule s -> mconcat (map loadImpD (sigImports s))
+    InterfaceModule s -> mconcat (map loadSigImp (sigImports s))
   where
   loadI i = (mempty, Endo (i:))
 
@@ -552,6 +552,13 @@ findDeps' m =
 
   loadImpD li = loadImpName (FromImport . new) (thing . iModule <$> li)
     where new i = i { thing = (thing li) { iModule = i } }
+
+  loadIfaceParam mp = loadImpName FromSigImport (mpSignature mp)
+
+  loadSigImp si =
+    case si of
+      P.SigImport li     -> loadImpD li
+      P.SigIfaceImport mp -> loadIfaceParam mp
 
   loadNamedInstArg (ModuleInstanceNamedArg _ f) = loadInstArg f
   loadInstArg f =

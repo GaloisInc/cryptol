@@ -16,7 +16,7 @@ module Cryptol.ModuleSystem.Renamer (
 
 -- import Debug.Trace
 
-import Data.List(partition,foldl',find)
+import Data.List(foldl',find)
 import Data.Maybe(mapMaybe)
 import Data.Either(partitionEithers)
 import Data.Set(Set)
@@ -117,9 +117,9 @@ renameModuleDef mo =
         names <- getCurDefNames
         scope <- getCurScope
         pure (names, mo { mInScope = scope, mDef = def })
-    FunctorInstance fun args _ ->
+    FunctorInstance fun args _ k ->
       do
-        (names,_scope,def) <- makeFunctorInstance fun args
+        (names,_scope,def) <- makeFunctorInstance fun args k
         scope <- getCurScope
         -- XXX: For the time being we just store the outer scope of the
         -- module here, and the type-checker modifies it.  We really should
@@ -138,17 +138,20 @@ renameModuleDef mo =
 --------------------------------------------------------------------------------
 
 makeFunctorInstance ::
-  Located (ImpName PName) -> ModuleInstanceArgs PName ->
+  Located (ImpName PName) -> ModuleInstanceArgs PName -> FunctorInstKind ->
   RenameM (Set Name, NamingEnv, ModuleDefinition Name)
-makeFunctorInstance f args =
+makeFunctorInstance f args k =
   do
-    (newF,moF) <- withLoc (srcRange f) (resolveModName AFunctor (thing f))
+    let expectedKind = case k of
+                         ModuleInst    -> AFunctor
+                         SignatureInst -> AIfaceFunctor
+    (newF,moF) <- withLoc (srcRange f) (resolveModName expectedKind (thing f))
     newArgs    <- rename args
     -- Note: currently the validation that the arguments match what the
     -- functor expects is done in the type checker.  We may want to do it
     -- here instead.
-    (defs,scope,inst) <- generateFunctorInstance (backtickParams newArgs) moF
-    pure (defs, scope, FunctorInstance f { thing = newF } newArgs inst)
+    (defs,scope,inst) <- generateFunctorInstance (backtickParams newArgs) k moF
+    pure (defs, scope, FunctorInstance f { thing = newF } newArgs inst k)
 
 -- | Determine which parameters are instantiated with @_@ (backtick).
 -- @Nothing@ means all parameters use @_@; @Just s@ lists specific ones.
@@ -165,14 +168,23 @@ backtickParams args =
 
 
 generateFunctorInstance ::
-  Maybe (Set Ident) -> Mod -> RenameM (Set Name, NamingEnv, ModuleInstance Name)
-generateFunctorInstance btParams moF =
+  Maybe (Set Ident) -> FunctorInstKind -> Mod ->
+  RenameM (Set Name, NamingEnv, ModuleInstance Name)
+generateFunctorInstance btParams instKind moF =
   do
     mpath <- getCurModPath
     (inst,newDefs) <- mkModInst mpath moF
-    subI <- doSubs mpath inst
 
-    vparamMods <- makeVirtParamModules btParams mpath inst
+    -- For SignatureInst, the result is a signature---no nested submodules
+    -- or virtual parameter modules are needed.
+    (subI, vparamMods) <-
+      case instKind of
+        SignatureInst -> pure (Map.empty, [])
+        ModuleInst ->
+          do
+            s <- doSubs mpath inst
+            v <- makeVirtParamModules btParams mpath inst
+            pure (s, v)
 
     let vparamModDefs = Set.fromList [ vpmName s | s <- vparamMods ]
         allDefs = newDefs `Set.union` vparamModDefs
@@ -299,7 +311,7 @@ instance Rename Signature where
       env         <- doDefGroup (defsOfSig mo sig)
       setThisModuleDefs env
       newTopImps  <- mapM (fmap fst . doImport) topImps
-      newNestImps <- mapM (fmap fst . doImport) nestImps
+      newImps     <- mapM renameSigImport rest
 
       funPs       <- mapM rename (sigFunParams sig)
       tyPs        <- mapM rename (sigTypeParams sig)
@@ -307,18 +319,26 @@ instance Rename Signature where
       decls       <- renameSigDecls (sigDecls sig)
 
       pure Signature {
-        sigImports      = newTopImps ++ newNestImps,
+        sigImports      = map SigImport newTopImps ++ newImps,
         sigTypeParams   = tyPs,
         sigConstraints  = ctrs,
         sigDecls        = decls,
         sigFunParams    = funPs
       }
     where
-    (topImps,nestImps) = partition isTop (sigImports sig)
-    isTop limp =
-      case thing (iModule (thing limp)) of
-        ImpTop {} -> True
-        ImpNested {} -> False
+    (topImps,rest) = go [] [] (sigImports sig)
+      where
+      go tops others [] = (reverse tops, reverse others)
+      go tops others (si : more) =
+        case si of
+          SigImport li | ImpTop {} <- thing (iModule (thing li))
+            -> go (li : tops) others more
+          _ -> go tops (si : others) more
+
+    renameSigImport si =
+      case si of
+        SigImport li     -> SigImport . fst <$> doImport li
+        SigIfaceImport p -> SigIfaceImport . fst <$> doModParam p
 
 instance Rename ParameterType where
   rename a =

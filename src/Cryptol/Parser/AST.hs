@@ -49,6 +49,7 @@ module Cryptol.Parser.AST
   , isParamDecl
 
   , ModuleDefinition(..)
+  , FunctorInstKind(..)
   , ModuleInstanceArgs(..)
   , ModuleInstanceNamedArg(..)
   , ModuleInstanceArg(..)
@@ -79,6 +80,7 @@ module Cryptol.Parser.AST
   , ParameterConstraint(..)
   , NestedModule(..)
   , Signature(..)
+  , SigImport(..), isSigIfaceImport
   , SigDecl(..)
   , ModParam(..)
   , ParamDecl(..)
@@ -177,6 +179,10 @@ data ModuleG mname name = Module
   } deriving (Show, Generic, NFData)
 
 
+-- | Whether a functor instantiation produces a module or a signature.
+data FunctorInstKind = ModuleInst | SignatureInst
+    deriving (Eq, Show, Generic, NFData)
+
 -- | Different flavours of modules we have.
 data ModuleDefinition name =
     NormalModule [TopDecl name]
@@ -184,8 +190,11 @@ data ModuleDefinition name =
   | FunctorInstance (Located (ImpName name))
                     (ModuleInstanceArgs name)
                     (ModuleInstance name)
-    -- ^ The last field is filled in by the renamer and
+                    FunctorInstKind
+    -- ^ The 'ModuleInstance' field is filled in by the renamer and
     -- it is used by the type-checker when generating the module instantiation.
+    -- The 'FunctorInstKind' indicates whether the result of instantiation
+    -- is a module ('ModuleInst') or a signature ('SignatureInst').
 
   | InterfaceModule (Signature name)
     deriving (Show, Generic, NFData)
@@ -226,7 +235,7 @@ mDecls :: ModuleG mname name -> [TopDecl name]
 mDecls m =
   case mDef m of
     NormalModule ds         -> ds
-    FunctorInstance _ _ _   -> []
+    FunctorInstance {}      -> []
     InterfaceModule {}      -> []
 
 -- | Imports of top-level (i.e. "file" based) modules.
@@ -235,7 +244,7 @@ mImports m =
   case mDef m of
     NormalModule ds     -> mapMaybe topImp [ li | DImport li <- ds ]
     FunctorInstance {}  -> []
-    InterfaceModule sig -> mapMaybe topImp (sigImports sig)
+    InterfaceModule sig -> mapMaybe topImp [ li | SigImport li <- sigImports sig ]
   where
   topImp li = case thing mo of
                ImpTop n -> Just li { thing = i { iModule = Located (srcRange mo) n } }
@@ -415,8 +424,8 @@ other members of the interface module.  When an interface module  is "imported"
 as a functor parameter these names are instantiated to new names,
 because there could be multiple paramers using the same interface. -}
 data Signature name = Signature
-  { sigImports      :: ![Located (ImportG (ImpName name))]
-    -- ^ Add things in scope
+  { sigImports      :: [SigImport name]
+    -- ^ Imports and interface parameters, in source order
   , sigTypeParams   :: [ParameterType name]     -- ^ Type parameters
   , sigConstraints  :: [Located (Prop name)]
     -- ^ Constraints on the type parameters and type synonyms.
@@ -424,6 +433,16 @@ data Signature name = Signature
     -- ^ Type and constraint synonyms
   , sigFunParams    :: [ParameterFun name]      -- ^ Value parameters
   } deriving (Show,Generic,NFData)
+
+-- | An import in the preamble of an interface (signature).
+data SigImport name =
+    SigImport (Located (ImportG (ImpName name)))
+  | SigIfaceImport (ModParam name)
+    deriving (Show,Generic,NFData)
+
+isSigIfaceImport :: SigImport name -> Bool
+isSigIfaceImport (SigIfaceImport {}) = True
+isSigIfaceImport _                   = False
 
 -- | A constraint or type synonym declared in an interface.
 data SigDecl name =
@@ -1006,15 +1025,16 @@ ppModule kw m = kw' <+> ppL (mName m) <+> pp (mDef m)
   $$ indent 2 (vcat ["/* In scope:", indent 2 (pp (mInScope m)), " */"])
   where
   kw' = case mDef m of
-          InterfaceModule {} -> "interface" <+> kw
-          _                  -> kw
+          InterfaceModule {}              -> "interface" <+> kw
+          FunctorInstance _ _ _ SignatureInst -> "interface" <+> kw
+          _                               -> kw
 
 
 instance (Show name, PPName name) => PP (ModuleDefinition name) where
   ppPrec _ def =
     case def of
       NormalModule ds -> "where" $$ indent 2 (vcat (map pp ds))
-      FunctorInstance f as inst ->
+      FunctorInstance f as inst _kind ->
         vcat [ "=" <+> pp (thing f) <+> pp as
              , indent 2 (pp inst)
              ]
@@ -1085,7 +1105,7 @@ instance (Show name, PPName name) => PP (ParamDecl name) where
 ppInterface :: (Show name, PPName name) => Doc -> Signature name -> Doc
 ppInterface kw sig = kw $$ indent 2 (vcat (is ++ ds))
     where
-    is = map (pp . thing) (sigImports sig)
+    is = map pp (sigImports sig)
     cs = case sigConstraints sig of
            []  -> []
            cs' -> ["type constraint" <+>
@@ -1094,6 +1114,12 @@ ppInterface kw sig = kw $$ indent 2 (vcat (is ++ ds))
       ++ map pp (sigDecls sig)
       ++ cs
       ++ map pp (sigFunParams sig)
+
+instance (Show name, PPName name) => PP (SigImport name) where
+  ppPrec p si =
+    case si of
+      SigImport li     -> ppPrec p (thing li)
+      SigIfaceImport mp -> ppPrec p mp
 
 instance (Show name, PPName name) => PP (SigDecl name) where
   ppPrec p decl =
@@ -1574,7 +1600,7 @@ instance NoPos (ModuleDefinition name) where
   noPos m =
     case m of
       NormalModule ds         -> NormalModule (noPos ds)
-      FunctorInstance f as ds -> FunctorInstance (noPos f) (noPos as) ds
+      FunctorInstance f as ds k -> FunctorInstance (noPos f) (noPos as) ds k
       InterfaceModule s       -> InterfaceModule (noPos s)
 
 instance NoPos (ModuleInstanceArgs name) where
@@ -1615,12 +1641,18 @@ instance NoPos (ParamDecl name) where
       DParameterConstraint d -> DParameterConstraint (noPos d)
 
 instance NoPos (Signature name) where
-  noPos sig = Signature { sigImports = sigImports sig
+  noPos sig = Signature { sigImports = map noPos (sigImports sig)
                         , sigTypeParams = map noPos (sigTypeParams sig)
                         , sigDecls = map noPos (sigDecls sig)
                         , sigConstraints = map noPos (sigConstraints sig)
                         , sigFunParams = map noPos (sigFunParams sig)
                         }
+
+instance NoPos (SigImport name) where
+  noPos si =
+    case si of
+      SigImport li     -> SigImport li
+      SigIfaceImport p -> SigIfaceImport (noPos p)
 
 instance NoPos (SigDecl name) where
   noPos decl =
