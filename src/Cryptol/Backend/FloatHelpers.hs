@@ -163,12 +163,12 @@ floatToInteger fun r fp =
                               ["Unexpected rounding mode", show r]
 
 
-floatFromBits :: 
+floatFromBits ::
   Integer {- ^ Exponent width -} ->
   Integer {- ^ Precision widht -} ->
   Integer {- ^ Raw bits -} ->
   BF
-floatFromBits e p bv = BF { bfValue = bfFromBits (fpOpts e p NearEven) bv 
+floatFromBits e p bv = BF { bfValue = bfFromBits (fpOpts e p NearEven) bv
                           , bfExpWidth = e, bfPrecWidth = p }
 
 
