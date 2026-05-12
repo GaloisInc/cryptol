@@ -1,0 +1,572 @@
+// THIS IS AUTO-GENERATED
+//
+// Rather than modifying this file, please modify the script which
+// generated it (GenFloatProperties.hs) and regenerate it using:
+//
+//   runghc GenFloatProperties.hs > float_properties.icry
+
+:load FloatPropertiesGeneric.cry
+:set prover=w4-bitwuzla
+:set ascii=on
+:set show-examples=no
+"Proving prop_fpNaNIsNaN..."
+:prove prop_fpNaNIsNaN`{8, 24}
+"Proving prop_fpNaNIsNotInf..."
+:prove prop_fpNaNIsNotInf`{8, 24}
+"Proving prop_fpNaNIsNotZero..."
+:prove prop_fpNaNIsNotZero`{8, 24}
+"Proving prop_fpNaNIsPos..."
+:prove prop_fpNaNIsPos`{8, 24}
+"Proving prop_fpNaNIsNotNormal..."
+:prove prop_fpNaNIsNotNormal`{8, 24}
+"Proving prop_fpNaNIsNotSubnormal..."
+:prove prop_fpNaNIsNotSubnormal`{8, 24}
+"Proving prop_fpNaNIsQuiet..."
+:prove prop_fpNaNIsQuiet`{8, 24}
+"Proving prop_fpPosInfIsPos..."
+:prove prop_fpPosInfIsPos`{8, 24}
+"Proving prop_fpPosInfIsInf..."
+:prove prop_fpPosInfIsInf`{8, 24}
+"Proving prop_fpPosInfIsNotZero..."
+:prove prop_fpPosInfIsNotZero`{8, 24}
+"Proving prop_fpPosInfIsNotNaN..."
+:prove prop_fpPosInfIsNotNaN`{8, 24}
+"Proving prop_fpPosInfIsNotNormal..."
+:prove prop_fpPosInfIsNotNormal`{8, 24}
+"Proving prop_fpPosInfIsNotSubnormal..."
+:prove prop_fpPosInfIsNotSubnormal`{8, 24}
+"Proving prop_fpNegInfIsNeg..."
+:prove prop_fpNegInfIsNeg`{8, 24}
+"Proving prop_fpNegInfIsInf..."
+:prove prop_fpNegInfIsInf`{8, 24}
+"Proving prop_fpNegInfIsNotZero..."
+:prove prop_fpNegInfIsNotZero`{8, 24}
+"Proving prop_fpNegInfIsNotNaN..."
+:prove prop_fpNegInfIsNotNaN`{8, 24}
+"Proving prop_fpNegInfIsNotNormal..."
+:prove prop_fpNegInfIsNotNormal`{8, 24}
+"Proving prop_fpNegInfIsNotSubnormal..."
+:prove prop_fpNegInfIsNotSubnormal`{8, 24}
+"Proving prop_fpPosZeroIsPos..."
+:prove prop_fpPosZeroIsPos`{8, 24}
+"Proving prop_fpPosZeroIsZero..."
+:prove prop_fpPosZeroIsZero`{8, 24}
+"Proving prop_fpPosZeroIsNotNaN..."
+:prove prop_fpPosZeroIsNotNaN`{8, 24}
+"Proving prop_fpPosZeroIsNotInf..."
+:prove prop_fpPosZeroIsNotInf`{8, 24}
+"Proving prop_fpPosZeroIsNotNormal..."
+:prove prop_fpPosZeroIsNotNormal`{8, 24}
+"Proving prop_fpPosZeroIsNotSubnormal..."
+:prove prop_fpPosZeroIsNotSubnormal`{8, 24}
+"Proving prop_fpNegZeroIsNeg..."
+:prove prop_fpNegZeroIsNeg`{8, 24}
+"Proving prop_fpNegZeroIsZero..."
+:prove prop_fpNegZeroIsZero`{8, 24}
+"Proving prop_fpNegZeroIsNotNaN..."
+:prove prop_fpNegZeroIsNotNaN`{8, 24}
+"Proving prop_fpNegZeroIsNotInf..."
+:prove prop_fpNegZeroIsNotInf`{8, 24}
+"Proving prop_fpNegZeroIsNotNormal..."
+:prove prop_fpNegZeroIsNotNormal`{8, 24}
+"Proving prop_fpNegZeroIsNotSubnormal..."
+:prove prop_fpNegZeroIsNotSubnormal`{8, 24}
+"Proving prop_fpFromToBits..."
+:prove prop_fpFromToBits`{8, 24}
+"Proving prop_fpToFromBits..."
+:prove prop_fpToFromBits`{8, 24}
+"Proving prop_fpFromBitsCorrect..."
+:prove prop_fpFromBitsCorrect`{8, 24}
+"Proving prop_fpFromBitsEq..."
+:prove prop_fpFromBitsEq`{8, 24}
+"Proving prop_fpToBitsCorrect..."
+:prove prop_fpToBitsCorrect`{8, 24}
+"Proving prop_fpToBitsEq..."
+:prove prop_fpToBitsEq`{8, 24}
+"Proving prop_fpLogicalEqNaN..."
+:prove prop_fpLogicalEqNaN`{8, 24}
+"Proving prop_fpLogicalEqZero..."
+:prove prop_fpLogicalEqZero`{8, 24}
+"Proving prop_fpLogicalEqToIeeeEq..."
+:prove prop_fpLogicalEqToIeeeEq`{8, 24}
+"Proving prop_fpIeeeEqToLogicalEq..."
+:prove prop_fpIeeeEqToLogicalEq`{8, 24}
+"Proving prop_fpLogicalEqReflexive..."
+:prove prop_fpLogicalEqReflexive`{8, 24}
+"Proving prop_fpLogicalEqSymmetric..."
+:prove prop_fpLogicalEqSymmetric`{8, 24}
+"Proving prop_fpLogicalEqTransitive..."
+:prove prop_fpLogicalEqTransitive`{8, 24}
+"Proving prop_fpIsNegSign..."
+:prove prop_fpIsNegSign`{8, 24}
+"Proving prop_fpIsNormalCorrect..."
+:prove prop_fpIsNormalCorrect`{8, 24}
+"Proving prop_fpAddNaN..."
+:prove prop_fpAddNaN`{8, 24} rne
+:prove prop_fpAddNaN`{8, 24} rna
+:prove prop_fpAddNaN`{8, 24} rtp
+:prove prop_fpAddNaN`{8, 24} rtn
+:prove prop_fpAddNaN`{8, 24} rtz
+"Proving prop_fpAddPosNegInf..."
+:prove prop_fpAddPosNegInf`{8, 24} rne
+:prove prop_fpAddPosNegInf`{8, 24} rna
+:prove prop_fpAddPosNegInf`{8, 24} rtp
+:prove prop_fpAddPosNegInf`{8, 24} rtn
+:prove prop_fpAddPosNegInf`{8, 24} rtz
+"Proving prop_fpAddNegPosInf..."
+:prove prop_fpAddNegPosInf`{8, 24} rne
+:prove prop_fpAddNegPosInf`{8, 24} rna
+:prove prop_fpAddNegPosInf`{8, 24} rtp
+:prove prop_fpAddNegPosInf`{8, 24} rtn
+:prove prop_fpAddNegPosInf`{8, 24} rtz
+"Proving prop_fpAddLeftInf..."
+:prove prop_fpAddLeftInf`{8, 24} rne
+:prove prop_fpAddLeftInf`{8, 24} rna
+:prove prop_fpAddLeftInf`{8, 24} rtp
+:prove prop_fpAddLeftInf`{8, 24} rtn
+:prove prop_fpAddLeftInf`{8, 24} rtz
+"Proving prop_fpAddRightInf..."
+:prove prop_fpAddRightInf`{8, 24} rne
+:prove prop_fpAddRightInf`{8, 24} rna
+:prove prop_fpAddRightInf`{8, 24} rtp
+:prove prop_fpAddRightInf`{8, 24} rtn
+:prove prop_fpAddRightInf`{8, 24} rtz
+"Proving prop_fpAddLeftIdentity..."
+:prove prop_fpAddLeftIdentity`{8, 24} rne
+:prove prop_fpAddLeftIdentity`{8, 24} rna
+:prove prop_fpAddLeftIdentity`{8, 24} rtp
+:prove prop_fpAddLeftIdentity`{8, 24} rtn
+:prove prop_fpAddLeftIdentity`{8, 24} rtz
+"Proving prop_fpAddRightIdentity..."
+:prove prop_fpAddRightIdentity`{8, 24} rne
+:prove prop_fpAddRightIdentity`{8, 24} rna
+:prove prop_fpAddRightIdentity`{8, 24} rtp
+:prove prop_fpAddRightIdentity`{8, 24} rtn
+:prove prop_fpAddRightIdentity`{8, 24} rtz
+"Proving prop_fpAddCommutative..."
+:prove prop_fpAddCommutative`{8, 24} rne
+:prove prop_fpAddCommutative`{8, 24} rna
+:prove prop_fpAddCommutative`{8, 24} rtp
+:prove prop_fpAddCommutative`{8, 24} rtn
+:prove prop_fpAddCommutative`{8, 24} rtz
+"Proving prop_fpAddInverse..."
+:prove prop_fpAddInverse`{8, 24} rne
+:prove prop_fpAddInverse`{8, 24} rna
+:prove prop_fpAddInverse`{8, 24} rtp
+:prove prop_fpAddInverse`{8, 24} rtn
+:prove prop_fpAddInverse`{8, 24} rtz
+"Disproving counterexample_fpAddAssociative..."
+:sat counterexample_fpAddAssociative`{8, 24} rne
+:sat counterexample_fpAddAssociative`{8, 24} rna
+:sat counterexample_fpAddAssociative`{8, 24} rtp
+:sat counterexample_fpAddAssociative`{8, 24} rtn
+:sat counterexample_fpAddAssociative`{8, 24} rtz
+"Proving prop_fpSubNaN..."
+:prove prop_fpSubNaN`{8, 24} rne
+:prove prop_fpSubNaN`{8, 24} rna
+:prove prop_fpSubNaN`{8, 24} rtp
+:prove prop_fpSubNaN`{8, 24} rtn
+:prove prop_fpSubNaN`{8, 24} rtz
+"Proving prop_fpSubPosPosInf..."
+:prove prop_fpSubPosPosInf`{8, 24} rne
+:prove prop_fpSubPosPosInf`{8, 24} rna
+:prove prop_fpSubPosPosInf`{8, 24} rtp
+:prove prop_fpSubPosPosInf`{8, 24} rtn
+:prove prop_fpSubPosPosInf`{8, 24} rtz
+"Proving prop_fpSubNegNegInf..."
+:prove prop_fpSubNegNegInf`{8, 24} rne
+:prove prop_fpSubNegNegInf`{8, 24} rna
+:prove prop_fpSubNegNegInf`{8, 24} rtp
+:prove prop_fpSubNegNegInf`{8, 24} rtn
+:prove prop_fpSubNegNegInf`{8, 24} rtz
+"Proving prop_fpSubLeftInf..."
+:prove prop_fpSubLeftInf`{8, 24} rne
+:prove prop_fpSubLeftInf`{8, 24} rna
+:prove prop_fpSubLeftInf`{8, 24} rtp
+:prove prop_fpSubLeftInf`{8, 24} rtn
+:prove prop_fpSubLeftInf`{8, 24} rtz
+"Proving prop_fpSubRightInf..."
+:prove prop_fpSubRightInf`{8, 24} rne
+:prove prop_fpSubRightInf`{8, 24} rna
+:prove prop_fpSubRightInf`{8, 24} rtp
+:prove prop_fpSubRightInf`{8, 24} rtn
+:prove prop_fpSubRightInf`{8, 24} rtz
+"Proving prop_fpSubZeroLeft..."
+:prove prop_fpSubZeroLeft`{8, 24} rne
+:prove prop_fpSubZeroLeft`{8, 24} rna
+:prove prop_fpSubZeroLeft`{8, 24} rtp
+:prove prop_fpSubZeroLeft`{8, 24} rtn
+:prove prop_fpSubZeroLeft`{8, 24} rtz
+"Proving prop_fpSubZeroRight..."
+:prove prop_fpSubZeroRight`{8, 24} rne
+:prove prop_fpSubZeroRight`{8, 24} rna
+:prove prop_fpSubZeroRight`{8, 24} rtp
+:prove prop_fpSubZeroRight`{8, 24} rtn
+:prove prop_fpSubZeroRight`{8, 24} rtz
+"Proving prop_fpSubPosPos..."
+:prove prop_fpSubPosPos`{8, 24} rne
+:prove prop_fpSubPosPos`{8, 24} rna
+:prove prop_fpSubPosPos`{8, 24} rtp
+:prove prop_fpSubPosPos`{8, 24} rtn
+:prove prop_fpSubPosPos`{8, 24} rtz
+"Proving prop_fpSubNegAdd..."
+:prove prop_fpSubNegAdd`{8, 24} rne
+:prove prop_fpSubNegAdd`{8, 24} rna
+:prove prop_fpSubNegAdd`{8, 24} rtp
+:prove prop_fpSubNegAdd`{8, 24} rtn
+:prove prop_fpSubNegAdd`{8, 24} rtz
+"Proving prop_fpAddNegSub..."
+:prove prop_fpAddNegSub`{8, 24} rne
+:prove prop_fpAddNegSub`{8, 24} rna
+:prove prop_fpAddNegSub`{8, 24} rtp
+:prove prop_fpAddNegSub`{8, 24} rtn
+:prove prop_fpAddNegSub`{8, 24} rtz
+"Proving prop_fpSubAnticommutative..."
+:prove prop_fpSubAnticommutative`{8, 24} rne
+:prove prop_fpSubAnticommutative`{8, 24} rna
+:prove prop_fpSubAnticommutative`{8, 24} rtp
+:prove prop_fpSubAnticommutative`{8, 24} rtn
+:prove prop_fpSubAnticommutative`{8, 24} rtz
+"Proving prop_fpSubSelfInverse..."
+:prove prop_fpSubSelfInverse`{8, 24} rne
+:prove prop_fpSubSelfInverse`{8, 24} rna
+:prove prop_fpSubSelfInverse`{8, 24} rtp
+:prove prop_fpSubSelfInverse`{8, 24} rtn
+:prove prop_fpSubSelfInverse`{8, 24} rtz
+"Proving prop_fpMulNaN..."
+:prove prop_fpMulNaN`{8, 24} rne
+:prove prop_fpMulNaN`{8, 24} rna
+:prove prop_fpMulNaN`{8, 24} rtp
+:prove prop_fpMulNaN`{8, 24} rtn
+:prove prop_fpMulNaN`{8, 24} rtz
+"Proving prop_fpMulZeroInf..."
+:prove prop_fpMulZeroInf`{8, 24} rne
+:prove prop_fpMulZeroInf`{8, 24} rna
+:prove prop_fpMulZeroInf`{8, 24} rtp
+:prove prop_fpMulZeroInf`{8, 24} rtn
+:prove prop_fpMulZeroInf`{8, 24} rtz
+"Proving prop_fpMulInfZero..."
+:prove prop_fpMulInfZero`{8, 24} rne
+:prove prop_fpMulInfZero`{8, 24} rna
+:prove prop_fpMulInfZero`{8, 24} rtp
+:prove prop_fpMulInfZero`{8, 24} rtn
+:prove prop_fpMulInfZero`{8, 24} rtz
+"Proving prop_fpMulLeftInf..."
+:prove prop_fpMulLeftInf`{8, 24} rne
+:prove prop_fpMulLeftInf`{8, 24} rna
+:prove prop_fpMulLeftInf`{8, 24} rtp
+:prove prop_fpMulLeftInf`{8, 24} rtn
+:prove prop_fpMulLeftInf`{8, 24} rtz
+"Proving prop_fpMulRightInf..."
+:prove prop_fpMulRightInf`{8, 24} rne
+:prove prop_fpMulRightInf`{8, 24} rna
+:prove prop_fpMulRightInf`{8, 24} rtp
+:prove prop_fpMulRightInf`{8, 24} rtn
+:prove prop_fpMulRightInf`{8, 24} rtz
+"Proving prop_fpMulLeftIdentity..."
+:prove prop_fpMulLeftIdentity`{8, 24} rne
+:prove prop_fpMulLeftIdentity`{8, 24} rna
+:prove prop_fpMulLeftIdentity`{8, 24} rtp
+:prove prop_fpMulLeftIdentity`{8, 24} rtn
+:prove prop_fpMulLeftIdentity`{8, 24} rtz
+"Proving prop_fpMulRightIdentity..."
+:prove prop_fpMulRightIdentity`{8, 24} rne
+:prove prop_fpMulRightIdentity`{8, 24} rna
+:prove prop_fpMulRightIdentity`{8, 24} rtp
+:prove prop_fpMulRightIdentity`{8, 24} rtn
+:prove prop_fpMulRightIdentity`{8, 24} rtz
+"Proving prop_fpMulLeftPosZero..."
+:prove prop_fpMulLeftPosZero`{8, 24} rne
+:prove prop_fpMulLeftPosZero`{8, 24} rna
+:prove prop_fpMulLeftPosZero`{8, 24} rtp
+:prove prop_fpMulLeftPosZero`{8, 24} rtn
+:prove prop_fpMulLeftPosZero`{8, 24} rtz
+"Proving prop_fpMulRightPosZero..."
+:prove prop_fpMulRightPosZero`{8, 24} rne
+:prove prop_fpMulRightPosZero`{8, 24} rna
+:prove prop_fpMulRightPosZero`{8, 24} rtp
+:prove prop_fpMulRightPosZero`{8, 24} rtn
+:prove prop_fpMulRightPosZero`{8, 24} rtz
+"Proving prop_fpMulLeftNegZero..."
+:prove prop_fpMulLeftNegZero`{8, 24} rne
+:prove prop_fpMulLeftNegZero`{8, 24} rna
+:prove prop_fpMulLeftNegZero`{8, 24} rtp
+:prove prop_fpMulLeftNegZero`{8, 24} rtn
+:prove prop_fpMulLeftNegZero`{8, 24} rtz
+"Proving prop_fpMulRightNegZero..."
+:prove prop_fpMulRightNegZero`{8, 24} rne
+:prove prop_fpMulRightNegZero`{8, 24} rna
+:prove prop_fpMulRightNegZero`{8, 24} rtp
+:prove prop_fpMulRightNegZero`{8, 24} rtn
+:prove prop_fpMulRightNegZero`{8, 24} rtz
+"Proving prop_fpMulNegNeg..."
+:prove prop_fpMulNegNeg`{8, 24} rne
+:prove prop_fpMulNegNeg`{8, 24} rna
+:prove prop_fpMulNegNeg`{8, 24} rtp
+:prove prop_fpMulNegNeg`{8, 24} rtn
+:prove prop_fpMulNegNeg`{8, 24} rtz
+"Proving prop_fpMulPosPos..."
+:prove prop_fpMulPosPos`{8, 24} rne
+:prove prop_fpMulPosPos`{8, 24} rna
+:prove prop_fpMulPosPos`{8, 24} rtp
+:prove prop_fpMulPosPos`{8, 24} rtn
+:prove prop_fpMulPosPos`{8, 24} rtz
+"Proving prop_fpMulNegPos..."
+:prove prop_fpMulNegPos`{8, 24} rne
+:prove prop_fpMulNegPos`{8, 24} rna
+:prove prop_fpMulNegPos`{8, 24} rtp
+:prove prop_fpMulNegPos`{8, 24} rtn
+:prove prop_fpMulNegPos`{8, 24} rtz
+"Proving prop_fpMulPosNeg..."
+:prove prop_fpMulPosNeg`{8, 24} rne
+:prove prop_fpMulPosNeg`{8, 24} rna
+:prove prop_fpMulPosNeg`{8, 24} rtp
+:prove prop_fpMulPosNeg`{8, 24} rtn
+:prove prop_fpMulPosNeg`{8, 24} rtz
+"Proving prop_fpMulCommutative..."
+:prove prop_fpMulCommutative`{8, 24} rne
+:prove prop_fpMulCommutative`{8, 24} rna
+:prove prop_fpMulCommutative`{8, 24} rtp
+:prove prop_fpMulCommutative`{8, 24} rtn
+:prove prop_fpMulCommutative`{8, 24} rtz
+"Disproving counterexample_fpMulAssociative..."
+:sat counterexample_fpMulAssociative`{8, 24} rne
+:sat counterexample_fpMulAssociative`{8, 24} rna
+:sat counterexample_fpMulAssociative`{8, 24} rtp
+:sat counterexample_fpMulAssociative`{8, 24} rtn
+:sat counterexample_fpMulAssociative`{8, 24} rtz
+"Disproving counterexample_fpMulDistributive..."
+:sat counterexample_fpMulDistributive`{8, 24} rne
+:sat counterexample_fpMulDistributive`{8, 24} rna
+:sat counterexample_fpMulDistributive`{8, 24} rtp
+:sat counterexample_fpMulDistributive`{8, 24} rtn
+:sat counterexample_fpMulDistributive`{8, 24} rtz
+"Proving prop_fpDivNaN..."
+:prove prop_fpDivNaN`{8, 24} rne
+:prove prop_fpDivNaN`{8, 24} rna
+:prove prop_fpDivNaN`{8, 24} rtp
+:prove prop_fpDivNaN`{8, 24} rtn
+:prove prop_fpDivNaN`{8, 24} rtz
+"Proving prop_fpDivInfInf..."
+:prove prop_fpDivInfInf`{8, 24} rne
+:prove prop_fpDivInfInf`{8, 24} rna
+:prove prop_fpDivInfInf`{8, 24} rtp
+:prove prop_fpDivInfInf`{8, 24} rtn
+:prove prop_fpDivInfInf`{8, 24} rtz
+"Proving prop_fpDivPosInfDividend..."
+:prove prop_fpDivPosInfDividend`{8, 24} rne
+:prove prop_fpDivPosInfDividend`{8, 24} rna
+:prove prop_fpDivPosInfDividend`{8, 24} rtp
+:prove prop_fpDivPosInfDividend`{8, 24} rtn
+:prove prop_fpDivPosInfDividend`{8, 24} rtz
+"Proving prop_fpDivNegInfDividend..."
+:prove prop_fpDivNegInfDividend`{8, 24} rne
+:prove prop_fpDivNegInfDividend`{8, 24} rna
+:prove prop_fpDivNegInfDividend`{8, 24} rtp
+:prove prop_fpDivNegInfDividend`{8, 24} rtn
+:prove prop_fpDivNegInfDividend`{8, 24} rtz
+"Proving prop_fpDivPosInfDivisor..."
+:prove prop_fpDivPosInfDivisor`{8, 24} rne
+:prove prop_fpDivPosInfDivisor`{8, 24} rna
+:prove prop_fpDivPosInfDivisor`{8, 24} rtp
+:prove prop_fpDivPosInfDivisor`{8, 24} rtn
+:prove prop_fpDivPosInfDivisor`{8, 24} rtz
+"Proving prop_fpDivNegInfDivisor..."
+:prove prop_fpDivNegInfDivisor`{8, 24} rne
+:prove prop_fpDivNegInfDivisor`{8, 24} rna
+:prove prop_fpDivNegInfDivisor`{8, 24} rtp
+:prove prop_fpDivNegInfDivisor`{8, 24} rtn
+:prove prop_fpDivNegInfDivisor`{8, 24} rtz
+"Proving prop_fpDivPosZeroDividend..."
+:prove prop_fpDivPosZeroDividend`{8, 24} rne
+:prove prop_fpDivPosZeroDividend`{8, 24} rna
+:prove prop_fpDivPosZeroDividend`{8, 24} rtp
+:prove prop_fpDivPosZeroDividend`{8, 24} rtn
+:prove prop_fpDivPosZeroDividend`{8, 24} rtz
+"Proving prop_fpDivNegZeroDividend..."
+:prove prop_fpDivNegZeroDividend`{8, 24} rne
+:prove prop_fpDivNegZeroDividend`{8, 24} rna
+:prove prop_fpDivNegZeroDividend`{8, 24} rtp
+:prove prop_fpDivNegZeroDividend`{8, 24} rtn
+:prove prop_fpDivNegZeroDividend`{8, 24} rtz
+"Proving prop_fpDivPosZeroDivisor..."
+:prove prop_fpDivPosZeroDivisor`{8, 24} rne
+:prove prop_fpDivPosZeroDivisor`{8, 24} rna
+:prove prop_fpDivPosZeroDivisor`{8, 24} rtp
+:prove prop_fpDivPosZeroDivisor`{8, 24} rtn
+:prove prop_fpDivPosZeroDivisor`{8, 24} rtz
+"Proving prop_fpDivNegZeroDivisor..."
+:prove prop_fpDivNegZeroDivisor`{8, 24} rne
+:prove prop_fpDivNegZeroDivisor`{8, 24} rna
+:prove prop_fpDivNegZeroDivisor`{8, 24} rtp
+:prove prop_fpDivNegZeroDivisor`{8, 24} rtn
+:prove prop_fpDivNegZeroDivisor`{8, 24} rtz
+"Proving prop_fpDivOne..."
+:prove prop_fpDivOne`{8, 24} rne
+:prove prop_fpDivOne`{8, 24} rna
+:prove prop_fpDivOne`{8, 24} rtp
+:prove prop_fpDivOne`{8, 24} rtn
+:prove prop_fpDivOne`{8, 24} rtz
+"Proving prop_fpDivInverse..."
+:prove prop_fpDivInverse`{8, 24} rne
+:prove prop_fpDivInverse`{8, 24} rna
+:prove prop_fpDivInverse`{8, 24} rtp
+:prove prop_fpDivInverse`{8, 24} rtn
+:prove prop_fpDivInverse`{8, 24} rtz
+"Disproving counterexample_fpDivDistributive..."
+:sat counterexample_fpDivDistributive`{8, 24} rne
+:sat counterexample_fpDivDistributive`{8, 24} rna
+:sat counterexample_fpDivDistributive`{8, 24} rtp
+:sat counterexample_fpDivDistributive`{8, 24} rtn
+:sat counterexample_fpDivDistributive`{8, 24} rtz
+"Proving prop_fpFMACommutative..."
+:prove prop_fpFMACommutative`{8, 24} rne
+:prove prop_fpFMACommutative`{8, 24} rna
+:prove prop_fpFMACommutative`{8, 24} rtp
+:prove prop_fpFMACommutative`{8, 24} rtn
+:prove prop_fpFMACommutative`{8, 24} rtz
+"Disproving counterexample_fpFMAAssociative..."
+:sat counterexample_fpFMAAssociative`{8, 24} rne
+:sat counterexample_fpFMAAssociative`{8, 24} rna
+:sat counterexample_fpFMAAssociative`{8, 24} rtp
+:sat counterexample_fpFMAAssociative`{8, 24} rtn
+:sat counterexample_fpFMAAssociative`{8, 24} rtz
+"Disproving counterexample_fpFMAExpand..."
+:sat counterexample_fpFMAExpand`{8, 24} rne
+:sat counterexample_fpFMAExpand`{8, 24} rna
+:sat counterexample_fpFMAExpand`{8, 24} rtp
+:sat counterexample_fpFMAExpand`{8, 24} rtn
+:sat counterexample_fpFMAExpand`{8, 24} rtz
+"Proving prop_fpAbsZero..."
+:prove prop_fpAbsZero`{8, 24}
+"Proving prop_fpAbsPos..."
+:prove prop_fpAbsPos`{8, 24}
+"Proving prop_fpAbsNeg..."
+:prove prop_fpAbsNeg`{8, 24}
+"Proving prop_fpAbsNaN..."
+:prove prop_fpAbsNaN`{8, 24}
+"Proving prop_fpAbsInf..."
+:prove prop_fpAbsInf`{8, 24}
+"Proving prop_fpSqrtNaN..."
+:prove prop_fpSqrtNaN`{8, 24} rne
+:prove prop_fpSqrtNaN`{8, 24} rna
+:prove prop_fpSqrtNaN`{8, 24} rtp
+:prove prop_fpSqrtNaN`{8, 24} rtn
+:prove prop_fpSqrtNaN`{8, 24} rtz
+"Proving prop_fpSqrtPosInf..."
+:prove prop_fpSqrtPosInf`{8, 24} rne
+:prove prop_fpSqrtPosInf`{8, 24} rna
+:prove prop_fpSqrtPosInf`{8, 24} rtp
+:prove prop_fpSqrtPosInf`{8, 24} rtn
+:prove prop_fpSqrtPosInf`{8, 24} rtz
+"Proving prop_fpSqrtPosZero..."
+:prove prop_fpSqrtPosZero`{8, 24} rne
+:prove prop_fpSqrtPosZero`{8, 24} rna
+:prove prop_fpSqrtPosZero`{8, 24} rtp
+:prove prop_fpSqrtPosZero`{8, 24} rtn
+:prove prop_fpSqrtPosZero`{8, 24} rtz
+"Proving prop_fpSqrtNegZero..."
+:prove prop_fpSqrtNegZero`{8, 24} rne
+:prove prop_fpSqrtNegZero`{8, 24} rna
+:prove prop_fpSqrtNegZero`{8, 24} rtp
+:prove prop_fpSqrtNegZero`{8, 24} rtn
+:prove prop_fpSqrtNegZero`{8, 24} rtz
+"Proving prop_fpSqrtNeg..."
+:prove prop_fpSqrtNeg`{8, 24} rne
+:prove prop_fpSqrtNeg`{8, 24} rna
+:prove prop_fpSqrtNeg`{8, 24} rtp
+:prove prop_fpSqrtNeg`{8, 24} rtn
+:prove prop_fpSqrtNeg`{8, 24} rtz
+"Disproving counterexample_fpSqrtMul..."
+:sat counterexample_fpSqrtMul`{8, 24} rne
+:sat counterexample_fpSqrtMul`{8, 24} rna
+:sat counterexample_fpSqrtMul`{8, 24} rtp
+:sat counterexample_fpSqrtMul`{8, 24} rtn
+:sat counterexample_fpSqrtMul`{8, 24} rtz
+"Disproving counterexample_fpSqrtDiv..."
+:sat counterexample_fpSqrtDiv`{8, 24} rne
+:sat counterexample_fpSqrtDiv`{8, 24} rna
+:sat counterexample_fpSqrtDiv`{8, 24} rtp
+:sat counterexample_fpSqrtDiv`{8, 24} rtn
+:sat counterexample_fpSqrtDiv`{8, 24} rtz
+"Disproving counterexample_fpSqrtSquare..."
+:sat counterexample_fpSqrtSquare`{8, 24} rne
+:sat counterexample_fpSqrtSquare`{8, 24} rna
+:sat counterexample_fpSqrtSquare`{8, 24} rtp
+:sat counterexample_fpSqrtSquare`{8, 24} rtn
+:sat counterexample_fpSqrtSquare`{8, 24} rtz
+"Disproving counterexample_fpSqrtSquared..."
+:sat counterexample_fpSqrtSquared`{8, 24} rne
+:sat counterexample_fpSqrtSquared`{8, 24} rna
+:sat counterexample_fpSqrtSquared`{8, 24} rtp
+:sat counterexample_fpSqrtSquared`{8, 24} rtn
+:sat counterexample_fpSqrtSquared`{8, 24} rtz
+"Checking check_fpFromToRational..."
+:check check_fpFromToRational`{8, 24} rne
+:check check_fpFromToRational`{8, 24} rna
+:check check_fpFromToRational`{8, 24} rtp
+:check check_fpFromToRational`{8, 24} rtn
+:check check_fpFromToRational`{8, 24} rtz
+"Proving prop_fpEqNaN..."
+:prove prop_fpEqNaN`{8, 24}
+"Proving prop_fpEqZero..."
+:prove prop_fpEqZero`{8, 24}
+"Proving prop_fpEqReflexive..."
+:prove prop_fpEqReflexive`{8, 24}
+"Proving prop_fpEqSymmetric..."
+:prove prop_fpEqSymmetric`{8, 24}
+"Proving prop_fpEqTransitive..."
+:prove prop_fpEqTransitive`{8, 24}
+"Proving prop_fpCmpNaN..."
+:prove prop_fpCmpNaN`{8, 24}
+"Proving prop_fpCmpZero..."
+:prove prop_fpCmpZero`{8, 24}
+"Proving prop_fpCmpLtIrreflexive..."
+:prove prop_fpCmpLtIrreflexive`{8, 24}
+"Proving prop_fpCmpLtAsymmetric..."
+:prove prop_fpCmpLtAsymmetric`{8, 24}
+"Proving prop_fpCmpLtTransitive..."
+:prove prop_fpCmpLtTransitive`{8, 24}
+"Proving prop_fpCmpLeReflexive..."
+:prove prop_fpCmpLeReflexive`{8, 24}
+"Proving prop_fpCmpLeAntisymmetric..."
+:prove prop_fpCmpLeAntisymmetric`{8, 24}
+"Proving prop_fpCmpLeTransitive..."
+:prove prop_fpCmpLeTransitive`{8, 24}
+"Proving prop_fpCmpLeTotal..."
+:prove prop_fpCmpLeTotal`{8, 24}
+"Proving prop_fpCmpGtCorrect..."
+:prove prop_fpCmpGtCorrect`{8, 24}
+"Proving prop_fpCmpGeCorrect..."
+:prove prop_fpCmpGeCorrect`{8, 24}
+"Proving prop_fpZero..."
+:prove prop_fpZero`{8, 24}
+"Proving prop_fpRingAdd..."
+:prove prop_fpRingAdd`{8, 24}
+"Proving prop_fpRingSub..."
+:prove prop_fpRingSub`{8, 24}
+"Proving prop_fpRingMul..."
+:prove prop_fpRingMul`{8, 24}
+"Proving prop_fpRingNegate..."
+:prove prop_fpRingNegate`{8, 24}
+"Proving prop_fpFieldDiv..."
+:prove prop_fpFieldDiv`{8, 24}
+"Proving prop_fpFieldRecip..."
+:prove prop_fpFieldRecip`{8, 24}
+"Checking check_fpRoundFloorCeiling..."
+:check check_fpRoundFloorCeiling`{8, 24}
+"Checking check_fpRoundCeilingFloor..."
+:check check_fpRoundCeilingFloor`{8, 24}
+"Checking check_fpRoundFloorCorrect..."
+:check check_fpRoundFloorCorrect`{8, 24}
+"Checking check_fpRoundCeilingCorrect..."
+:check check_fpRoundCeilingCorrect`{8, 24}
+"Checking check_fpRoundTruncCeilingFloor..."
+:check check_fpRoundTruncCeilingFloor`{8, 24}
+"Checking check_fpRoundTruncCorrect..."
+:check check_fpRoundTruncCorrect`{8, 24}
+"Checking check_fpRoundAwayTrunc..."
+:check check_fpRoundAwayTrunc`{8, 24}
+"Checking check_fpRoundAwayCorrect..."
+:check check_fpRoundAwayCorrect`{8, 24}
+

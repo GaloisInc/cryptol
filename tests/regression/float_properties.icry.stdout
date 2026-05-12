@@ -1,0 +1,590 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Float
+Loading module FloatPropertiesGeneric
+"Proving prop_fpNaNIsNaN..."
+Q.E.D.
+"Proving prop_fpNaNIsNotInf..."
+Q.E.D.
+"Proving prop_fpNaNIsNotZero..."
+Q.E.D.
+"Proving prop_fpNaNIsPos..."
+Q.E.D.
+"Proving prop_fpNaNIsNotNormal..."
+Q.E.D.
+"Proving prop_fpNaNIsNotSubnormal..."
+Q.E.D.
+"Proving prop_fpNaNIsQuiet..."
+Q.E.D.
+"Proving prop_fpPosInfIsPos..."
+Q.E.D.
+"Proving prop_fpPosInfIsInf..."
+Q.E.D.
+"Proving prop_fpPosInfIsNotZero..."
+Q.E.D.
+"Proving prop_fpPosInfIsNotNaN..."
+Q.E.D.
+"Proving prop_fpPosInfIsNotNormal..."
+Q.E.D.
+"Proving prop_fpPosInfIsNotSubnormal..."
+Q.E.D.
+"Proving prop_fpNegInfIsNeg..."
+Q.E.D.
+"Proving prop_fpNegInfIsInf..."
+Q.E.D.
+"Proving prop_fpNegInfIsNotZero..."
+Q.E.D.
+"Proving prop_fpNegInfIsNotNaN..."
+Q.E.D.
+"Proving prop_fpNegInfIsNotNormal..."
+Q.E.D.
+"Proving prop_fpNegInfIsNotSubnormal..."
+Q.E.D.
+"Proving prop_fpPosZeroIsPos..."
+Q.E.D.
+"Proving prop_fpPosZeroIsZero..."
+Q.E.D.
+"Proving prop_fpPosZeroIsNotNaN..."
+Q.E.D.
+"Proving prop_fpPosZeroIsNotInf..."
+Q.E.D.
+"Proving prop_fpPosZeroIsNotNormal..."
+Q.E.D.
+"Proving prop_fpPosZeroIsNotSubnormal..."
+Q.E.D.
+"Proving prop_fpNegZeroIsNeg..."
+Q.E.D.
+"Proving prop_fpNegZeroIsZero..."
+Q.E.D.
+"Proving prop_fpNegZeroIsNotNaN..."
+Q.E.D.
+"Proving prop_fpNegZeroIsNotInf..."
+Q.E.D.
+"Proving prop_fpNegZeroIsNotNormal..."
+Q.E.D.
+"Proving prop_fpNegZeroIsNotSubnormal..."
+Q.E.D.
+"Proving prop_fpFromToBits..."
+Q.E.D.
+"Proving prop_fpToFromBits..."
+Q.E.D.
+"Proving prop_fpFromBitsCorrect..."
+Q.E.D.
+"Proving prop_fpFromBitsEq..."
+Q.E.D.
+"Proving prop_fpToBitsCorrect..."
+Q.E.D.
+"Proving prop_fpToBitsEq..."
+Q.E.D.
+"Proving prop_fpLogicalEqNaN..."
+Q.E.D.
+"Proving prop_fpLogicalEqZero..."
+Q.E.D.
+"Proving prop_fpLogicalEqToIeeeEq..."
+Q.E.D.
+"Proving prop_fpIeeeEqToLogicalEq..."
+Q.E.D.
+"Proving prop_fpLogicalEqReflexive..."
+Q.E.D.
+"Proving prop_fpLogicalEqSymmetric..."
+Q.E.D.
+"Proving prop_fpLogicalEqTransitive..."
+Q.E.D.
+"Proving prop_fpIsNegSign..."
+Q.E.D.
+"Proving prop_fpIsNormalCorrect..."
+Q.E.D.
+"Proving prop_fpAddNaN..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpAddPosNegInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpAddNegPosInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpAddLeftInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpAddRightInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpAddLeftIdentity..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpAddRightIdentity..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpAddCommutative..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpAddInverse..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Disproving counterexample_fpAddAssociative..."
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+"Proving prop_fpSubNaN..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSubPosPosInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSubNegNegInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSubLeftInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSubRightInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSubZeroLeft..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSubZeroRight..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSubPosPos..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSubNegAdd..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpAddNegSub..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSubAnticommutative..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSubSelfInverse..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulNaN..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulZeroInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulInfZero..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulLeftInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulRightInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulLeftIdentity..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulRightIdentity..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulLeftPosZero..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulRightPosZero..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulLeftNegZero..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulRightNegZero..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulNegNeg..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulPosPos..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulNegPos..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulPosNeg..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpMulCommutative..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Disproving counterexample_fpMulAssociative..."
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+"Disproving counterexample_fpMulDistributive..."
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+"Proving prop_fpDivNaN..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpDivInfInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpDivPosInfDividend..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpDivNegInfDividend..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpDivPosInfDivisor..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpDivNegInfDivisor..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpDivPosZeroDividend..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpDivNegZeroDividend..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpDivPosZeroDivisor..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpDivNegZeroDivisor..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpDivOne..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpDivInverse..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Disproving counterexample_fpDivDistributive..."
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+"Proving prop_fpFMACommutative..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Disproving counterexample_fpFMAAssociative..."
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+"Disproving counterexample_fpFMAExpand..."
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+"Proving prop_fpAbsZero..."
+Q.E.D.
+"Proving prop_fpAbsPos..."
+Q.E.D.
+"Proving prop_fpAbsNeg..."
+Q.E.D.
+"Proving prop_fpAbsNaN..."
+Q.E.D.
+"Proving prop_fpAbsInf..."
+Q.E.D.
+"Proving prop_fpSqrtNaN..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSqrtPosInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSqrtPosZero..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSqrtNegZero..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpSqrtNeg..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Disproving counterexample_fpSqrtMul..."
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+"Disproving counterexample_fpSqrtDiv..."
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+"Disproving counterexample_fpSqrtSquare..."
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+"Disproving counterexample_fpSqrtSquared..."
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+Satisfiable
+"Checking check_fpFromToRational..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Proving prop_fpEqNaN..."
+Q.E.D.
+"Proving prop_fpEqZero..."
+Q.E.D.
+"Proving prop_fpEqReflexive..."
+Q.E.D.
+"Proving prop_fpEqSymmetric..."
+Q.E.D.
+"Proving prop_fpEqTransitive..."
+Q.E.D.
+"Proving prop_fpCmpNaN..."
+Q.E.D.
+"Proving prop_fpCmpZero..."
+Q.E.D.
+"Proving prop_fpCmpLtIrreflexive..."
+Q.E.D.
+"Proving prop_fpCmpLtAsymmetric..."
+Q.E.D.
+"Proving prop_fpCmpLtTransitive..."
+Q.E.D.
+"Proving prop_fpCmpLeReflexive..."
+Q.E.D.
+"Proving prop_fpCmpLeAntisymmetric..."
+Q.E.D.
+"Proving prop_fpCmpLeTransitive..."
+Q.E.D.
+"Proving prop_fpCmpLeTotal..."
+Q.E.D.
+"Proving prop_fpCmpGtCorrect..."
+Q.E.D.
+"Proving prop_fpCmpGeCorrect..."
+Q.E.D.
+"Proving prop_fpZero..."
+Q.E.D.
+"Proving prop_fpRingAdd..."
+Q.E.D.
+"Proving prop_fpRingSub..."
+Q.E.D.
+"Proving prop_fpRingMul..."
+Q.E.D.
+"Proving prop_fpRingNegate..."
+Q.E.D.
+"Proving prop_fpFieldDiv..."
+Q.E.D.
+"Proving prop_fpFieldRecip..."
+Q.E.D.
+"Checking check_fpRoundFloorCeiling..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Checking check_fpRoundCeilingFloor..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Checking check_fpRoundFloorCorrect..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Checking check_fpRoundCeilingCorrect..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Checking check_fpRoundTruncCeilingFloor..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Checking check_fpRoundTruncCorrect..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Checking check_fpRoundAwayTrunc..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Checking check_fpRoundAwayCorrect..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
