@@ -1,0 +1,840 @@
+// Various properties about floating-point operations. Naming conventions:
+//
+// - prop_*: This property should hold for all inputs, and an SMT solver can
+//   prove it within a reasonable amount of time.
+// - check_*: This property should hold for all inputs, but an SMT solver
+//   cannot prove it within a reasonable amount of time.
+// - counterexample_*: This property does not hold for all inputs.
+module FloatPropertiesGeneric where
+
+import Float
+
+///// Helpers
+
+// `True` if negative, `False` if positive
+fpSign : {e, p} (ValidFloat e p, p >= 1) => Float e p -> Bit
+fpSign x = head (fpToBits x)
+
+fpExponent : {e, p} (ValidFloat e p, p >= 1) => Float e p -> [e]
+fpExponent x = take`{e} (drop`{1} (fpToBits x))
+
+fpSignificand : {e, p} (ValidFloat e p, p >= 1) => Float e p -> [p - 1]
+fpSignificand x = drop`{1 + e} (fpToBits x)
+
+fpIsPos : {e, p} ValidFloat e p => Float e p -> Bit
+fpIsPos x = ~ (fpIsNeg x)
+
+///// fpNaN
+
+prop_fpNaNIsNaN : {e, p} ValidFloat e p => Bit
+prop_fpNaNIsNaN = fpIsNaN (fpNaN`{e, p})
+
+prop_fpNaNIsNotInf : {e, p} ValidFloat e p => Bit
+prop_fpNaNIsNotInf = ~ (fpIsInf (fpNaN`{e, p}))
+
+prop_fpNaNIsNotZero : {e, p} ValidFloat e p => Bit
+prop_fpNaNIsNotZero = ~ (fpIsZero (fpNaN`{e, p}))
+
+// Cryptol chooses to represent NaN as a positive value.
+prop_fpNaNIsPos : {e, p} ValidFloat e p => Bit
+prop_fpNaNIsPos = fpIsPos (fpNaN`{e, p})
+
+prop_fpNaNIsNotNormal : {e, p} ValidFloat e p => Bit
+prop_fpNaNIsNotNormal = ~ (fpIsNormal (fpNaN`{e, p}))
+
+prop_fpNaNIsNotSubnormal : {e, p} ValidFloat e p => Bit
+prop_fpNaNIsNotSubnormal = ~ (fpIsSubnormal (fpNaN`{e, p}))
+
+// Cryptol chooses to represent NaN as quiet with no info:
+prop_fpNaNIsQuiet : {e, p} (ValidFloat e p, p >= 2) => Bit
+prop_fpNaNIsQuiet = fpSignificand (fpNaN`{e, p}) == (0b1 # 0)
+
+///// fpPosInf
+
+prop_fpPosInfIsPos : {e, p} ValidFloat e p => Bit
+prop_fpPosInfIsPos = fpIsPos (fpPosInf`{e, p})
+
+prop_fpPosInfIsInf : {e, p} ValidFloat e p => Bit
+prop_fpPosInfIsInf = fpIsInf (fpPosInf`{e, p})
+
+prop_fpPosInfIsNotZero : {e, p} ValidFloat e p => Bit
+prop_fpPosInfIsNotZero = ~ (fpIsZero (fpPosInf`{e, p}))
+
+prop_fpPosInfIsNotNaN : {e, p} ValidFloat e p => Bit
+prop_fpPosInfIsNotNaN = ~ (fpIsNaN (fpPosInf`{e, p}))
+
+prop_fpPosInfIsNotNormal : {e, p} ValidFloat e p => Bit
+prop_fpPosInfIsNotNormal = ~ (fpIsNormal (fpPosInf`{e, p}))
+
+prop_fpPosInfIsNotSubnormal : {e, p} ValidFloat e p => Bit
+prop_fpPosInfIsNotSubnormal = ~ (fpIsSubnormal (fpPosInf`{e, p}))
+
+///// fpNegInf
+
+prop_fpNegInfIsNeg : {e, p} ValidFloat e p => Bit
+prop_fpNegInfIsNeg = fpIsNeg (fpNegInf`{e, p})
+
+prop_fpNegInfIsInf : {e, p} ValidFloat e p => Bit
+prop_fpNegInfIsInf = fpIsInf (fpNegInf`{e, p})
+
+prop_fpNegInfIsNotZero : {e, p} ValidFloat e p => Bit
+prop_fpNegInfIsNotZero = ~ (fpIsZero (fpNegInf`{e, p}))
+
+prop_fpNegInfIsNotNaN : {e, p} ValidFloat e p => Bit
+prop_fpNegInfIsNotNaN = ~ (fpIsNaN (fpNegInf`{e, p}))
+
+prop_fpNegInfIsNotNormal : {e, p} ValidFloat e p => Bit
+prop_fpNegInfIsNotNormal = ~ (fpIsNormal (fpNegInf`{e, p}))
+
+prop_fpNegInfIsNotSubnormal : {e, p} ValidFloat e p => Bit
+prop_fpNegInfIsNotSubnormal = ~ (fpIsSubnormal (fpNegInf`{e, p}))
+
+///// fpPosZero
+
+prop_fpPosZeroIsPos : {e, p} ValidFloat e p => Bit
+prop_fpPosZeroIsPos = fpIsPos (fpPosZero`{e, p})
+
+prop_fpPosZeroIsZero : {e, p} ValidFloat e p => Bit
+prop_fpPosZeroIsZero = fpIsZero (fpPosZero`{e, p})
+
+prop_fpPosZeroIsNotNaN : {e, p} ValidFloat e p => Bit
+prop_fpPosZeroIsNotNaN = ~ (fpIsNaN (fpPosZero`{e, p}))
+
+prop_fpPosZeroIsNotInf : {e, p} ValidFloat e p => Bit
+prop_fpPosZeroIsNotInf = ~ (fpIsInf (fpPosZero`{e, p}))
+
+prop_fpPosZeroIsNotNormal : {e, p} ValidFloat e p => Bit
+prop_fpPosZeroIsNotNormal = ~ (fpIsNormal (fpPosZero`{e, p}))
+
+prop_fpPosZeroIsNotSubnormal : {e, p} ValidFloat e p => Bit
+prop_fpPosZeroIsNotSubnormal = ~ (fpIsSubnormal (fpPosZero`{e, p}))
+
+///// fpNegZero
+
+prop_fpNegZeroIsNeg : {e, p} ValidFloat e p => Bit
+prop_fpNegZeroIsNeg = fpIsNeg (fpNegZero`{e, p})
+
+prop_fpNegZeroIsZero : {e, p} ValidFloat e p => Bit
+prop_fpNegZeroIsZero = fpIsZero (fpNegZero`{e, p})
+
+prop_fpNegZeroIsNotNaN : {e, p} ValidFloat e p => Bit
+prop_fpNegZeroIsNotNaN = ~ (fpIsNaN (fpNegZero`{e, p}))
+
+prop_fpNegZeroIsNotInf : {e, p} ValidFloat e p => Bit
+prop_fpNegZeroIsNotInf = ~ (fpIsInf (fpNegZero`{e, p}))
+
+prop_fpNegZeroIsNotNormal : {e, p} ValidFloat e p => Bit
+prop_fpNegZeroIsNotNormal = ~ (fpIsNormal (fpNegZero`{e, p}))
+
+prop_fpNegZeroIsNotSubnormal : {e, p} ValidFloat e p => Bit
+prop_fpNegZeroIsNotSubnormal = ~ (fpIsSubnormal (fpNegZero`{e, p}))
+
+///// fpFromBits and fpToBits
+
+prop_fpFromToBits : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpFromToBits x = fpFromBits (fpToBits x) =.= x
+
+// Special case for NaN: there are multiple bit patterns for NaN values, but
+// there is only one distinguished NaN value for the Float type.
+prop_fpToFromBits : {e, p} ValidFloat e p => [e + p] -> Bit
+prop_fpToFromBits bits = (fpToBits x == bits) \/ fpIsNaN x
+  where
+    x : Float e p
+    x = fpFromBits bits
+
+// Special case for NaN: there are multiple bit patterns for NaN values, but
+// there is only one distinguished NaN value for the Float type.
+prop_fpFromBitsCorrect :
+  {e, p} (ValidFloat e p, p >= 2) => Bit -> [e] -> [p - 1] -> Bit
+prop_fpFromBitsCorrect sign exponent significand =
+  ((fpSign x == sign) /\
+   (fpExponent x == exponent) /\
+   (fpSignificand x == significand)) \/ fpIsNaN x
+   where
+      x : Float e p
+      x = fpFromBits ([sign] # exponent # significand)
+
+// Special case for NaN: there are multiple bit patterns for NaN values, but
+// there is only one distinguished NaN value for the Float type.
+prop_fpFromBitsEq : {e, p} ValidFloat e p => [e + p] -> [e + p] -> Bit
+prop_fpFromBitsEq xbits ybits =
+  ~ (fpIsNaN x \/ fpIsNaN y) ==> ((xbits == ybits) == (x =.= y))
+    where
+      x : Float e p
+      x = fpFromBits xbits
+
+      y : Float e p
+      y = fpFromBits ybits
+
+prop_fpToBitsCorrect : {e, p} (ValidFloat e p, p >= 1) => Float e p -> Bit
+prop_fpToBitsCorrect x =
+  fpToBits x == ([fpSign x] # fpExponent x # fpSignificand x)
+
+prop_fpToBitsEq : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpToBitsEq x y = (x =.= y) == (fpToBits x == fpToBits y)
+
+///// (=.=)
+
+prop_fpLogicalEqNaN : {e, p} ValidFloat e p => Bit
+prop_fpLogicalEqNaN = fpNaN`{e, p} =.= fpNaN
+
+prop_fpLogicalEqZero : {e, p} ValidFloat e p => Bit
+prop_fpLogicalEqZero = ~ (fpNegZero`{e, p} =.= fpPosZero)
+
+prop_fpLogicalEqToIeeeEq :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpLogicalEqToIeeeEq x y =
+  (x =.= y /\ ~ (fpIsNaN x) /\ ~ (fpIsNaN y))
+    ==> (x == y)
+
+prop_fpIeeeEqToLogicalEq :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpIeeeEqToLogicalEq x y =
+  ((x == y /\ (fpIsNeg x == fpIsNeg y)) \/ (fpIsNaN x /\ fpIsNaN y))
+    ==> (x =.= y)
+
+prop_fpLogicalEqReflexive : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpLogicalEqReflexive x = x =.= x
+
+prop_fpLogicalEqSymmetric :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpLogicalEqSymmetric x y = (x =.= y) ==> (y =.= x)
+
+prop_fpLogicalEqTransitive :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Float e p -> Bit
+prop_fpLogicalEqTransitive x y z = (x =.= y /\ y =.= z) ==> (x =.= z)
+
+///// fpIsNeg
+
+prop_fpIsNegSign : {e, p} (ValidFloat e p, p >= 1) => Float e p -> Bit
+prop_fpIsNegSign x = fpIsNeg x == fpSign x
+
+///// fpIsNormal
+
+prop_fpIsNormalCorrect : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpIsNormalCorrect x =
+  fpIsNormal x ==
+    (~ (fpIsNaN x) /\ ~ (fpIsInf x) /\ ~ (fpIsZero x) /\ ~ (fpIsSubnormal x))
+
+///// fpAdd
+
+prop_fpAddNaN :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpAddNaN m x y = (fpIsNaN x \/ fpIsNaN y) ==> fpIsNaN (fpAdd m x y)
+
+prop_fpAddPosNegInf : {e, p} ValidFloat e p => RoundingMode -> Bit
+prop_fpAddPosNegInf m = fpAdd m fpPosInf`{e, p} fpNegInf =.= fpNaN
+
+prop_fpAddNegPosInf : {e, p} ValidFloat e p => RoundingMode -> Bit
+prop_fpAddNegPosInf m = fpAdd m fpNegInf`{e, p} fpPosInf =.= fpNaN
+
+// Special cases:
+//
+// * NaN: inf + NaN =.= NaN (not inf)
+// * Infinity values: inf + (-inf) =.= NaN (not inf)
+prop_fpAddLeftInf :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpAddLeftInf m x y =
+  fpIsInf x /\ ~ (fpIsNaN y \/ (x =.= -y)) ==>
+    (fpAdd m x y =.= if fpIsNeg x then fpNegInf else fpPosInf)
+
+// Special cases:
+//
+// * NaN: NaN + inf =.= NaN (not inf)
+// * Infinity values: (-inf) + inf =.= NaN (not inf)
+prop_fpAddRightInf :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpAddRightInf m x y =
+  fpIsInf y /\ ~ (fpIsNaN x \/ (x =.= -y)) ==>
+    (fpAdd m x y =.= if fpIsNeg y then fpNegInf else fpPosInf)
+
+prop_fpAddLeftIdentity :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpAddLeftIdentity m x z =
+  ~ (fpIsNaN x) /\ fpIsZero z ==>
+    fpAdd m x z == x
+
+prop_fpAddRightIdentity :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpAddRightIdentity m x z =
+  ~ (fpIsNaN x) /\ fpIsZero z ==>
+    fpAdd m z x == x
+
+prop_fpAddCommutative :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpAddCommutative m x y = fpAdd m x y =.= fpAdd m y x
+
+// Special cases:
+//
+// * Infinite values, e.g., `inf + (-inf) =.= NaN` (not 0)
+// * NaN values, since `NaN + (-NaN) =.= NaN` (not 0)
+prop_fpAddInverse :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpAddInverse m x =
+  (~ (fpIsInf x) /\ ~ (fpIsNaN x)) ==> fpIsZero (fpAdd m x (- x))
+
+counterexample_fpAddAssociative :
+  {e, p} ValidFloat e p => RoundingMode ->
+  Float e p -> Float e p -> Float e p -> Bit
+counterexample_fpAddAssociative m x y z =
+  ~ (fpAdd m x (fpAdd m y z) =.= fpAdd m (fpAdd m x y) z)
+
+///// fpSub
+
+prop_fpSubNaN :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpSubNaN m x y = (fpIsNaN x \/ fpIsNaN y) ==> fpIsNaN (fpSub m x y)
+
+prop_fpSubPosPosInf : {e, p} ValidFloat e p => RoundingMode -> Bit
+prop_fpSubPosPosInf m = fpSub m fpPosInf`{e, p} fpPosInf =.= fpNaN
+
+prop_fpSubNegNegInf : {e, p} ValidFloat e p => RoundingMode -> Bit
+prop_fpSubNegNegInf m = fpSub m fpNegInf`{e, p} fpNegInf =.= fpNaN
+
+// Special cases:
+//
+// * NaN: inf - NaN =.= NaN (not inf)
+// * Infinity values: inf - inf =.= NaN (not inf)
+prop_fpSubLeftInf :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpSubLeftInf m x y =
+  fpIsInf x /\ ~ (fpIsNaN y \/ (x =.= y)) ==>
+    (fpSub m x y =.= if fpIsNeg x then fpNegInf else fpPosInf)
+
+// Special cases:
+//
+// * NaN: NaN - inf =.= NaN (not inf)
+// * Infinity values: inf - inf =.= NaN (not inf)
+prop_fpSubRightInf :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpSubRightInf m x y =
+  fpIsInf y /\ ~ (fpIsNaN x \/ (x =.= y)) ==>
+    (fpSub m x y =.= if fpIsNeg y then fpPosInf else fpNegInf)
+
+prop_fpSubZeroLeft :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpSubZeroLeft m x z =
+
+  ~ (fpIsNaN x) /\ fpIsZero z ==>
+    fpSub m z x == -x
+
+prop_fpSubZeroRight :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpSubZeroRight m x z =
+  ~ (fpIsNaN x) /\ fpIsZero z ==>
+    fpSub m x z == x
+
+prop_fpSubPosPos :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpSubPosPos m x y =
+  (fpIsPos x /\ fpIsPos y) ==>
+    (((x > y) ==> fpIsPos s) /\ ((y > x) ==> fpIsNeg s))
+  where
+    s = fpSub m x y
+
+prop_fpSubNegAdd :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpSubNegAdd m x y = fpSub m x (-y) =.= fpAdd m x y
+
+prop_fpAddNegSub :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpAddNegSub m x y = fpAdd m x (-y) =.= fpSub m x y
+
+// Special case for equal arguments, since `(x - x) =.= +0`, but
+// `-(x - x) =.= -0`.
+prop_fpSubAnticommutative :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpSubAnticommutative m x y =
+  ~ (x == x) ==> (fpSub m x y =.= -(fpSub m y x))
+
+// Special cases:
+//
+// * Infinite values, e.g., `inf - inf =.= NaN` (not 0)
+// * NaN values, since `NaN - NaN =.= NaN` (not 0)
+prop_fpSubSelfInverse :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpSubSelfInverse m x =
+  (~ (fpIsInf x) /\ ~ (fpIsNaN x)) ==> fpIsZero (fpSub m x x)
+
+///// fpMul
+
+prop_fpMulNaN :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpMulNaN m x y =
+  (fpIsNaN x \/ fpIsNaN y) ==> fpIsNaN (fpMul m x y)
+
+prop_fpMulZeroInf :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpMulZeroInf m x y =
+  (fpIsZero x /\ fpIsInf y) ==> fpIsNaN (fpMul m x y)
+
+
+prop_fpMulInfZero :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpMulInfZero m x y =
+  (fpIsInf x /\ fpIsZero y) ==> fpIsNaN (fpMul m x y)
+
+prop_fpMulLeftInf :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpMulLeftInf m x y =
+  (fpIsInf x /\ ~ (fpIsZero y \/ fpIsNaN y)) ==> fpIsInf (fpMul m x y)
+
+prop_fpMulRightInf :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpMulRightInf m x y =
+  (~ (fpIsZero x \/ fpIsNaN x) /\ fpIsInf y) ==> fpIsInf (fpMul m x y)
+
+prop_fpMulLeftIdentity :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpMulLeftIdentity m y = fpMul m 1.0 y =.= y
+
+prop_fpMulRightIdentity :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpMulRightIdentity m x = fpMul m x 1.0 =.= x
+
+// Special cases:
+//
+// * NaN: NaN * 0 =.= NaN (not 0)
+// * Infinite values: inf * 0 =.= NaN (not 0)
+prop_fpMulLeftPosZero :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpMulLeftPosZero m y =
+  ~ (fpIsNaN y \/ fpIsInf y) ==>
+    (fpMul m fpPosZero y =.= if fpIsNeg y then fpNegZero else fpPosZero)
+
+// Special cases:
+//
+// * NaN: 0 * NaN =.= NaN (not 0)
+// * Infinite values: 0 * inf =.= NaN (not 0)
+prop_fpMulRightPosZero :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpMulRightPosZero m x =
+  ~ (fpIsNaN x \/ fpIsInf x) ==>
+    (fpMul m x fpPosZero =.= if fpIsNeg x then fpNegZero else fpPosZero)
+
+// Special cases:
+//
+// * NaN: NaN * 0 =.= NaN (not 0)
+// * Infinite values: inf * 0 =.= NaN (not 0)
+prop_fpMulLeftNegZero :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpMulLeftNegZero m y =
+  ~ (fpIsNaN y \/ fpIsInf y) ==>
+    (fpMul m fpNegZero y =.= if fpIsNeg y then fpPosZero else fpNegZero)
+
+// Special cases:
+//
+// * NaN: 0 * NaN =.= NaN (not 0)
+// * Infinite values: 0 * inf =.= NaN (not 0)
+prop_fpMulRightNegZero :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpMulRightNegZero m x =
+  ~ (fpIsNaN x \/ fpIsInf x) ==>
+    (fpMul m x fpNegZero =.= if fpIsNeg x then fpPosZero else fpNegZero)
+
+prop_fpMulNegNeg :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpMulNegNeg m x y = (fpIsNeg x /\ fpIsNeg y) ==> fpIsPos (fpMul m x y)
+
+prop_fpMulPosPos :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpMulPosPos m x y = (fpIsPos x /\ fpIsPos y) ==> fpIsPos (fpMul m x y)
+
+// Special cases:
+//
+// * Infinite/zero: `-inf * 0 =.= -0 * inf =.= NaN`, and NaN is defined to be
+//   positive.
+// * NaN: `-x * NaN =.= NaN`, and NaN is defined to be positive.
+prop_fpMulNegPos :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpMulNegPos m x y =
+  ~ ((fpIsInf x /\ fpIsZero y) \/ (fpIsZero x /\ fpIsInf y) \/ fpIsNaN y) ==>
+    (fpIsNeg x /\ fpIsPos y) ==> fpIsNeg (fpMul m x y)
+
+// Special cases:
+//
+// * Infinite/zero: `inf * -0 =.= 0 * -inf =.= NaN`, and NaN is defined to be
+//   positive.
+// * NaN: `NaN * -inf =.= NaN`, and NaN is defined to be positive.
+prop_fpMulPosNeg :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpMulPosNeg m x y =
+  ~ ((fpIsInf x /\ fpIsZero y) \/ (fpIsZero x /\ fpIsInf y) \/ fpIsNaN x) ==>
+    (fpIsPos x /\ fpIsNeg y) ==> fpIsNeg (fpMul m x y)
+
+prop_fpMulCommutative :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpMulCommutative m x y = fpMul m x y =.= fpMul m y x
+
+counterexample_fpMulAssociative :
+  {e, p} ValidFloat e p => RoundingMode ->
+  Float e p -> Float e p -> Float e p -> Bit
+counterexample_fpMulAssociative m x y z =
+   ~ (fpMul m x (fpMul m y z) =.= fpMul m (fpMul m x y) z)
+
+counterexample_fpMulDistributive :
+  {e, p} ValidFloat e p => RoundingMode ->
+  Float e p -> Float e p -> Float e p -> Bit
+counterexample_fpMulDistributive m x y z =
+  ~ (fpMul m x (fpAdd m y z) =.= fpAdd m (fpMul m x y) (fpMul m x z))
+
+///// fpDiv
+
+prop_fpDivNaN :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpDivNaN m x y =
+  (fpIsNaN x \/ fpIsNaN y) ==> fpIsNaN (fpDiv m x y)
+
+prop_fpDivInfInf :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpDivInfInf m x y =
+  (fpIsInf x /\ fpIsInf y) ==> fpIsNaN (fpDiv m x y)
+
+// Special cases:
+//
+// * Infinite values: inf / inf =.= NaN (not inf)
+// * NaN: inf / NaN =.= NaN (not inf)
+prop_fpDivPosInfDividend :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpDivPosInfDividend m x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    fpDiv m fpPosInf x =.= if fpIsNeg x then fpNegInf else fpPosInf
+
+// Special cases:
+//
+// * Infinite values: -inf / inf =.= NaN (not -inf)
+// * NaN: -inf / NaN =.= NaN (not -inf)
+prop_fpDivNegInfDividend :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpDivNegInfDividend m x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    fpDiv m fpNegInf x =.= if fpIsNeg x then fpPosInf else fpNegInf
+
+// Special cases:
+//
+// * Infinite values: inf / inf =.= NaN (not 0)
+// * NaN: NaN / inf =.= NaN (not 0)
+prop_fpDivPosInfDivisor :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpDivPosInfDivisor m x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    fpDiv m x fpPosInf =.= if fpIsNeg x then fpNegZero else fpPosZero
+
+// Special cases:
+//
+// * Infinite values: inf / -inf =.= NaN (not -0)
+// * NaN: NaN / -inf =.= NaN (not -0)
+prop_fpDivNegInfDivisor :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpDivNegInfDivisor m x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    fpDiv m x fpNegInf =.= if fpIsNeg x then fpPosZero else fpNegZero
+
+// Special cases:
+//
+// * Zero: 0 / 0 =.= NaN (not 0)
+// * NaN: 0 / NaN =.= NaN (not 0)
+prop_fpDivPosZeroDividend :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpDivPosZeroDividend m x =
+  ~ (fpIsZero x \/ fpIsNaN x) ==>
+    fpDiv m fpPosZero x =.= if fpIsNeg x then fpNegZero else fpPosZero
+
+// Special cases:
+//
+// * Zero: -0 / 0 =.= NaN (not -0)
+// * NaN: -0 / NaN =.= NaN (not -0)
+prop_fpDivNegZeroDividend :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpDivNegZeroDividend m x =
+  ~ (fpIsZero x \/ fpIsNaN x) ==>
+    fpDiv m fpNegZero x =.= if fpIsNeg x then fpPosZero else fpNegZero
+
+// Special cases:
+//
+// * Zero: 0 / 0 =.= NaN (not inf)
+// * NaN: NaN / 0 =.= NaN (not inf)
+prop_fpDivPosZeroDivisor :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpDivPosZeroDivisor m x =
+  ~ (fpIsZero x \/ fpIsNaN x) ==>
+    fpDiv m x fpPosZero =.= if fpIsNeg x then fpNegInf else fpPosInf
+
+// Special cases:
+//
+// * Zero: 0 / -0 =.= NaN (not -inf)
+// * NaN: NaN / -0 =.= NaN (not -inf)
+prop_fpDivNegZeroDivisor :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpDivNegZeroDivisor m x =
+  ~ (fpIsZero x \/ fpIsNaN x) ==>
+    fpDiv m x fpNegZero =.= if fpIsNeg x then fpPosInf else fpNegInf
+
+prop_fpDivOne :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpDivOne m x = fpDiv m x 1.0 =.= x
+
+// Special cases for zero, infinite, and NaN values, where `x / x =.= NaN`
+// (not 1).
+prop_fpDivInverse :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpDivInverse m x =
+  ~ (fpIsZero x \/ fpIsInf x \/ fpIsNaN x) ==> (fpDiv m x x =.= 1.0)
+
+counterexample_fpDivDistributive :
+  {e, p} ValidFloat e p => RoundingMode ->
+  Float e p -> Float e p -> Float e p -> Bit
+counterexample_fpDivDistributive m x y z =
+  ~ (fpDiv m (fpAdd m x y) z =.= fpAdd m (fpDiv m x z) (fpDiv m y z))
+
+///// fpFMA
+
+prop_fpFMACommutative :
+  {e, p} ValidFloat e p => RoundingMode ->
+  Float e p -> Float e p -> Float e p -> Bit
+prop_fpFMACommutative m x y z = fpFMA m x y z =.= fpFMA m y x z
+
+counterexample_fpFMAAssociative :
+  {e, p} ValidFloat e p => RoundingMode ->
+  Float e p -> Float e p -> Float e p -> Bit
+counterexample_fpFMAAssociative m x y z =
+  ~ (fpFMA m x y z =.= fpAdd m (fpMul m x y) z)
+
+counterexample_fpFMAExpand :
+  {e, p} ValidFloat e p => RoundingMode ->
+  Float e p -> Float e p -> Float e p -> Bit
+counterexample_fpFMAExpand m x y z =
+  ~ (fpFMA m x y z =.= fpAdd m (fpMul m x y) z)
+
+///// fpAbs
+
+prop_fpAbsZero : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpAbsZero x = fpIsZero x ==> (fpAbs x =.= fpPosZero)
+
+prop_fpAbsPos : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpAbsPos x = fpIsPos x ==> (fpAbs x =.= x)
+
+prop_fpAbsNeg : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpAbsNeg x = fpIsNeg x ==> (fpAbs x =.= -x)
+
+prop_fpAbsNaN : {e, p} ValidFloat e p => Bit
+prop_fpAbsNaN = fpAbs (fpNaN`{e, p}) =.= fpNaN
+
+
+prop_fpAbsInf : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpAbsInf x = fpIsInf x ==> (fpAbs x =.= fpPosInf)
+
+///// fpSqrt
+
+prop_fpSqrtNaN : {e, p} ValidFloat e p => RoundingMode -> Bit
+prop_fpSqrtNaN m = fpIsNaN (fpSqrt m fpNaN`{e, p})
+
+prop_fpSqrtPosInf : {e, p} ValidFloat e p => RoundingMode -> Bit
+prop_fpSqrtPosInf m = fpSqrt m fpPosInf`{e, p} =.= fpPosInf
+
+prop_fpSqrtPosZero : {e, p} ValidFloat e p => RoundingMode -> Bit
+prop_fpSqrtPosZero m = fpSqrt m fpPosZero`{e, p} =.= fpPosZero
+
+prop_fpSqrtNegZero : {e, p} ValidFloat e p => RoundingMode -> Bit
+prop_fpSqrtNegZero m = fpSqrt m fpNegZero`{e,p} =.= fpNegZero
+
+// Normally, the square root of any negative value results in a NaN, but we
+// must include a special case for `sqrt(-0) =.= -0`.
+prop_fpSqrtNeg : {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpSqrtNeg m x = fpIsNeg x ==> (fpIsNaN (fpSqrt m x) \/ (x =.= fpNegZero))
+
+counterexample_fpSqrtMul :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+counterexample_fpSqrtMul m x y =
+  ~ ((fpIsNeg x == fpIsNeg y)
+      ==> fpSqrt m (fpMul m x y) =.= fpMul m (fpSqrt m x) (fpSqrt m y))
+
+counterexample_fpSqrtDiv :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+counterexample_fpSqrtDiv m x y =
+  ~ ((fpIsNeg x == fpIsNeg y)
+      ==> fpSqrt m (fpDiv m x y) =.= fpDiv m (fpSqrt m x) (fpSqrt m y))
+
+counterexample_fpSqrtSquare :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+counterexample_fpSqrtSquare m x =
+  ~ (fpIsPos x ==> fpSqrt m (fpMul m x x) =.= x)
+
+counterexample_fpSqrtSquared :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+counterexample_fpSqrtSquared m x =
+  ~ (fpIsPos x ==> (fpMul m root root =.= x))
+    where
+      root = fpSqrt m x
+
+///// fpToRational and fpFromRational
+
+check_fpFromToRational :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+check_fpFromToRational m x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    fpFromRational m (fpToRational x) == x
+
+///// Eq
+
+prop_fpEqNaN : {e, p} ValidFloat e p => Bit
+prop_fpEqNaN = fpNaN`{e, p} != fpNaN
+
+prop_fpEqZero : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpEqZero x y = (fpIsZero x /\ fpIsZero y) ==> (x == y)
+
+prop_fpEqReflexive : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpEqReflexive x = ~ (fpIsNaN x) ==> (x == x)
+
+prop_fpEqSymmetric : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpEqSymmetric x y = (x == y) ==> (y == x)
+
+prop_fpEqTransitive :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Float e p -> Bit
+prop_fpEqTransitive x y z = (x == y /\ y == z) ==> (x == z)
+
+///// Cmp
+
+prop_fpCmpNaN : {e, p} ValidFloat e p => Bit
+prop_fpCmpNaN =
+  ~ ((x < x) \/ (x <= x) \/ (x > x) \/ (x >= x))
+    where
+      x : Float e p
+      x = fpNaN
+
+prop_fpCmpZero : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpCmpZero x y =
+  (fpIsZero x /\ fpIsZero y) ==>
+    (((x <= y) /\ (x >= y)) /\ ~((x < x) \/ (x > x)))
+
+prop_fpCmpLtIrreflexive : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpCmpLtIrreflexive x = ~ (x < x)
+
+prop_fpCmpLtAsymmetric : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpCmpLtAsymmetric x y = (x < y) ==> ~ (y < x)
+
+prop_fpCmpLtTransitive :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Float e p -> Bit
+prop_fpCmpLtTransitive x y z = (x < y /\ y < z) ==> (x < z)
+
+prop_fpCmpLeReflexive : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpCmpLeReflexive x = ~ (fpIsNaN x) ==> (x <= x)
+
+prop_fpCmpLeAntisymmetric :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpCmpLeAntisymmetric x y =
+  (x <= y /\ y <= x) ==> (x == y)
+
+prop_fpCmpLeTransitive :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Float e p -> Bit
+prop_fpCmpLeTransitive x y z =
+  (x <= y /\ y <= z) ==> (x <= z)
+
+prop_fpCmpLeTotal : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpCmpLeTotal x y = ~ (fpIsNaN x \/ fpIsNaN y) ==> ((x <= y) \/ (y <= x))
+
+prop_fpCmpGtCorrect : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpCmpGtCorrect x y = ~ (fpIsNaN x \/ fpIsNaN y) ==> ((x > y) == ~ (x <= y))
+
+prop_fpCmpGeCorrect : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpCmpGeCorrect x y = ~ (fpIsNaN x \/ fpIsNaN y) ==> (x <= y) == ~ (x > y)
+
+///// Zero
+
+prop_fpZero : {e, p} ValidFloat e p => Bit
+prop_fpZero = zero =.= fpPosZero`{e, p}
+
+///// Ring
+
+prop_fpRingAdd : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpRingAdd x y = (x + y) =.= fpAdd rne x y
+
+prop_fpRingSub : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpRingSub x y = (x - y) =.= fpSub rne x y
+
+prop_fpRingMul : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpRingMul x y = (x * y) =.= fpMul rne x y
+
+prop_fpRingNegate : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpRingNegate x = negate x =.= fpSub rne (-0.0) x
+
+///// Field
+
+prop_fpFieldDiv : {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpFieldDiv x y = (x /. y) =.= fpDiv rne x y
+
+prop_fpFieldRecip : {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpFieldRecip x = recip x =.= fpDiv rne 1.0 x
+
+///// Round
+
+check_fpRoundFloorCeiling : {e, p} ValidFloat e p => Float e p -> Bit
+check_fpRoundFloorCeiling x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    floor x == -(ceiling (-x))
+
+check_fpRoundCeilingFloor : {e, p} ValidFloat e p => Float e p -> Bit
+check_fpRoundCeilingFloor x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    ceiling x == -(floor (-x))
+
+check_fpRoundFloorCorrect : {e, p} ValidFloat e p => Float e p -> Bit
+check_fpRoundFloorCorrect x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    (f <= x' /\ x' < f + 1)
+  where
+    x' : Rational
+    x' = fpToRational x
+
+    f : Rational
+    f = ratio (floor x) 1
+
+check_fpRoundCeilingCorrect : {e, p} ValidFloat e p => Float e p -> Bit
+check_fpRoundCeilingCorrect x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    (x' <= c /\ c < x' + 1)
+  where
+    x' : Rational
+    x' = fpToRational x
+
+    c : Rational
+    c = ratio (ceiling x) 1
+
+check_fpRoundTruncCeilingFloor : {e, p} ValidFloat e p => Float e p -> Bit
+check_fpRoundTruncCeilingFloor x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    trunc x == if fpIsNeg x then ceiling x else floor x
+
+check_fpRoundTruncCorrect : {e, p} ValidFloat e p => Float e p -> Bit
+check_fpRoundTruncCorrect x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    if fpIsNeg x
+      then (x' <= t /\ t < x' + 1)
+      else (t <= x' /\ x' < t + 1)
+  where
+    x' : Rational
+    x' = fpToRational x
+
+    t : Rational
+    t = ratio (trunc x) 1
+
+check_fpRoundAwayTrunc : {e, p} ValidFloat e p => Float e p -> Bit
+check_fpRoundAwayTrunc x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    roundAway x == if fpIsNeg x then trunc (x' - 0.5) else trunc (x' + 0.5)
+  where
+    x' : Rational
+    x' = fpToRational x
+
+check_fpRoundAwayCorrect : {e, p} ValidFloat e p => Float e p -> Bit
+check_fpRoundAwayCorrect x =
+  ~ (fpIsInf x \/ fpIsNaN x) ==>
+    if fpIsNeg x
+      then (2*x' - 1 <= 2*r) /\ (2*r <  2*x' + 1)
+      else (2*x' - 1 <  2*r) /\ (2*r <= 2*x' + 1)
+  where
+    x' : Rational
+    x' = fpToRational x
+
+    r : Rational
+    r = ratio (roundAway x) 1
