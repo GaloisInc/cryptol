@@ -1,0 +1,5 @@
+:load T047.cry
+test1
+test2
+G1::g 0xF
+G2::g 0xF

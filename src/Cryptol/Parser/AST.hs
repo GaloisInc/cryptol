@@ -474,7 +474,11 @@ data ModParam name = ModParam
     {- ^ Filled in by the renamer.
       Maps the actual (value/type) parameter names to the names in the
       interface module. -}
-  } deriving (Eq,Show,Generic,NFData)
+  , mpInst          :: Maybe (ModuleInstanceArgs name)
+    {- ^ Optional instantiation arguments (parser only).
+      Used when importing a parameterized interface with inline arguments,
+      e.g., @import interface J { M }@ or @import interface J where ...@ -}
+  } deriving (Show,Generic,NFData)
 
 
 -- | An import declaration.
@@ -1666,6 +1670,7 @@ instance NoPos (ModParam name) where
                       , mpName      = mpName mp
                       , mpDoc       = mpDoc mp
                       , mpRenaming  = mpRenaming mp
+                      , mpInst      = noPos (mpInst mp)
                       }
 
 instance NoPos (PrimType name) where

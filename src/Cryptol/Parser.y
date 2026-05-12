@@ -294,7 +294,7 @@ vtop_decl               :: { [TopDecl PName] }
                            {% mkNestedIfaceInst $1 $4 $6 (DefaultInstAnonArg $9) }
   | mbDoc 'interface' 'submodule' name '=' impName '{' modInstParams '}'
                            {% mkNestedIfaceInst $1 $4 $6 $8 }
-  | iface_import         { [DModParam $1] }
+  | iface_import           { [DModParam $1] }
   | import                 { [DImport $1] }
 
 sig_body                 :: { Signature PName }
@@ -311,14 +311,11 @@ sig_imports :: { [SigImport PName] }
   | sig_imports ';'  sig_import    { $3 : $1 }
   | sig_import                     { [$1] }
 
-iface_import ::          { ModParam PName }
+iface_import :: { ModParam PName }
   : mbDoc
    'import' 'interface'
-    impName mbAs           { ModParam { mpSignature = $4
-                                      , mpAs        = fmap thing $5
-                                      , mpName      = mkModParamName $4 $5
-                                      , mpDoc       = $1
-                                      , mpRenaming  = mempty } }
+    impName optInst mbAs
+    optImportWhere         {% mkIfaceImport $1 $4 $5 $6 $7 }
 
 
 top_decl                :: { [TopDecl PName] }

@@ -780,7 +780,8 @@ doModParam mp =
     let env = namingEnvFromNames' impNam names
     addModParams (mpSignature mp) { thing = nm } env
     pure (mp { mpSignature = fst <$> x,
-               mpRenaming = Map.fromList ren
+               mpRenaming = Map.fromList ren,
+               mpInst     = Nothing
               },
           names)
 

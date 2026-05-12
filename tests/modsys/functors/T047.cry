@@ -1,0 +1,46 @@
+// Test anonymous instantiation of interface functors at import site
+module T047 where
+
+interface submodule I where
+  type n : #
+
+// An interface functor
+interface submodule J where
+  import interface submodule I
+  type m : #
+  type constraint (m <= n)
+  f : [m] -> [n]
+
+// A module that provides the argument for I
+submodule Arg where
+  type n = 8
+
+// Test 1: Instantiation using { ... } syntax
+submodule F1 where
+  import interface submodule J { submodule Arg }
+  g : [m] -> [8]
+  g x = zext x
+
+submodule Impl1 where
+  type m = 4
+  f x = zext x
+
+submodule G1 = submodule F1 { submodule Impl1 }
+import submodule G1 as G1
+
+// Test 2: Instantiation using `where` syntax
+submodule F2 where
+  import interface submodule J where
+    type n = 8
+  g : [m] -> [8]
+  g x = zext x
+
+submodule Impl2 where
+  type m = 4
+  f x = zext x
+
+submodule G2 = submodule F2 { submodule Impl2 }
+import submodule G2 as G2
+
+test1 = G1::g 0xA == 0x0A
+test2 = G2::g 0xA == 0x0A
