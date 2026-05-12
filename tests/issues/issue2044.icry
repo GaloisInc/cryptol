@@ -1,0 +1,26 @@
+:m Float
+:set prover=w4-cvc5
+let f1 = 0.49999997 : Float32
+let f2 = 0.5 : Float32
+let f3 = 0.50000003 : Float32
+let f4 = -f1
+let f5 = -f2
+let f6 = -f3
+roundAway f1
+:eval roundAway f1
+:prove roundAway f1 == 0
+roundAway f2
+:eval roundAway f2
+:prove roundAway f2 == 1
+roundAway f3
+:eval roundAway f3
+:prove roundAway f3 == 1
+roundAway f4
+:eval roundAway f4
+:prove roundAway f4 == 0
+roundAway f5
+:eval roundAway f5
+:prove roundAway f5 == -1
+roundAway f6
+:eval roundAway f6
+:prove roundAway f6 == -1

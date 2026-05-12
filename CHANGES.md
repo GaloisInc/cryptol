@@ -59,6 +59,10 @@
   about enums.
   ([#2027](https://github.com/GaloisInc/cryptol/issues/2027))
 
+* Fix a bug where calling `roundAway` on floating-point values would return
+  incorrect results on concrete values.
+  ([#2044](https://github.com/GaloisInc/cryptol/issues/2044))
+
 # 3.5.0 -- 2026-01-27
 
 ## Administrative changes

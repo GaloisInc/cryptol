@@ -155,20 +155,24 @@ floatToInteger fun r fp =
   do rat <- floatToRational fun fp
      pure case r of
             NearEven -> round rat
-            NearAway -> if rat > 0 then ceiling rat else floor rat
+            NearAway -> roundAway rat
             ToPosInf -> ceiling rat
             ToNegInf -> floor rat
             ToZero   -> truncate rat
             _        -> panic "fpCvtToInteger"
                               ["Unexpected rounding mode", show r]
+  where
+    -- | Evaluate a rational to an integer with rounding away from zero.
+    roundAway :: Rational -> Integer
+    roundAway r = truncate (r + signum r * 0.5)
 
 
-floatFromBits :: 
+floatFromBits ::
   Integer {- ^ Exponent width -} ->
   Integer {- ^ Precision widht -} ->
   Integer {- ^ Raw bits -} ->
   BF
-floatFromBits e p bv = BF { bfValue = bfFromBits (fpOpts e p NearEven) bv 
+floatFromBits e p bv = BF { bfValue = bfFromBits (fpOpts e p NearEven) bv
                           , bfExpWidth = e, bfPrecWidth = p }
 
 
