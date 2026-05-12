@@ -2,6 +2,10 @@
 
 ## next
 
+* The minimum version of Python has been bumped to 3.10 to accomodate
+  a security advisory about urllib3.
+  The fixed urllib3 does not support 3.9.
+
 ## 3.5.0 -- 2026-01-27
 
 * For loading projects, `untested` corresponds to Cryptol's `--project`,
