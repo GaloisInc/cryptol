@@ -254,11 +254,11 @@ isEmptyNamingEnv (NamingEnv mp) = Map.null mp
 -- | Compute an unqualified naming environment, containing the various module
 -- parameters.
 modParamNamesNamingEnv :: T.ModParamNames -> NamingEnv
-modParamNamesNamingEnv T.ModParamNames { .. } =
+modParamNamesNamingEnv nms =
   NamingEnv $ Map.fromList
-    [ (NSValue, Map.fromList $ map fromFu $ Map.keys mpnFuns)
-    , (NSType,  Map.fromList $ map fromTS (Map.elems mpnTySyn) ++
-                               map fromTy (Map.elems mpnTypes))
+    [ (NSValue, Map.fromList $ map fromFu $ Map.keys (T.mpnFuns nms))
+    , (NSType,  Map.fromList $ map fromTS (Map.elems (T.mpnTySyn nms)) ++
+                               map fromTy (Map.elems (T.mpnTypes nms)))
     ]
   where
   toPName n = UnQual' (nameIdent n) (nameSrc n)
@@ -280,7 +280,7 @@ modParamNamingEnv mp = maybe id qualify (T.mpQual mp) $
 -- the names are qualified.
 unqualifiedEnv :: IfaceDecls -> NamingEnv
 unqualifiedEnv IfaceDecls { .. } =
-  mconcat [ exprs, tySyns, ntTypes, ntExprs, mods, sigs ]
+  mconcat [ exprs, tySyns, ntTypes, ntExprs, mods, sigs, funs ]
   where
   toPName n = UnQual' (nameIdent n) (nameSrc n)
 
@@ -307,6 +307,9 @@ unqualifiedEnv IfaceDecls { .. } =
 
   sigs    = mconcat [ singletonNS NSModule (toPName n) n
                     | n <- Map.keys ifSignatures ]
+
+  funs    = mconcat [ singletonNS NSModule (toPName n) n
+                    | n <- Map.keys ifFunctors ]
 
 
 -- | Adapt the things exported by a module to the specific import/open.

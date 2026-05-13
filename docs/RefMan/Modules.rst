@@ -484,6 +484,77 @@ same.  Note that, of course, the two instantiations
 may provide different values for ``x``.
 
 
+Parameterized Interfaces
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+An interface module may itself be parameterized by importing
+another interface.  Such a parameterized interface is also called
+an *interface functor*.
+
+.. code-block:: cryptol
+  :caption: A parameterized interface.
+
+  interface submodule I where
+    type n : #
+
+  interface submodule J where
+    import interface submodule I
+    type m : #
+    type constraint (m <= n)
+    f : [m] -> [n]
+
+In this example, interface ``J`` is parameterized by interface ``I``.
+To use ``J``, we first need to provide a concrete implementation for ``I``,
+which produces an ordinary (non-parameterized) interface.
+
+Parameterized interfaces may be instantiated explicitly by name:
+
+.. code-block:: cryptol
+  :caption: Named instantiation of a parameterized interface.
+
+  submodule Arg where
+    type n = 8
+
+  interface submodule K = submodule J { submodule Arg }
+
+  submodule F where
+    import interface submodule K
+    g : [m] -> [8]
+    g x = zext x
+
+It is also possible to instantiate a parameterized interface at
+the point of use, using either the ``{ }`` or ``where`` notation:
+
+.. code-block:: cryptol
+  :caption: Inline instantiation using curly braces.
+
+  submodule F where
+    import interface submodule J { submodule Arg }
+    g : [m] -> [8]
+    g x = zext x
+
+.. code-block:: cryptol
+  :caption: Inline instantiation using a where block.
+
+  submodule F where
+    import interface submodule J where
+      type n = 8
+    g : [m] -> [8]
+    g x = zext x
+
+Both forms are equivalent.  Semantically, the inline instantiation
+creates an anonymous interface instantiation outside the functor, and
+the functor imports it as a plain interface parameter.
+
+.. note::
+
+  For the time being, it only makes sense to parameterize interfaces
+  by types.  This is because interfaces only specify the types of
+  things, so an interface functor cannot make use of value declarations
+  from an imported interface.  This restriction may be relaxed in
+  the future.
+
+
 .. _instantiating_modules:
 
 

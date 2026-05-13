@@ -1,0 +1,3 @@
+:load T044.cry
+test
+G::g 0xF

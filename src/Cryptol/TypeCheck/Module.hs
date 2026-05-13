@@ -41,16 +41,18 @@ doFunctorInst ::
        generativity (i.e., it is something that will make the names "fresh"),
        and virtual submodule names for functor parameters.
   -} ->
+  P.FunctorInstKind           {- ^ Module or signature instantiation -} ->
   NamingEnv
   {- ^ Names in the enclosing scope of the instantiated module -} ->
   Maybe Text                  {- ^ Documentation for the module being generated -} ->
   InferM (Maybe TCTopEntity)
-doFunctorInst m f as modInst enclosingInScope doc =
+doFunctorInst m f as modInst instKind enclosingInScope doc =
   inRange (srcRange m)
   do let instMap = P.modInstMap modInst
      mf    <- lookupFunctor (thing f)
      argIs <- checkArity (srcRange f) mf as
-     m2 <- do as2 <- mapM (checkArg instMap) argIs
+     m2 <- do
+              as2 <- mapM (checkArg instMap) argIs
               let (tySus,paramTySyns,decls) =
                     unzip3 [ (su,ts,ds) | DefinedInst su ts ds <- as2 ]
               let ?tVarSu = mergeDistinctSubst tySus
@@ -58,21 +60,20 @@ doFunctorInst m f as modInst enclosingInScope doc =
               let m1   = moduleInstance mf
                   m2   = m1 { mName             = m
                             , mDoc              = mempty
-                            , mParamTypes       = mempty
-                            , mParamFuns        = mempty
-                            , mParamConstraints = mempty
+                            , mParamDecls       = mempty
+                            , mOutputParamDecls = mOutputParamDecls m1
                             , mParams           = mempty
                             , mTySyns = mconcat paramTySyns <> mTySyns m1
                             , mDecls = map NonRecursive (concat decls) ++
                                       mDecls m1
                             }
+
               let (tps,tcs,vps) =
                       unzip3 [ (xs,cs,fs) | ParamInst xs cs fs <- as2 ]
                   tpSet  = Set.unions tps
                   tpSet' = Set.map snd (Set.unions tps)
                   emit p = Set.null (freeParams (thing p)
                                                 `Set.intersection` tpSet')
-
                   (emitPs,delayPs) = partition emit (mParamConstraints m1)
 
               forM_ emitPs \lp ->
@@ -111,24 +112,49 @@ doFunctorInst m f as modInst enclosingInScope doc =
      -- * The module being generated
      let newDoc = maybeToList doc <> mDoc mf
 
-     case thing m of
-       P.ImpTop mn    -> newModuleScope newDoc mn (mExports m2) inScope
-       P.ImpNested mn -> newSubmoduleScope mn newDoc (mExports m2) inScope
+     case instKind of
+       P.ModuleInst ->
+         do case thing m of
+              P.ImpTop mn    -> newModuleScope newDoc mn (mExports m2) inScope
+              P.ImpNested mn -> newSubmoduleScope mn newDoc (mExports m2) inScope
 
-     mapM_ addTySyn     (Map.elems (mTySyns m2))
-     mapM_ addNominal   (Map.elems (mNominalTypes m2))
-     addSignatures      (mSignatures m2)
-     addFunctors        (mFunctors m2)
-     mapM_ addDecls     (mDecls m2)
+            mapM_ addTySyn     (Map.elems (mTySyns m2))
+            mapM_ addNominal   (Map.elems (mNominalTypes m2))
+            addSignatures      (mSignatures m2)
+            addFunctors        (mFunctors m2)
+            mapM_ addDecls     (mDecls m2)
 
-     (vpmSubs, vpmNested) <-
-       makeVirtParamModDefs (P.modInstVirtParamMods modInst)
-     addSubmodules      (mSubmodules m2 `Map.union` vpmSubs)
-     setNested          (mNested m2 `Set.union` vpmNested)
+            (vpmSubs, vpmNested) <-
+              makeVirtParamModDefs (P.modInstVirtParamMods modInst)
+            addSubmodules      (mSubmodules m2 `Map.union` vpmSubs)
+            setNested          (mNested m2 `Set.union` vpmNested)
 
-     case thing m of
-       P.ImpTop {}    -> Just <$> endModule
-       P.ImpNested {} -> endSubmodule >> pure Nothing
+            case thing m of
+              P.ImpTop {}    -> Just <$> endModule
+              P.ImpNested {} -> endSubmodule >> pure Nothing
+
+       -- Interface functor instantiation: the result is a signature.
+       -- The signature's output parameters come from the interface
+       -- functor's own declarations (mOutputParamDecls), which were
+       -- preserved through instantiation.
+       P.SignatureInst ->
+         do let addSigDecls =
+                  do let sigPd = mOutputParamDecls m2
+                     mapM_ addOutputParamType (Map.elems (pdTypes sigPd))
+                     addOutputParameterConstraints (pdConstraints sigPd)
+                     mapM_ addOutputParamFun (Map.elems (pdFuns sigPd))
+                     mapM_ addTySyn (Map.elems (mTySyns m2))
+            case thing m of
+              P.ImpTop mn ->
+                do newTopSignatureScope mn
+                   addSigDecls
+                   Just <$> endTopSignature
+              P.ImpNested mn ->
+                do newSignatureScope mn doc
+                   addSigDecls
+                   endSignature
+                   pure Nothing
+
 
 
 -- | Generate forwarding definitions for virtual parameter submodules

@@ -1,0 +1,11 @@
+// An interface functor defined in a separate file.
+module J where
+
+interface submodule I where
+  type n : #
+
+interface submodule S where
+  import interface submodule I
+  type m : #
+  type constraint (m <= n)
+  f : [m] -> [n]

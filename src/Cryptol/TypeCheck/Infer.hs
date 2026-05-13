@@ -82,17 +82,24 @@ inferTopModule m =
          proveModuleTopLevel
          endModule
 
-    P.FunctorInstance f as inst ->
+    P.FunctorInstance f as inst kind ->
       do mb <- doFunctorInst
-           (P.ImpTop <$> P.mName m) f as inst (P.mInScope m) (thing <$> P.mDocTop m)
+           (P.ImpTop <$> P.mName m) f as inst kind (P.mInScope m) (thing <$> P.mDocTop m)
          case mb of
            Just mo -> pure mo
            Nothing -> panic "inferModule" ["Didnt' get a module"]
 
-    P.InterfaceModule sig ->
-      do newTopSignatureScope (thing (P.mName m))
-         checkSignature sig
-         endTopSignature
+    P.InterfaceModule sig
+      | not (any P.isSigIfaceImport (P.sigImports sig)) ->
+        do newTopSignatureScope (thing (P.mName m))
+           checkSignature sig
+           endTopSignature
+
+      | otherwise ->
+        do newModuleScope [] (thing (P.mName m)) mempty mempty
+           checkSignature sig
+           updScope \s -> s { mIsIfaceFunctor = True }
+           endModule
 
 
 
@@ -1557,62 +1564,32 @@ checkTopDecls = mapM_ checkTopDecl
                 proveModuleTopLevel
                 endSubmodule
 
-           P.FunctorInstance f as inst ->
+           P.FunctorInstance f as inst kind ->
              do let doc = thing <$> P.tlDoc tl
                 _ <- doFunctorInst
-                  (P.ImpNested <$> P.mName m) f as inst (P.mInScope m) doc
+                  (P.ImpNested <$> P.mName m) f as inst kind (P.mInScope m) doc
                 pure ()
 
-           P.InterfaceModule sig ->
+           P.InterfaceModule sig
+             | not (any P.isSigIfaceImport (P.sigImports sig)) ->
               do let doc = thing <$> P.tlDoc tl
                  inRange (srcRange (P.mName m))
                    do newSignatureScope (thing (P.mName m)) doc
                       checkSignature sig
                       endSignature
 
+             | otherwise ->
+              do inRange (srcRange (P.mName m))
+                   do let nm = thing (P.mName m)
+                      newSubmoduleScope nm [] mempty mempty
+                      checkSignature sig
+                      updScope \s -> s { mIsIfaceFunctor = True }
+                      endSubmodule
+
 
         where P.NestedModule m = P.tlValue tl
 
-      P.DModParam p ->
-        inRange (srcRange (P.mpSignature p))
-        do let binds = P.mpRenaming p
-               suMap = Map.fromList [ (y,x) | (x,y) <- Map.toList binds ]
-               actualName x = Map.findWithDefault x x suMap
-
-           ips <- lookupSignature (thing (P.mpSignature p))
-           let actualTys  = [ mapNames actualName mp
-                            | mp <- Map.elems (mpnTypes ips) ]
-               actualTS   = [ mapNames actualName ts
-                            | ts <- Map.elems (mpnTySyn ips)
-                            ]
-               actualCtrs = [ mapNames actualName prop
-                            | prop <- mpnConstraints ips ]
-               actualVals = [ mapNames actualName vp
-                            | vp <- Map.elems (mpnFuns ips) ]
-
-               param =
-                 ModParam
-                   { mpName = P.mpName p
-                   , mpIface = thing (P.mpSignature p)
-                   , mpQual = P.mpAs p
-                   , mpParameters =
-                        ModParamNames
-                          { mpnTypes = Map.fromList [ (mtpName tp, tp)
-                                                    | tp <- actualTys ]
-                          , mpnTySyn = Map.fromList [ (tsName ts, ts)
-                                                    | ts <- actualTS ]
-                          , mpnConstraints = actualCtrs
-                          , mpnFuns = Map.fromList [ (mvpName vp, vp)
-                                                   | vp <- actualVals ]
-                          , mpnDoc = thing <$> P.mpDoc p
-                          }
-                   }
-
-           mapM_ addParamType actualTys
-           addParameterConstraints actualCtrs
-           mapM_ addParamFun actualVals
-           mapM_ addTySyn actualTS
-           addModParam param
+      P.DModParam p -> checkModParam p
 
       P.DImport {}        -> pure ()
       P.Include {}        -> bad "Include"
@@ -1622,18 +1599,65 @@ checkTopDecls = mapM_ checkTopDecl
   bad x = panic "checkTopDecl" [ x ]
 
 
+checkModParam :: P.ModParam Name -> InferM ()
+checkModParam p =
+  inRange (srcRange (P.mpSignature p))
+  do let binds = P.mpRenaming p
+         suMap = Map.fromList [ (y,x) | (x,y) <- Map.toList binds ]
+         actualName x = Map.findWithDefault x x suMap
+
+     ips <- lookupSignature (thing (P.mpSignature p))
+     let actualTys  = [ mapNames actualName mp
+                      | mp <- Map.elems (mpnTypes ips) ]
+         actualTS   = [ mapNames actualName ts
+                      | ts <- Map.elems (mpnTySyn ips)
+                      ]
+         actualCtrs = [ mapNames actualName prop
+                      | prop <- mpnConstraints ips ]
+         actualVals = [ mapNames actualName vp
+                      | vp <- Map.elems (mpnFuns ips) ]
+
+         param =
+           ModParam
+             { mpName = P.mpName p
+             , mpIface = thing (P.mpSignature p)
+             , mpQual = P.mpAs p
+             , mpParameters =
+                  ModParamNames
+                    { mpnParams = ParamDecls
+                        { pdTypes = Map.fromList [ (mtpName tp, tp)
+                                                  | tp <- actualTys ]
+                        , pdFuns = Map.fromList [ (mvpName vp, vp)
+                                                 | vp <- actualVals ]
+                        , pdConstraints = actualCtrs
+                        }
+                    , mpnTySyn = Map.fromList [ (tsName ts, ts)
+                                              | ts <- actualTS ]
+                    , mpnDoc = thing <$> P.mpDoc p
+                    }
+             }
+
+     mapM_ addParamType actualTys
+     addParameterConstraints actualCtrs
+     mapM_ addParamFun actualVals
+     mapM_ addTySyn actualTS
+     addModParam param
+
+
 checkSignature :: P.Signature Name -> InferM ()
 checkSignature sig =
-  do forM_ (P.sigTypeParams sig) \pt ->
-       addParamType =<< checkParameterType pt
+  do forM_ [ p | P.SigIfaceImport p <- P.sigImports sig ] checkModParam
+
+     forM_ (P.sigTypeParams sig) \pt ->
+       addOutputParamType =<< checkParameterType pt
 
      mapM_ checkSigDecl (P.sigDecls sig)
 
-     addParameterConstraints =<<
+     addOutputParameterConstraints =<<
         checkParameterConstraints (P.sigConstraints sig)
 
      forM_ (P.sigFunParams sig) \f ->
-       addParamFun =<< checkParameterFun f
+       addOutputParamFun =<< checkParameterFun f
 
      proveModuleTopLevel
 

@@ -294,6 +294,13 @@ ifaceToMod :: ImpName Name -> IfaceG name -> ModMap
 ifaceToMod nm iface =
   ifaceNamesToMod iface (ifParams iface) nm (ifNames iface)
 
+-- | Like 'ifaceToMod' but checks 'ifIsSignature' to determine the kind.
+ifaceToFunctorMod :: ImpName Name -> IfaceG Name -> ModMap
+ifaceToFunctorMod nm iface
+  | ifIsSignature iface =
+      ifaceNamesToMod iface (ifParams iface) nm (ifNames iface)
+  | otherwise = ifaceToMod nm iface
+
 -- | Generate a module or functor from the given names.
 ifaceNamesToMod ::
     IfaceG topname -> Map Ident T.ModParam -> ImpName Name -> IfaceNames name -> ModMap
@@ -303,17 +310,19 @@ ifaceNamesToMod iface params nm names =
   sigs =
     [ (ImpNested k, ModKnown (ifaceSigToMod v)) | (k,v) <- Map.toList (ifSignatures decls) ]
   funs =
-    [ ifaceToMod (ImpNested k) v | (k,v) <- Map.toList (ifFunctors decls) ]
+    [ ifaceToFunctorMod (ImpNested k) v | (k,v) <- Map.toList (ifFunctors decls) ]
   nest =
     [ ifaceNamesToMod iface mempty (ImpNested k) v
     | (k,v) <- Map.toList (ifModules decls) ]
   mo = Mod
-    { modKind    = if null params then AModule else AFunctor
+    { modKind    = if ifIsSignature iface then AnIfaceFunctor
+                   else if null params then AModule
+                   else AFunctor
     , modDefines = Set.fromList namesFromPs `Set.union` defs
     , modPublic  = ifsPublic names
     }
-  defs      = ifsDefines names
-  isLocal x = x `Set.member` defs
+  defs      = ifsDefines names `Set.union` namesFromSigParams
+  isLocal x = x `Set.member` ifsDefines names
   decls     = filterIfaceDecls isLocal (ifDefines iface)
   namesFromPs =
     [ pnm
@@ -323,6 +332,11 @@ ifaceNamesToMod iface params nm names =
              Map.keys (T.mpnFuns nms) ++
              Map.keys (T.mpnTySyn nms)
     ]
+  namesFromSigParams =
+    case ifSigOwnParams (ifDefines iface) of
+      Nothing  -> Set.empty
+      Just nms -> Map.keysSet (pdTypes nms) `Set.union`
+                  Map.keysSet (pdFuns nms)
 
 -- | Generate a module corresponding to an interface module.
 ifaceSigToMod :: ModParamNames -> Mod
@@ -354,7 +368,7 @@ addResolvedMod names mo =
             }
           where expSpec = exportedDecls ds
             
-        FunctorInstance f _ modInst ->
+        FunctorInstance f _ modInst kind ->
           do
             -- Here we don't validate the functor again, to avoid duplicated
             -- error.
@@ -369,17 +383,22 @@ addResolvedMod names mo =
                 -- original functor, so they won't be reached by remapping.
                 vpNames = Set.fromList
                               [ vpmName s | s <- modInstVirtParamMods modInst ]
+                k = case kind of
+                      ModuleInst    -> AModule
+                      SignatureInst -> ASignature
 
             pure Mod {
-              modKind = AModule,
+              modKind = k,
               modDefines = names,
               modPublic = Set.map remap (modPublic fmo)
                             `Set.union` vpNames
             }
-              
-        InterfaceModule {} ->
+
+        InterfaceModule sig ->
           pure Mod {
-            modKind = ASignature,
+            modKind = if any isSigIfaceImport (sigImports sig)
+                        then AnIfaceFunctor
+                        else ASignature,
             modDefines = names,
             modPublic = names
           }

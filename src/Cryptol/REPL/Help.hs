@@ -190,6 +190,12 @@ showSummary k name doc info =
                  , " ", "and exports:"
                  , indent 2 $ vcat [ ppTPs, ppFPs ]
                  ]
+          M.AnIfaceFunctor ->
+            vcat [ "Parameterized interface" <+> pp name <+> "requires:"
+                 , indent 2 $ ppPs
+                 , " ", "and exports:"
+                 , indent 2 $ vcat [ ppTPs, ppCtrs, ppFPs ]
+                 ]
 
      doShowDocString doc
 

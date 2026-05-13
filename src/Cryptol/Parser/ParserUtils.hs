@@ -1191,10 +1191,10 @@ onlySimpleImports = mapM_ check
           , "A workaround would be to do the instantion in the outer context."
           ]
 
-mkInterface' :: [Located (ImportG (ImpName PName))] ->
+mkInterface' :: [SigImport PName] ->
              [ParamDecl PName] -> Signature PName
 mkInterface' is =
-  foldl' add 
+  foldl' add
     Signature { sigImports     = is
               , sigTypeParams  = []
               , sigDecls       = []
@@ -1212,11 +1212,13 @@ mkInterface' is =
 
 
 
-mkInterface :: [Located (ImportG (ImpName PName))] ->
+-- | The imports are in reverse order from the parser.
+mkInterface :: [SigImport PName] ->
              [ParamDecl PName] -> ParseM (Signature PName)
 mkInterface is ps =
-  do onlySimpleImports is
-     pure (mkInterface' is ps)
+  do let is' = reverse is
+     onlySimpleImports [ li | SigImport li <- is' ]
+     pure (mkInterface' is' ps)
 
 mkIfacePropSyn :: Maybe Text -> Decl PName -> ParamDecl PName
 mkIfacePropSyn mbDoc d =
@@ -1253,7 +1255,7 @@ mkModuleInstanceAnon :: Located ModName ->
                       Module PName
 mkModuleInstanceAnon nm fun ds =
   Module { mName    = nm
-         , mDef     = FunctorInstance fun (DefaultInstAnonArg ds) emptyModuleInstance
+         , mDef     = FunctorInstance fun (DefaultInstAnonArg ds) emptyModuleInstance ModuleInst
          , mInScope = mempty
          , mDocTop  = Nothing
          }
@@ -1265,9 +1267,38 @@ mkModuleInstance ::
   Module PName
 mkModuleInstance m f as =
   Module { mName    = m
-         , mDef     = FunctorInstance f as emptyModuleInstance
+         , mDef     = FunctorInstance f as emptyModuleInstance ModuleInst
          , mInScope = mempty
          , mDocTop  = Nothing
+         }
+
+-- | Nested interface functor instantiation
+mkNestedIfaceInst ::
+  Maybe (Located Text) ->
+  Located PName ->
+  Located (ImpName PName) ->
+  ModuleInstanceArgs PName ->
+  ParseM [TopDecl PName]
+mkNestedIfaceInst doc nm fun as =
+  do nested <- mkNested (mkIfaceInst Nothing (fmap toModName nm) fun as)
+     pure [exportModule doc nested]
+  where
+  toModName n = case n of
+    UnQual i -> mkModName [identText i]
+    _        -> panic "mkNestedIfaceInst" ["Unexpected qualified name"]
+
+-- | Interface functor instantiation
+mkIfaceInst ::
+  Maybe (Located Text) ->
+  Located ModName ->
+  Located (ImpName PName) ->
+  ModuleInstanceArgs PName ->
+  Module PName
+mkIfaceInst doc nm fun as =
+  Module { mName    = nm
+         , mDef     = FunctorInstance fun as emptyModuleInstance SignatureInst
+         , mInScope = mempty
+         , mDocTop  = doc
          }
 
 
@@ -1394,6 +1425,42 @@ mkImport loc impName optInst mbAs mbImportSpec optImportWhere doc =
       (Nothing, Nothing) -> pure Nothing
 
 
+mkIfaceImport ::
+  Maybe (Located Text) ->
+  Located (ImpName PName) ->
+  Maybe (ModuleInstanceArgs PName) ->
+  Maybe (Located ModName) ->
+  Maybe (Located [Decl PName]) ->
+  ParseM (ModParam PName)
+mkIfaceImport doc impName optInst mbAs optImportWhere =
+  do inst <- getInst
+     pure ModParam { mpSignature = impName
+                   , mpAs        = thing <$> mbAs
+                   , mpName      = mkModParamName impName mbAs
+                   , mpDoc       = doc
+                   , mpRenaming  = mempty
+                   , mpInst      = inst
+                   }
+  where
+  getInst =
+    case (optInst, optImportWhere) of
+      (Just _, Just _) ->
+        errorMessage (srcRange impName)
+          [ "Invalid interface import instantiation."
+          , "Import should have at most one of:"
+          , "  * { } instantiation, or"
+          , "  * where instantiation"
+          ]
+      (Just a, Nothing)  -> pure (Just a)
+      (Nothing, Just a)  ->
+        pure (Just (DefaultInstAnonArg (map instTop (thing a))))
+        where
+        instTop d = Decl TopLevel
+                           { tlExport = Public
+                           , tlDoc    = Nothing
+                           , tlValue  = d
+                           }
+      (Nothing, Nothing) -> pure Nothing
 
 
 
@@ -1443,7 +1510,7 @@ desugarMod :: MkAnon name => ModuleG name PName -> ParseM (ModuleG name PName, [
 desugarMod mo =
   case mDef mo of
 
-    FunctorInstance f as _ | DefaultInstAnonArg lds <- as ->
+    FunctorInstance f as _ k | DefaultInstAnonArg lds <- as ->
       do (ms,lds') <- desugarTopDs (mName mo) lds
          case ms of
            m : _ | InterfaceModule si <- mDef m
@@ -1458,7 +1525,7 @@ desugarMod mo =
              pos    = from (srcRange nm)
              nm     = Located { srcRange = srcRange (mName mo), thing = i }
              as'    = DefaultInstArg (ModuleArg . toImpName <$> nm)
-         pure ( mo { mDef = FunctorInstance f as' emptyModuleInstance }
+         pure ( mo { mDef = FunctorInstance f as' emptyModuleInstance k }
               , [ Module
                     { mName = nm
                     , mDef  = NormalModule lds'
@@ -1474,9 +1541,9 @@ desugarMod mo =
     _ -> pure (mo, [])
 
 
-data AnonParamBlock mname name =
+data AnonParamBlock name =
     NoAnonParamBlock [Located (ImportG (ImpName name))]
-  | HaveAnonParamBlock Range (ModuleG mname name)
+  | HaveAnonParamBlock Range
 
 
 desugarTopDs ::
@@ -1494,16 +1561,16 @@ desugarTopDs ownerName = go (NoAnonParamBlock [])
   go anonPs ds =
     case ds of
 
-      [] ->
-        case anonPs of
-          NoAnonParamBlock {} -> pure ([],[])
-          HaveAnonParamBlock _ ps -> pure ([ps],[])
+      [] -> pure ([],[])
 
       d : more ->
         let cont emit sig' =
               do (ms,ds') <- go sig' more
                  pure (ms, emit ++ ds')
-        in 
+            contMods extraMs emit sig' =
+              do (ms,ds') <- go sig' more
+                 pure (extraMs ++ ms, emit ++ ds')
+        in
         case d of
 
           DImport i
@@ -1522,7 +1589,7 @@ desugarTopDs ownerName = go (NoAnonParamBlock [])
                 let nm = mkAnon AnonIfaceMod <$> ownerName
                     mo =
                       Module { mName = nm
-                             , mDef = InterfaceModule ds' { sigImports = reverse is }
+                             , mDef = InterfaceModule ds' { sigImports = map SigImport (reverse is) }
                              , mInScope = mempty
                              , mDocTop = Nothing
                              }
@@ -1534,10 +1601,11 @@ desugarTopDs ownerName = go (NoAnonParamBlock [])
                           , mpName      = mkModParamName (toImpName <$> nm) Nothing
                           , mpDoc       = Nothing
                           , mpRenaming  = mempty
+                          , mpInst      = Nothing
                           }
-               
-                in cont [imp] (HaveAnonParamBlock rng mo)
-              HaveAnonParamBlock otherBlock _ ->
+
+                in contMods [mo] [imp] (HaveAnonParamBlock rng)
+              HaveAnonParamBlock otherBlock ->
                 errorMessage rng
                   [ "Multiple `parameter` blocks.",
                     "  The other block is here: " ++ show (pp otherBlock)
@@ -1554,41 +1622,74 @@ desugarTopDs ownerName = go (NoAnonParamBlock [])
                       | m <- ms] ++ [DModule tl { tlValue = NestedModule mo' }])
                     anonPs
 
+          DModParam p
+            | Just inst <- mpInst p ->
+            do (newMs, newParam) <- desugarIfaceInst ownerName p inst
+               contMods newMs [newParam] anonPs
+
           _ -> cont [d] anonPs
+
+desugarIfaceInst ::
+  MkAnon name =>
+  Located name ->
+  ModParam PName ->
+  ModuleInstanceArgs PName ->
+  ParseM ([ModuleG name PName], TopDecl PName)
+desugarIfaceInst ownerName p inst =
+  do (iname, ms) <- desugarFunctorInst anonName (mpSignature p) inst SignatureInst
+     let newParam = DModParam p
+           { mpSignature = toImpName <$> iname
+           , mpName      = mkModParamName (toImpName <$> iname) Nothing
+           , mpInst      = Nothing
+           }
+     pure (ms, newParam)
+  where
+  pos      = from (srcRange (mpSignature p))
+  anonName = mkAnon (AnonArg (line pos) (col pos)) <$> ownerName
 
 desugarInstImport ::
   Located (ImportG (ImpName PName)) {- ^ The import -} ->
   ModuleInstanceArgs PName          {- ^ The instantiation -} ->
   ParseM [TopDecl PName]
 desugarInstImport i inst =
-  do (m, ms) <- desugarMod
-           Module { mName    = iname
-                  , mDef     = FunctorInstance
-                                 origMod inst emptyModuleInstance
-                  , mInScope = mempty
-                  , mDocTop  = Nothing
-                  }
-     pure (map modTop (ms ++ [m]) ++ [DImport (newImp <$> i)])
-
+  do (iname, ms) <- desugarFunctorInst anonName origMod inst ModuleInst
+     pure (map modTop ms ++ [DImport (newImp iname <$> i)])
   where
   origMod = iModule (thing i)
 
-  iname = Located {
-    thing = mkUnqualSystem
-        $ let pos = from (srcRange i)
-          in identAnonInstImport (line pos) (col pos),
-    srcRange = srcRange origMod
-  }
-      
+  anonName = Located
+    { thing    = mkUnqualSystem
+                   $ let pos = from (srcRange i)
+                     in identAnonInstImport (line pos) (col pos)
+    , srcRange = srcRange origMod
+    }
 
-  newImp d = d { iModule = ImpNested <$> iname
-               , iInst   = Nothing
-               }
+  newImp nm d = d { iModule = ImpNested <$> nm
+                  , iInst   = Nothing
+                  }
 
   modTop m = DModule TopLevel
-                       { tlExport = Private
-                       , tlDoc    = Nothing
-                       , tlValue  = NestedModule m
-                       }
+    { tlExport = Private
+    , tlDoc    = Nothing
+    , tlValue  = NestedModule m
+    }
+
+-- | Create an anonymous functor instantiation module, desugar it,
+-- and return the generated name and all resulting modules.
+desugarFunctorInst ::
+  MkAnon name =>
+  Located name                      {- ^ Anonymous module name -} ->
+  Located (ImpName PName)           {- ^ The functor to instantiate -} ->
+  ModuleInstanceArgs PName          {- ^ The instantiation arguments -} ->
+  FunctorInstKind                   {- ^ Module or signature instantiation -} ->
+  ParseM (Located name, [ModuleG name PName])
+desugarFunctorInst iname functor inst kind =
+  do (mo, ms) <- desugarMod
+       Module { mName    = iname
+              , mDef     = FunctorInstance functor inst emptyModuleInstance kind
+              , mInScope = mempty
+              , mDocTop  = Nothing
+              }
+     pure (iname, ms ++ [mo])
 
 

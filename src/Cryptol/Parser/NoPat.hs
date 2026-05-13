@@ -386,7 +386,7 @@ noPatModule m =
   do def <-
        case mDef m of
          NormalModule ds -> NormalModule <$> noPatTopDs ds
-         FunctorInstance f as i -> pure (FunctorInstance f as i)
+         FunctorInstance f as i k -> pure (FunctorInstance f as i k)
          InterfaceModule s -> pure (InterfaceModule s)
      pure m { mDef = def }
 

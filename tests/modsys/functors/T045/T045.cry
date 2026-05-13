@@ -1,0 +1,22 @@
+// Test that interface functors work across module boundaries.
+module T045 where
+
+import J as J
+
+interface submodule K = submodule J::S where
+  type n = 8
+
+submodule F where
+  import interface submodule K
+  g : [m] -> [8]
+  g x = zext x
+
+submodule Impl where
+  type m = 4
+  f x = zext x
+
+submodule G = submodule F { submodule Impl }
+
+import submodule G as G
+
+test = G::g 0xA == 0x0A

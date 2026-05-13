@@ -16,11 +16,14 @@ module Cryptol.ModuleSystem.Interface (
     Iface
   , IfaceG(..)
   , IfaceDecls(..)
+  , IfaceParamDecls
+  , ParamDecls(..)
   , IfaceDecl(..)
   , IfaceNames(..)
   , ifModName
 
   , emptyIface
+  , ifIsSignature
   , ifacePrimMap
   , ifaceForgetName
   , ifaceIsFunctor
@@ -38,7 +41,9 @@ import           Data.Semigroup
 import           Data.Text (Text)
 
 import GHC.Generics (Generic)
+import Control.Applicative((<|>))
 import Control.DeepSeq
+import Data.Maybe(isJust, maybeToList)
 
 import Prelude ()
 import Prelude.Compat
@@ -49,7 +54,6 @@ import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Fixity(Fixity)
 import Cryptol.Parser.AST(Pragma, ImpName(..))
 import Cryptol.TypeCheck.Type
-import Data.Maybe (maybeToList)
 
 type Iface = IfaceG ModName
 
@@ -60,6 +64,10 @@ data IfaceG name = Iface
   , ifDefines   :: IfaceDecls         -- ^ All things defined in the module
                                       -- (includes nested definitions)
   } deriving (Show, Generic, NFData, Functor)
+
+-- | Is this an interface functor (parameterized interface)?
+ifIsSignature :: IfaceG name -> Bool
+ifIsSignature = isJust . ifSigOwnParams . ifDefines
 
 -- | Remove the name of a module.  This is useful for dealing with collections
 -- of modules, as in `Map (ImpName Name) (IfaceG ())`.
@@ -112,9 +120,23 @@ data IfaceDecls = IfaceDecls
     At the moment we work around this by passing all loaded modules to the
     type checker, so it looks up functors there, instead of in the interfaces,
     but we'd need to change this if we want better support for separate
-    compilation. -}
+    compilation.
 
+    This map contains both regular functors and interface functors
+    (parameterized interfaces).  Interface functors have a 'Just' value
+    in 'ifSigOwnParams'. -}
+
+  , ifSigOwnParams  :: !(Maybe IfaceParamDecls)
+    {- ^ For interface functors only.  Contains the interface's own type
+    and value parameter declarations that are not part of the imported
+    interface parameters in 'ifParams'.  These are the declarations that
+    get passed through when the interface functor is instantiated.
+    'Nothing' for non-interface-functor modules.
+    Note: type synonyms defined in the interface are in 'ifTySyns'. -}
   } deriving (Show, Generic, NFData)
+
+-- | The type and value parameters declared directly by an interface functor.
+type IfaceParamDecls = ParamDecls
 
 filterIfaceDecls :: (Name -> Bool) -> IfaceDecls -> IfaceDecls
 filterIfaceDecls p ifs = IfaceDecls
@@ -124,10 +146,16 @@ filterIfaceDecls p ifs = IfaceDecls
   , ifModules       = filterMap (ifModules ifs)
   , ifFunctors      = filterMap (ifFunctors ifs)
   , ifSignatures    = filterMap (ifSignatures ifs)
+  , ifSigOwnParams  = filterSigParams <$> ifSigOwnParams ifs
   }
   where
   filterMap :: Map.Map Name a -> Map.Map Name a
   filterMap = Map.filterWithKey (\k _ -> p k)
+  filterSigParams ps = ParamDecls
+    { pdTypes       = filterMap (pdTypes ps)
+    , pdFuns        = filterMap (pdFuns ps)
+    , pdConstraints = pdConstraints ps
+    }
 
 ifaceDeclsNames :: IfaceDecls -> Set Name
 ifaceDeclsNames i = Set.unions [ Map.keysSet (ifTySyns i)
@@ -136,7 +164,12 @@ ifaceDeclsNames i = Set.unions [ Map.keysSet (ifTySyns i)
                                , Map.keysSet (ifModules i)
                                , Map.keysSet (ifFunctors i)
                                , Map.keysSet (ifSignatures i)
+                               , sigParamNames (ifSigOwnParams i)
                                ]
+  where
+  sigParamNames Nothing   = Set.empty
+  sigParamNames (Just ps) = Map.keysSet (pdTypes ps) `Set.union`
+                            Map.keysSet (pdFuns ps)
 
 
 instance Semigroup IfaceDecls where
@@ -147,6 +180,7 @@ instance Semigroup IfaceDecls where
     , ifModules  = Map.union (ifModules l)  (ifModules r)
     , ifFunctors = Map.union (ifFunctors l) (ifFunctors r)
     , ifSignatures = ifSignatures l <> ifSignatures r
+    , ifSigOwnParams = ifSigOwnParams l <|> ifSigOwnParams r
     }
 
 instance Monoid IfaceDecls where
@@ -157,6 +191,7 @@ instance Monoid IfaceDecls where
                   , ifModules = mempty
                   , ifFunctors = mempty
                   , ifSignatures = mempty
+                  , ifSigOwnParams = Nothing
                   }
   mappend = (<>)
   mconcat ds  = IfaceDecls
@@ -166,6 +201,7 @@ instance Monoid IfaceDecls where
     , ifModules  = Map.unions (map ifModules ds)
     , ifFunctors = Map.unions (map ifFunctors ds)
     , ifSignatures = Map.unions (map ifSignatures ds)
+    , ifSigOwnParams = foldr ((<|>) . ifSigOwnParams) Nothing ds
     }
 
 data IfaceDecl = IfaceDecl

@@ -31,6 +31,9 @@
   virtual submodule named after the parameter (e.g., `M::I::x`).
   ([#1699](https://github.com/GaloisInc/cryptol/issues/1699))
 
+* Interfaces may now be parameterized by other interfaces (interface functors).
+  ([#1582](https://github.com/GaloisInc/cryptol/issues/1582))
+
 ## Bug fixes
 
 * Fix pretty printing of types in errors messages

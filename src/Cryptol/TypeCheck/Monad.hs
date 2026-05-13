@@ -143,9 +143,7 @@ runInferM info m0 =
                              { mTySyns           = inpTSyns info <>
                                                    mpnTySyn allPs
                              , mNominalTypes     = inpNominalTypes info
-                             , mParamTypes       = mpnTypes allPs
-                             , mParamFuns        = mpnFuns  allPs
-                             , mParamConstraints = mpnConstraints allPs
+                             , mParamDecls       = mpnParams allPs
                              , mSignatures       = inpSignatures info
                              }
 
@@ -927,13 +925,15 @@ getTSyns = getScope mTySyns
 getNominalTypes :: InferM (Map Name NominalType)
 getNominalTypes = getScope mNominalTypes
 
--- | Returns the abstract function declarations
+-- | All abstract type parameters in scope (both input and output).
 getParamTypes :: InferM (Map Name ModTParam)
-getParamTypes = getScope mParamTypes
+getParamTypes =
+  Map.union <$> getScope mParamTypes <*> getScope (pdTypes . mOutputParamDecls)
 
--- | Constraints on the module's parameters.
+-- | All parameter constraints in scope (both input and output).
 getParamConstraints :: InferM [Located Prop]
-getParamConstraints = getScope mParamConstraints
+getParamConstraints =
+  (++) <$> getScope mParamConstraints <*> getScope (pdConstraints . mOutputParamDecls)
 
 -- | Get the set of bound type variables that are in scope.
 getTVars :: InferM (Set Name)
@@ -1064,9 +1064,9 @@ endSubmodule =
                  { mName             = mName y
                  , mDoc              = mDoc y
                  , mExports          = mExports y
-                 , mParamTypes       = mParamTypes y
-                 , mParamFuns        = mParamFuns  y
-                 , mParamConstraints = mParamConstraints y
+                 , mIsIfaceFunctor   = mIsIfaceFunctor y
+                 , mParamDecls       = mParamDecls y
+                 , mOutputParamDecls = mOutputParamDecls y
                  , mParams           = mParams y
                  , mNested           = mNested y
                  , mInScope          = mInScope y
@@ -1110,9 +1110,7 @@ endSignature =
         where
         z   = y { mSignatures = Map.insert m sig (mSignatures y) }
         sig = ModParamNames
-                { mpnTypes       = mParamTypes x
-                , mpnConstraints = mParamConstraints x
-                , mpnFuns        = mParamFuns x
+                { mpnParams      = mOutputParamDecls x
                 , mpnTySyn       = mTySyns x
                 , mpnDoc         = doc
                 }
@@ -1124,9 +1122,7 @@ endTopSignature =
     case iScope rw of
       [ x ] | TopSignatureScope m <- mName x ->
         ( TCTopSignature m ModParamNames
-                             { mpnTypes       = mParamTypes x
-                             , mpnConstraints = mParamConstraints x
-                             , mpnFuns        = mParamFuns x
+                             { mpnParams      = mOutputParamDecls x
                              , mpnTySyn       = mTySyns x
                              , mpnDoc         = Nothing
                              }
@@ -1158,10 +1154,10 @@ getCurDecls =
       { mName             = ()
       , mDoc              = mempty
       , mExports          = mempty
+      , mIsIfaceFunctor   = False
       , mParams           = mempty
-      , mParamTypes       = mempty
-      , mParamConstraints = mempty
-      , mParamFuns        = mempty
+      , mParamDecls       = mempty
+      , mOutputParamDecls = mempty
       , mNested           = mempty
 
       , mTySyns           = uni mTySyns
@@ -1201,7 +1197,9 @@ addNominal t =
 
 addParamType :: ModTParam -> InferM ()
 addParamType a =
-  updScope \r -> r { mParamTypes = Map.insert (mtpName a) a (mParamTypes r) }
+  updScope \r ->
+    let pd = mParamDecls r
+    in r { mParamDecls = pd { pdTypes = Map.insert (mtpName a) a (pdTypes pd) } }
 
 addSignatures :: Map Name ModParamNames -> InferM ()
 addSignatures mp =
@@ -1223,14 +1221,38 @@ setNested names =
 -- | The sub-computation is performed with the given abstract function in scope.
 addParamFun :: ModVParam -> InferM ()
 addParamFun x =
-  do updScope \r -> r { mParamFuns = Map.insert (mvpName x) x (mParamFuns r) }
+  do updScope \r ->
+       let pd = mParamDecls r
+       in r { mParamDecls = pd { pdFuns = Map.insert (mvpName x) x (pdFuns pd) } }
      IM $ sets_ \rw -> rw { iBindTypes = Map.insert (mvpName x) (mvpType x)
                                                     (iBindTypes rw) }
 
 -- | Add some assumptions for an entire module
 addParameterConstraints :: [Located Prop] -> InferM ()
 addParameterConstraints ps =
-  updScope \r -> r { mParamConstraints = ps ++ mParamConstraints r }
+  updScope \r ->
+    let pd = mParamDecls r
+    in r { mParamDecls = pd { pdConstraints = ps ++ pdConstraints pd } }
+
+addOutputParamType :: ModTParam -> InferM ()
+addOutputParamType a =
+  updScope \r ->
+    let pd = mOutputParamDecls r
+    in r { mOutputParamDecls = pd { pdTypes = Map.insert (mtpName a) a (pdTypes pd) } }
+
+addOutputParamFun :: ModVParam -> InferM ()
+addOutputParamFun x =
+  do updScope \r ->
+       let pd = mOutputParamDecls r
+       in r { mOutputParamDecls = pd { pdFuns = Map.insert (mvpName x) x (pdFuns pd) } }
+     IM $ sets_ \rw -> rw { iBindTypes = Map.insert (mvpName x) (mvpType x)
+                                                    (iBindTypes rw) }
+
+addOutputParameterConstraints :: [Located Prop] -> InferM ()
+addOutputParameterConstraints ps =
+  updScope \r ->
+    let pd = mOutputParamDecls r
+    in r { mOutputParamDecls = pd { pdConstraints = ps ++ pdConstraints pd } }
 
 addModParam :: ModParam -> InferM ()
 addModParam p =

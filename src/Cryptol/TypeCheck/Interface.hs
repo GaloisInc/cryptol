@@ -35,7 +35,7 @@ genIfaceNames m = IfaceNames
   , ifsDoc      = mDoc m
   }
 
--- | Things defines by a module
+-- | Things defined by a module
 genModDefines :: ModuleG name -> Set Name
 genModDefines m =
   Set.unions
@@ -75,9 +75,11 @@ genIfaceWithNames names m =
     , ifModules         = smIface <$> mSubmodules m
     , ifSignatures      = mSignatures m
     , ifFunctors        = genIface <$> mFunctors m
+    , ifSigOwnParams    = if mIsIfaceFunctor m
+                            then Just (mOutputParamDecls m)
+                            else Nothing
     }
 
   , ifParams = mParams m
   }
-
-
+  

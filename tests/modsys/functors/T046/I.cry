@@ -1,0 +1,2 @@
+interface module I where
+  type n : #

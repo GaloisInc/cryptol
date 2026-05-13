@@ -170,6 +170,11 @@ top_module :: { [Module PName] }
   | 'v{' vmod_body 'v}'       {% mkAnonymousModule $2 }
   | mbDoc 'interface' 'module' modName 'where' 'v{' sig_body 'v}'
                               { mkTopSig $1 $4 $7 }
+  | mbDoc 'interface' 'module' modName '=' impName 'where'
+      'v{' vmod_body 'v}'
+                              { [mkIfaceInst $1 $4 $6 (DefaultInstAnonArg $9)] }
+  | mbDoc 'interface' 'module' modName '=' impName '{' modInstParams '}'
+                              { [mkIfaceInst $1 $4 $6 $8] }
 
 module_def :: { Module PName }
 
@@ -203,13 +208,6 @@ vmod_body                  :: { [TopDecl PName] }
   : vtop_decls                { concat (reverse $1) }
   | {- empty -}               { [] }
 
-
-
--- inverted
-imports1                  :: { [ Located (ImportG (ImpName PName)) ] }
-  : imports1 'v;' import     { $3 : $1 }
-  | imports1 ';'  import     { $3 : $1 }
-  | import                   { [$1] }
 
 
 import                     :: { Located (ImportG (ImpName PName)) }
@@ -289,29 +287,35 @@ vtop_decl               :: { [TopDecl PName] }
   | mbDoc 'submodule' module_def
                            {% ((:[]) . exportModule $1) `fmap` mkNested $3 }
 
-  | mbDoc sig_def          { [mkSigDecl $1 $2]  }
-  | mod_param_decl         { [DModParam $1] }
+  | mbDoc 'interface' 'submodule' name 'where' 'v{' sig_body 'v}'
+                           { [mkSigDecl $1 ($4, $7)]  }
+  | mbDoc 'interface' 'submodule' name '=' impName 'where'
+      'v{' vmod_body 'v}'
+                           {% mkNestedIfaceInst $1 $4 $6 (DefaultInstAnonArg $9) }
+  | mbDoc 'interface' 'submodule' name '=' impName '{' modInstParams '}'
+                           {% mkNestedIfaceInst $1 $4 $6 $8 }
+  | iface_import           { [DModParam $1] }
   | import                 { [DImport $1] }
-
-
-sig_def ::                 { (Located PName, Signature PName) }
-  : 'interface' 'submodule' name 'where' 'v{' sig_body 'v}'
-                           { ($3, $6) }
 
 sig_body                 :: { Signature PName }
   : par_decls               {% mkInterface [] $1 }
-  | imports1 'v;' par_decls {% mkInterface $1 $3 }
-  | imports1 ';'  par_decls {% mkInterface $1 $3 }
+  | sig_imports 'v;' par_decls {% mkInterface $1 $3 }
+  | sig_imports ';'  par_decls {% mkInterface $1 $3 }
 
+sig_import :: { SigImport PName }
+  : import                         { SigImport $1 }
+  | iface_import                   { SigIfaceImport $1 }
 
-mod_param_decl ::          { ModParam PName }
+sig_imports :: { [SigImport PName] }
+  : sig_imports 'v;' sig_import    { $3 : $1 }
+  | sig_imports ';'  sig_import    { $3 : $1 }
+  | sig_import                     { [$1] }
+
+iface_import :: { ModParam PName }
   : mbDoc
    'import' 'interface'
-    impName mbAs           { ModParam { mpSignature = $4
-                                      , mpAs        = fmap thing $5
-                                      , mpName      = mkModParamName $4 $5
-                                      , mpDoc       = $1
-                                      , mpRenaming  = mempty } }
+    impName optInst mbAs
+    optImportWhere         {% mkIfaceImport $1 $4 $5 $6 $7 }
 
 
 top_decl                :: { [TopDecl PName] }
