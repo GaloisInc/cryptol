@@ -157,8 +157,8 @@ emptyModule nm =
     , mIsIfaceFunctor   = False
 
     , mParams           = mempty
-    , mParamDecls       = ParamDecls mempty mempty mempty
-    , mOutputParamDecls = ParamDecls mempty mempty mempty
+    , mParamDecls       = mempty
+    , mOutputParamDecls = mempty
 
     , mNested           = mempty
 

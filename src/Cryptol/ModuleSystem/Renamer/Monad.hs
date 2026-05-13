@@ -315,7 +315,7 @@ ifaceNamesToMod iface params nm names =
     [ ifaceNamesToMod iface mempty (ImpNested k) v
     | (k,v) <- Map.toList (ifModules decls) ]
   mo = Mod
-    { modKind    = if ifIsSignature iface then AIfaceFunctor
+    { modKind    = if ifIsSignature iface then AnIfaceFunctor
                    else if null params then AModule
                    else AFunctor
     , modDefines = Set.fromList namesFromPs `Set.union` defs
@@ -397,7 +397,7 @@ addResolvedMod names mo =
         InterfaceModule sig ->
           pure Mod {
             modKind = if any isSigIfaceImport (sigImports sig)
-                        then AIfaceFunctor
+                        then AnIfaceFunctor
                         else ASignature,
             modDefines = names,
             modPublic = names

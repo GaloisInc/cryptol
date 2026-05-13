@@ -144,7 +144,7 @@ makeFunctorInstance f args k =
   do
     let expectedKind = case k of
                          ModuleInst    -> AFunctor
-                         SignatureInst -> AIfaceFunctor
+                         SignatureInst -> AnIfaceFunctor
     (newF,moF) <- withLoc (srcRange f) (resolveModName expectedKind (thing f))
     newArgs    <- rename args
     -- Note: currently the validation that the arguments match what the
