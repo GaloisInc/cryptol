@@ -137,6 +137,20 @@ data ParamDecls = ParamDecls
   , pdConstraints :: [Located Prop]
   } deriving (Show, Generic, NFData)
 
+instance Semigroup ParamDecls where
+  x <> y = ParamDecls
+    { pdTypes       = pdTypes x <> pdTypes y
+    , pdFuns        = pdFuns x <> pdFuns y
+    , pdConstraints = pdConstraints x <> pdConstraints y
+    }
+
+instance Monoid ParamDecls where
+  mempty = ParamDecls
+    { pdTypes       = mempty
+    , pdFuns        = mempty
+    , pdConstraints = mempty
+    }
+
 --------------------------------------------------------------------------------
 
 

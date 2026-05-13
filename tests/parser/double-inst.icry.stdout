@@ -1,0 +1,7 @@
+Loading module Cryptol
+
+Parse error at double-inst.cry:1:1--1:7
+  Invalid instantiating import.
+  Import should have at most one of:
+    * { } instantiation, or
+    * where instantiation

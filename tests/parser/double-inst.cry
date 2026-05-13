@@ -1,0 +1,2 @@
+import F {x} where
+  type n = 8

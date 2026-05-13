@@ -60,7 +60,7 @@ doFunctorInst m f as modInst instKind enclosingInScope doc =
               let m1   = moduleInstance mf
                   m2   = m1 { mName             = m
                             , mDoc              = mempty
-                            , mParamDecls       = ParamDecls mempty mempty mempty
+                            , mParamDecls       = mempty
                             , mOutputParamDecls = mOutputParamDecls m1
                             , mParams           = mempty
                             , mTySyns = mconcat paramTySyns <> mTySyns m1
