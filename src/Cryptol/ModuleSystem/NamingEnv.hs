@@ -280,7 +280,7 @@ modParamNamingEnv mp = maybe id qualify (T.mpQual mp) $
 -- the names are qualified.
 unqualifiedEnv :: IfaceDecls -> NamingEnv
 unqualifiedEnv IfaceDecls { .. } =
-  mconcat [ exprs, tySyns, ntTypes, ntExprs, mods, sigs, funs ]
+  mconcat [ exprs, tySyns, ntTypes, ntExprs, mods, sigs, funs, aliases ]
   where
   toPName n = UnQual' (nameIdent n) (nameSrc n)
 
@@ -310,6 +310,9 @@ unqualifiedEnv IfaceDecls { .. } =
 
   funs    = mconcat [ singletonNS NSModule (toPName n) n
                     | n <- Map.keys ifFunctors ]
+
+  aliases = mconcat [ singletonNS NSModule (toPName n) n
+                    | n <- Map.keys ifModuleAliases ]
 
 
 -- | Adapt the things exported by a module to the specific import/open.

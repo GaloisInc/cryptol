@@ -1,0 +1,35 @@
+// Module alias tests: basic aliases, chaining, cross-module, top-level targets
+module ModAliasBasic where
+
+import ModAliasBasicLib
+
+// Alias to a sibling submodule
+submodule A where
+  x : [8]
+  x = 42
+
+submodule B = submodule A
+
+// Alias chaining
+submodule C = submodule B
+
+// Alias to a built-in top-level module
+submodule D = Cryptol
+
+// Alias to a user-defined top-level module
+submodule E = ModAliasBasicLib
+
+// Exported alias (used by ModAliasBasicUser)
+submodule Inner where
+  w : [8]
+  w = 99
+
+submodule Short = submodule Inner
+
+import submodule B as B
+import submodule C as C
+import submodule E as E
+
+y1 = B::x
+y2 = C::x
+y3 = E::x

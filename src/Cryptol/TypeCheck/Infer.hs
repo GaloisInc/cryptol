@@ -101,6 +101,8 @@ inferTopModule m =
            updScope \s -> s { mIsIfaceFunctor = True }
            endModule
 
+    P.ModuleAlias {} ->
+      panic "inferTopModule" ["Module alias at top level"]
 
 
 
@@ -1586,6 +1588,12 @@ checkTopDecls = mapM_ checkTopDecl
                       updScope \s -> s { mIsIfaceFunctor = True }
                       endSubmodule
 
+           P.ModuleAlias target ->
+             do let nm = thing (P.mName m)
+                updScope \s ->
+                  s { mNested = Set.insert nm (mNested s)
+                    , mModAliases = Map.insert nm (thing target) (mModAliases s)
+                    }
 
         where P.NestedModule m = P.tlValue tl
 

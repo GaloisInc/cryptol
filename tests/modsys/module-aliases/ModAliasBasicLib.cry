@@ -1,0 +1,5 @@
+// A user-defined top-level module, used as alias target
+module ModAliasBasicLib where
+
+x : [8]
+x = 55

@@ -1,0 +1,11 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at ModAliasCycle.cry:3:25--3:26
+    Module `B` is not yet defined.
+[error] at ModAliasCycle.cry:4:25--4:26
+    Module `A` is not yet defined.
+[error] Invalid recursive dependency:
+    • submodule Main::A, defined at 3:11--3:12
+    • submodule Main::B, defined at 4:11--4:12

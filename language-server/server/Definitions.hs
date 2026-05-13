@@ -146,7 +146,7 @@ instance (GetVarTypes a) => GetVarTypes [a] where
       x : ys -> getVarTypes nm (x,ys)
 
 
--- | Get the ModPath for the name of amodule
+-- | Get the ModPath for the name of a module
 class AsModPath name where
   asModPath :: name -> ModPath
 
@@ -392,6 +392,7 @@ instance RangedVars (ModuleDefinition Name) where
       FunctorInstance f as is _kind -> rangedVars (f,(as, map mk (Map.toList (modInstMap is))))
         where mk (x,y) = Def' False x y
       InterfaceModule sig -> rangedVars sig
+      ModuleAlias {} -> const id
 
 instance RangedVars (ModuleInstanceArgs Name) where
   rangedVars ma =

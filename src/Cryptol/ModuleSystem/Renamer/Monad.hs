@@ -11,6 +11,10 @@ module Cryptol.ModuleSystem.Renamer.Monad
   , lookupMod
   , addResolvedMod
   , addInstMod
+  , addModAlias
+  , addFakeMod
+  , isResolvableMod
+  , resolveModAlias
   , recordTopImport
   , getExternalDeps
   , Mod(..)
@@ -243,7 +247,18 @@ emptyMod k = Mod {
 
 -- | Lookup a known module
 lookupMod :: ImpName Name -> Maybe ModKind -> RenameM Mod
-lookupMod nm mbExpected =
+lookupMod = lookupMod' Set.empty
+
+lookupMod' :: Set (ImpName Name) -> ImpName Name -> Maybe ModKind -> RenameM Mod
+lookupMod' visited nm mbExpected
+  | nm `Set.member` visited =
+      do loc <- getCurLoc
+         case nm of
+           ImpNested x ->
+             recordError (ImportTooSoon loc (nameIdent x))
+           ImpTop {} -> panic "lookupMod" ["cycle with top-level module"]
+         pure (emptyMod (fromMaybe AModule mbExpected))
+  | otherwise =
   do
     rw <- R get
     case Map.lookup nm (knownMods rw) of
@@ -258,6 +273,7 @@ lookupMod nm mbExpected =
                 recordError (ModuleKindMismatch loc nm expected actual)
                 pure (emptyMod expected)
               where actual = modKind mo
+      Just (ModAlias target) -> lookupMod' (Set.insert nm visited) target mbExpected
       Just ModTodo ->
         do
           loc <- getCurLoc
@@ -284,7 +300,7 @@ recordTopImport m =
 getExternalDeps :: RenameM IfaceDecls
 getExternalDeps = R (externalDeps <$> get)
 
-data ModStatus = ModKnown Mod | ModFake | ModTodo
+data ModStatus = ModKnown Mod | ModAlias (ImpName Name) | ModFake | ModTodo
 
 type ModMap = Map (ImpName Name) ModStatus
 
@@ -305,7 +321,7 @@ ifaceToFunctorMod nm iface
 ifaceNamesToMod ::
     IfaceG topname -> Map Ident T.ModParam -> ImpName Name -> IfaceNames name -> ModMap
 ifaceNamesToMod iface params nm names =
-  Map.unions (Map.fromList ((nm,ModKnown mo) : sigs) : funs ++ nest)
+  Map.unions (Map.fromList ((nm,ModKnown mo) : sigs ++ aliases) : funs ++ nest)
   where
   sigs =
     [ (ImpNested k, ModKnown (ifaceSigToMod v)) | (k,v) <- Map.toList (ifSignatures decls) ]
@@ -314,6 +330,8 @@ ifaceNamesToMod iface params nm names =
   nest =
     [ ifaceNamesToMod iface mempty (ImpNested k) v
     | (k,v) <- Map.toList (ifModules decls) ]
+  aliases =
+    [ (ImpNested k, ModAlias v) | (k,v) <- Map.toList (ifModuleAliases decls) ]
   mo = Mod
     { modKind    = if ifIsSignature iface then AIfaceFunctor
                    else if null params then AModule
@@ -352,6 +370,44 @@ ifaceSigToMod ps = Mod
 addInstMod :: Name -> Mod -> RenameM ()
 addInstMod x y =
   R (sets_ \rw -> rw { knownMods = Map.insert (ImpNested x) (ModKnown y) (knownMods rw) })
+
+-- | Add a module alias: the name refers to another module.
+addModAlias :: Name -> ImpName Name -> RenameM ()
+addModAlias x target =
+  R (sets_ \rw -> rw { knownMods = Map.insert (ImpNested x) (ModAlias target) (knownMods rw) })
+
+-- | Register a module name as fake (for error recovery).
+addFakeMod :: Name -> RenameM ()
+addFakeMod x =
+  R (sets_ \rw -> rw { knownMods = Map.insert (ImpNested x) ModFake (knownMods rw) })
+
+-- | Check if a module can be resolved (is defined and not in a cycle).
+isResolvableMod :: ImpName Name -> RenameM Bool
+isResolvableMod nm =
+  do rw <- R get
+     pure (go Set.empty (knownMods rw) nm)
+  where
+  go visited mp x
+    | x `Set.member` visited = False
+    | otherwise =
+      case Map.lookup x mp of
+        Just (ModKnown {})  -> True
+        Just (ModAlias tgt) -> go (Set.insert x visited) mp tgt
+        _                   -> False
+
+-- | Follow alias chains to get the fully-resolved target.
+-- Returns the input unchanged if it is not an alias or if there is a cycle.
+resolveModAlias :: ImpName Name -> RenameM (ImpName Name)
+resolveModAlias nm =
+  do rw <- R get
+     pure (go Set.empty (knownMods rw) nm)
+  where
+  go visited mp x
+    | x `Set.member` visited = x
+    | otherwise =
+      case Map.lookup x mp of
+        Just (ModAlias tgt) -> go (Set.insert x visited) mp tgt
+        _                   -> x
 
 addResolvedMod :: Set Name -> ModuleG Name Name -> RenameM ()
 addResolvedMod names mo =
@@ -402,6 +458,8 @@ addResolvedMod names mo =
             modDefines = names,
             modPublic = names
           }
+        ModuleAlias {} ->
+          panic "addResolvedMod" ["ModuleAlias handled in renameModuleAlias"]
     R (sets_ \rw -> rw { knownMods = Map.insert nm (ModKnown summary) (knownMods rw) })
 
 

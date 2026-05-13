@@ -1272,6 +1272,27 @@ mkModuleInstance m f as =
          , mDocTop  = Nothing
          }
 
+mkModuleAlias :: Located ModName -> Located (ImpName PName) -> Module PName
+mkModuleAlias nm target =
+  Module { mName    = nm
+         , mDef     = ModuleAlias target
+         , mInScope = mempty
+         , mDocTop  = Nothing
+         }
+
+mkNestedIfaceAlias ::
+  Maybe (Located Text) ->
+  Located PName ->
+  Located (ImpName PName) ->
+  ParseM [TopDecl PName]
+mkNestedIfaceAlias doc nm target =
+  do nested <- mkNested (mkModuleAlias (fmap toModName nm) target)
+     pure [exportModule doc nested]
+  where
+  toModName n = case n of
+    UnQual i -> mkModName [identText i]
+    _        -> panic "mkNestedIfaceAlias" ["Unexpected qualified name"]
+
 -- | Nested interface functor instantiation
 mkNestedIfaceInst ::
   Maybe (Located Text) ->
@@ -1466,7 +1487,12 @@ mkIfaceImport doc impName optInst mbAs optImportWhere =
 
 mkTopMods :: Maybe (Located Text) -> Module PName -> ParseM [Module PName]
 mkTopMods doc m =
- do (m', ms) <- desugarMod m { mDocTop = doc }
+ do case mDef m of
+      ModuleAlias {} ->
+        errorMessage (srcRange (mName m))
+          ["Module aliases are only allowed inside other modules."]
+      _ -> pure ()
+    (m', ms) <- desugarMod m { mDocTop = doc }
     pure (ms ++ [m'])
 
 mkTopSig :: Maybe (Located Text) -> Located ModName -> Signature PName -> [Module PName]

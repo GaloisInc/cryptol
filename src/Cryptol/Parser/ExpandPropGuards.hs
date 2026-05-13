@@ -76,6 +76,7 @@ expandModuleDef m =
     NormalModule ds    -> NormalModule . concat <$> mapM expandTopDecl ds
     FunctorInstance {} -> pure m
     InterfaceModule {} -> pure m
+    ModuleAlias {}     -> pure m
 
 expandTopDecl :: TopDecl PName -> ExpandPropGuardsM [TopDecl PName]
 expandTopDecl topDecl =

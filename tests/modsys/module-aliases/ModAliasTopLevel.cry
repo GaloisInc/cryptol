@@ -1,0 +1,2 @@
+// Top-level module alias (should be a parse error)
+module ModAliasTopLevel = Cryptol

@@ -1,0 +1,4 @@
+Loading module Cryptol
+
+Parse error at ModAliasTopLevel.cry:2:8--2:24
+  Module aliases are only allowed inside other modules.

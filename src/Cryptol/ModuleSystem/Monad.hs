@@ -69,6 +69,7 @@ data ImportSource
   | FromImport (Located P.Import)
   | FromSigImport (Located P.ModName)
   | FromModuleInstance (Located P.ModName)
+  | FromModuleAlias (Located P.ModName)
     deriving (Show, Generic, NFData)
 
 instance Eq ImportSource where
@@ -81,6 +82,8 @@ instance PP ImportSource where
     FromSigImport l -> text "import of interface" <+> pp (P.thing l)
     FromModuleInstance l ->
       text "instantiation of module" <+> pp (P.thing l)
+    FromModuleAlias l ->
+      text "module alias for" <+> pp (P.thing l)
 
 importedModule :: ImportSource -> P.ModName
 importedModule is =
@@ -89,6 +92,7 @@ importedModule is =
     FromImport li         -> P.thing (P.iModule (P.thing li))
     FromModuleInstance l  -> P.thing l
     FromSigImport l       -> P.thing l
+    FromModuleAlias l     -> P.thing l
 
 
 data ModuleError

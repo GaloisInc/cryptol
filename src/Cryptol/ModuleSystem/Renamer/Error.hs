@@ -126,7 +126,7 @@ instance PP RenamerError where
 
     ImportTooSoon rng x ->
       hang (text "[error] at" <+> pp rng)
-         4 ("Import of" <+> backticks (pp x) <+> "should come after its definition.")
+         4 ("Module" <+> backticks (pp x) <+> "is not yet defined.")
 
     OverlappingSyms qns ->
       hang (text "[error]")

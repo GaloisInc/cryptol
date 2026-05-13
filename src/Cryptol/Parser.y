@@ -186,6 +186,8 @@ module_def :: { Module PName }
 
   | modName '=' impName '{' modInstParams '}' { mkModuleInstance $1 $3 $5 }
 
+  | modName '=' impName                       { mkModuleAlias $1 $3 }
+
 
 modInstParams            :: { ModuleInstanceArgs PName }
   : modInstParam            { DefaultInstArg $1 }
@@ -294,6 +296,8 @@ vtop_decl               :: { [TopDecl PName] }
                            {% mkNestedIfaceInst $1 $4 $6 (DefaultInstAnonArg $9) }
   | mbDoc 'interface' 'submodule' name '=' impName '{' modInstParams '}'
                            {% mkNestedIfaceInst $1 $4 $6 $8 }
+  | mbDoc 'interface' 'submodule' name '=' impName
+                           {% mkNestedIfaceAlias $1 $4 $6 }
   | iface_import           { [DModParam $1] }
   | import                 { [DImport $1] }
 

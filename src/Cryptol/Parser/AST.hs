@@ -197,6 +197,10 @@ data ModuleDefinition name =
     -- is a module ('ModuleInst') or a signature ('SignatureInst').
 
   | InterfaceModule (Signature name)
+
+  | ModuleAlias (Located (ImpName name))
+    -- ^ An alias for another module.  The name of the alias is
+    -- an ordinary definition which refers to the target module.
     deriving (Show, Generic, NFData)
 
 {- | Information about a functor instance, filled in by the renamer.  -}
@@ -237,6 +241,7 @@ mDecls m =
     NormalModule ds         -> ds
     FunctorInstance {}      -> []
     InterfaceModule {}      -> []
+    ModuleAlias {}          -> []
 
 -- | Imports of top-level (i.e. "file" based) modules.
 mImports :: ModuleG mname name -> [ Located Import ]
@@ -245,6 +250,7 @@ mImports m =
     NormalModule ds     -> mapMaybe topImp [ li | DImport li <- ds ]
     FunctorInstance {}  -> []
     InterfaceModule sig -> mapMaybe topImp [ li | SigImport li <- sigImports sig ]
+    ModuleAlias {}      -> []
   where
   topImp li = case thing mo of
                ImpTop n -> Just li { thing = i { iModule = Located (srcRange mo) n } }
@@ -1043,6 +1049,7 @@ instance (Show name, PPName name) => PP (ModuleDefinition name) where
              , indent 2 (pp inst)
              ]
       InterfaceModule s -> ppInterface "where" s
+      ModuleAlias t -> "=" <+> pp (thing t)
 
 
 instance (Show name, PPName name) => PP (ModuleInstance name) where
@@ -1606,6 +1613,7 @@ instance NoPos (ModuleDefinition name) where
       NormalModule ds         -> NormalModule (noPos ds)
       FunctorInstance f as ds k -> FunctorInstance (noPos f) (noPos as) ds k
       InterfaceModule s       -> InterfaceModule (noPos s)
+      ModuleAlias t           -> ModuleAlias (noPos t)
 
 instance NoPos (ModuleInstanceArgs name) where
   noPos as =

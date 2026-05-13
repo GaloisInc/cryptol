@@ -22,7 +22,7 @@ import Data.Either(partitionEithers)
 import Data.Set(Set)
 import Data.Set qualified as Set
 import Data.Map qualified as Map
-import Control.Monad(forM,mapAndUnzipM,foldM_)
+import Control.Monad(forM,mapAndUnzipM,foldM_,unless)
 import Data.Graph(SCC(..), graphFromEdges', flattenSCC)
 import Data.Graph.SCC(sccGraph, stronglyConnComp)
 
@@ -101,11 +101,31 @@ instance Rename NestedModule where
     do
       lnm <- traverse (resolveNameDef NSModule) (mName mo)
       let nm = thing lnm
-      (names, newMo1) <-
-        withLoc (srcRange lnm) (inSubmodule (nameIdent nm) (renameModuleDef mo))
-      let newMo = newMo1 { mName = lnm }
-      addResolvedMod names newMo
-      pure (NestedModule newMo)
+      case mDef mo of
+        ModuleAlias target -> renameModuleAlias nm lnm target
+        _ ->
+          do
+            (names, newMo1) <-
+              withLoc (srcRange lnm)  (inSubmodule (nameIdent nm) (renameModuleDef mo))
+            let newMo = newMo1 { mName = lnm }
+            addResolvedMod names newMo
+            pure (NestedModule newMo)
+
+renameModuleAlias :: Name -> Located Name -> Located (ImpName PName) ->
+                     RenameM (NestedModule Name)
+renameModuleAlias nm lnm target =
+  do
+    (newTarget, ok) <-
+      withLoc (srcRange target) (resolveAliasTarget (thing target))
+    resolved <- resolveModAlias newTarget
+    -- mInScope is not used for aliases; the typechecker just records
+    -- the alias mapping without opening a new scope.
+    let newMo = Module { mName = lnm, mInScope = mempty
+                       , mDef = ModuleAlias (target { thing = resolved })
+                       , mDocTop = Nothing }
+    if ok then addModAlias nm newTarget
+          else addFakeMod nm
+    pure (NestedModule newMo)
 
 -- | Rename the definition of a module.
 renameModuleDef :: ModuleG name PName -> RenameM (Set Name, ModuleG name Name)
@@ -131,6 +151,8 @@ renameModuleDef mo =
         names <- getCurDefNames
         scope <- getCurScope
         pure (names, mo { mInScope = scope, mDef = def })
+    ModuleAlias {} ->
+      panic "renameModuleDef" ["ModuleAlias handled in renameModuleAlias"]
 
 
 --------------------------------------------------------------------------------
@@ -715,7 +737,22 @@ resolveModName k x =
         ImpNested y -> ImpNested <$> resolveNameUse NSModule y
     mo <- lookupMod nm (Just k)
     pure (nm, mo)
-    
+
+resolveAliasTarget :: ImpName PName -> RenameM (ImpName Name, Bool)
+resolveAliasTarget x =
+  do
+    nm <-
+      case x of
+        ImpTop m -> pure (ImpTop m)
+        ImpNested y -> ImpNested <$> resolveNameUse NSModule y
+    ok <- isResolvableMod nm
+    unless ok $
+      case nm of
+        ImpNested n ->
+          do loc <- getCurLoc
+             recordError (ImportTooSoon loc (nameIdent n))
+        ImpTop {} -> pure ()
+    pure (nm, ok)
 
 
 --------------------------------------------------------------------------------
