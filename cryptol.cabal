@@ -80,7 +80,11 @@ library
                        primitive,
                        process           >= 1.2,
                        rme-what4         ^>= 0.1,
-                       sbv               >= 9.1 && < 14.1,
+                       -- See #2054 before changing the sbv pattern.
+                       -- sbv 11.[1-5] do not build with ghc 9.8, and
+                       -- 11.6+ do not work with the old z3 we have in
+                       -- what4-solvers and use in CI.
+                       sbv               >= 9.1 && <= 11.0,
                        simple-smt        >= 0.9.8,
                        stm               >= 2.4,
                        strict,
