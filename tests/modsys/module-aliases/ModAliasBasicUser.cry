@@ -1,0 +1,7 @@
+// Uses the alias exported by ModAliasBasic
+module ModAliasBasicUser where
+
+import ModAliasBasic
+import submodule Short as S
+
+y4 = S::w

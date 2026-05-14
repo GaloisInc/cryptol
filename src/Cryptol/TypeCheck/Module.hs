@@ -122,6 +122,7 @@ doFunctorInst m f as modInst instKind enclosingInScope doc =
             mapM_ addNominal   (Map.elems (mNominalTypes m2))
             addSignatures      (mSignatures m2)
             addFunctors        (mFunctors m2)
+            addModAliases      (mModAliases m2)
             mapM_ addDecls     (mDecls m2)
 
             (vpmSubs, vpmNested) <-

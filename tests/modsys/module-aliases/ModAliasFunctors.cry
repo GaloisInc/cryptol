@@ -1,0 +1,39 @@
+// Module alias tests: aliases to functors and interfaces
+
+// Alias to a functor, then instantiate through the alias
+submodule F where
+  parameter
+    type n : #
+    type constraint (fin n, n >= 1)
+  y : [n]
+  y = 0
+
+submodule G = submodule F
+
+submodule Arg1 where
+  type n = 8
+
+submodule M1 = submodule G { submodule Arg1 }
+
+// Alias to an interface, then use it as a functor parameter
+interface submodule I where
+  type w : #
+  type constraint (fin w)
+
+interface submodule J = submodule I
+
+submodule H where
+  import interface submodule J
+  z : [w]
+  z = 0
+
+submodule Arg2 where
+  type w = 16
+
+submodule M2 = submodule H { submodule Arg2 }
+
+import submodule M1 as M1
+import submodule M2 as M2
+
+y1 = M1::y
+y2 = M2::z

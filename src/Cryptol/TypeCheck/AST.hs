@@ -126,6 +126,7 @@ data ModuleG mname =
                      , mDecls            :: [DeclGroup]
                      , mSubmodules       :: Map Name Submodule
                      , mSignatures       :: !(Map Name ModParamNames)
+                     , mModAliases       :: !(Map Name (ImpName Name))
 
                      , mInScope          :: NamingEnv
                        -- ^ Things in scope at the top level.
@@ -168,6 +169,7 @@ emptyModule nm =
     , mFunctors         = mempty
     , mSubmodules       = mempty
     , mSignatures       = mempty
+    , mModAliases       = mempty
 
     , mInScope          = mempty
     }

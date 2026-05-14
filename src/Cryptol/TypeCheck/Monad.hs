@@ -821,8 +821,12 @@ lookupSignature nx =
       do sigs <- getSignatures
          case Map.lookup x sigs of
            Just ips -> pure ips
-           Nothing  -> panic "lookupSignature"
-                        [ "Missing signature", show x ]
+           Nothing  ->
+             do aliases <- getScope mModAliases
+                case Map.lookup x aliases of
+                  Just target -> lookupSignature target
+                  Nothing -> panic "lookupSignature"
+                              [ "Missing signature", show x ]
 
     P.ImpTop t ->
       do loaded <- iExtSignatures <$> IM ask
@@ -846,10 +850,14 @@ lookupFunctor iname =
          case Map.lookup m localFuns of
            Just a -> pure a { mName = () }
            Nothing ->
-             do mbTop <- lookupTopModule (nameTopModule m)
-                pure (fromMb do a <- fst <$> mbTop
-                                b <- Map.lookup m (mFunctors a)
-                                pure b { mName = () })
+             do aliases <- getScope mModAliases
+                case Map.lookup m aliases of
+                  Just target -> lookupFunctor target
+                  Nothing ->
+                    do mbTop <- lookupTopModule (nameTopModule m)
+                       pure (fromMb do a <- fst <$> mbTop
+                                       b <- Map.lookup m (mFunctors a)
+                                       pure b { mName = () })
   where
   fromMb mb = case mb of
                 Just a -> a
@@ -874,13 +882,17 @@ lookupModule iname =
                  pure (If.ifaceForgetName n)
 
            Nothing ->
-             do mb <- lookupTopModule (nameTopModule m)
-                pure (fromMb
-                         do iface <- snd <$> mb
-                            names <- Map.lookup m
-                                        (If.ifModules (If.ifDefines iface))
-                            pure iface
-                                   { If.ifNames = names { If.ifsName = () } })
+             do aliases <- getScope mModAliases
+                case Map.lookup m aliases of
+                  Just target -> lookupModule target
+                  Nothing ->
+                    do mb <- lookupTopModule (nameTopModule m)
+                       pure (fromMb
+                                do iface <- snd <$> mb
+                                   names <- Map.lookup m
+                                               (If.ifModules (If.ifDefines iface))
+                                   pure iface
+                                          { If.ifNames = names { If.ifsName = () } })
 
   where
   fromMb mb = case mb of
@@ -1086,6 +1098,7 @@ endSubmodule =
                  , mFunctors    = if isFun
                                     then Map.insert m x1 (mFunctors y)
                                     else mFunctors x <> mFunctors y
+                 , mModAliases  = add mModAliases
                  }
 
          _ -> panic "endSubmodule" [ "Not a submodule" ]
@@ -1166,6 +1179,7 @@ getCurDecls =
       , mSubmodules       = uni mSubmodules
       , mFunctors         = uni mFunctors
       , mSignatures       = uni mSignatures
+      , mModAliases       = uni mModAliases
 
       , mInScope          = uni mInScope
       }
@@ -1212,6 +1226,10 @@ addSubmodules mp =
 addFunctors :: Map Name (ModuleG Name) -> InferM ()
 addFunctors mp =
   updScope \r -> r { mFunctors = Map.union mp (mFunctors r) }
+
+addModAliases :: Map Name (P.ImpName Name) -> InferM ()
+addModAliases mp =
+  updScope \r -> r { mModAliases = Map.union mp (mModAliases r) }
 
 setNested :: Set Name -> InferM ()
 setNested names =

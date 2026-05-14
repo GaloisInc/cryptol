@@ -1,0 +1,4 @@
+// Circular module aliases (should be an error)
+
+submodule A = submodule B
+submodule B = submodule A

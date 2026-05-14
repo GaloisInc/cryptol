@@ -126,6 +126,8 @@ data IfaceDecls = IfaceDecls
     (parameterized interfaces).  Interface functors have a 'Just' value
     in 'ifSigOwnParams'. -}
 
+  , ifModuleAliases :: !(Map.Map Name (ImpName Name))
+
   , ifSigOwnParams  :: !(Maybe IfaceParamDecls)
     {- ^ For interface functors only.  Contains the interface's own type
     and value parameter declarations that are not part of the imported
@@ -146,6 +148,7 @@ filterIfaceDecls p ifs = IfaceDecls
   , ifModules       = filterMap (ifModules ifs)
   , ifFunctors      = filterMap (ifFunctors ifs)
   , ifSignatures    = filterMap (ifSignatures ifs)
+  , ifModuleAliases = filterMap (ifModuleAliases ifs)
   , ifSigOwnParams  = filterSigParams <$> ifSigOwnParams ifs
   }
   where
@@ -180,6 +183,7 @@ instance Semigroup IfaceDecls where
     , ifModules  = Map.union (ifModules l)  (ifModules r)
     , ifFunctors = Map.union (ifFunctors l) (ifFunctors r)
     , ifSignatures = ifSignatures l <> ifSignatures r
+    , ifModuleAliases = Map.union (ifModuleAliases l) (ifModuleAliases r)
     , ifSigOwnParams = ifSigOwnParams l <|> ifSigOwnParams r
     }
 
@@ -191,6 +195,7 @@ instance Monoid IfaceDecls where
                   , ifModules = mempty
                   , ifFunctors = mempty
                   , ifSignatures = mempty
+                  , ifModuleAliases = mempty
                   , ifSigOwnParams = Nothing
                   }
   mappend = (<>)
@@ -201,6 +206,7 @@ instance Monoid IfaceDecls where
     , ifModules  = Map.unions (map ifModules ds)
     , ifFunctors = Map.unions (map ifFunctors ds)
     , ifSignatures = Map.unions (map ifSignatures ds)
+    , ifModuleAliases = Map.unions (map ifModuleAliases ds)
     , ifSigOwnParams = foldr ((<|>) . ifSigOwnParams) Nothing ds
     }
 

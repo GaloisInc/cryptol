@@ -197,6 +197,7 @@ noIncludeModule m =
                  NormalModule ds         -> NormalModule <$> doDecls ds
                  FunctorInstance f as is k -> pure (FunctorInstance f as is k)
                  InterfaceModule s       -> pure (InterfaceModule s)
+                 ModuleAlias t           -> pure (ModuleAlias t)
      pure m { mDef = newDef }
   where
   doDecls    = fmap concat . collectErrors noIncTopDecl

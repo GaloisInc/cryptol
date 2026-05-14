@@ -340,6 +340,46 @@ another top-level module ``B`` requires two steps:
     z = 2 * y
 
 
+Module Aliases
+--------------
+
+A *module alias* introduces a new name for an existing module.
+This is useful when working with deeply nested modules, or to
+provide a shorter local name for a module that is used frequently.
+
+.. code-block:: cryptol
+  :caption: Basic module alias.
+
+  module M where
+
+    submodule A where
+      x : [8]
+      x = 42
+
+    submodule B = submodule A   // B is an alias for A
+
+    y = B::x                    // same as A::x
+
+Like other nested modules, aliases get an implicit qualified import,
+so ``B::x`` is available without an explicit ``import submodule B``.
+
+Aliases may refer to nested submodules, top-level modules,
+functors, or interfaces.  An alias can also refer to another alias,
+and chains of aliases are resolved transitively.
+
+Aliases are ordinary module-level definitions: they can be exported,
+placed in ``private`` blocks, and imported from other modules
+just like submodules.
+
+Aliases to functors may be instantiated through the alias name,
+and aliases to interfaces may be used in ``import interface`` declarations.
+
+.. note::
+
+  Module aliases are only allowed inside other modules.
+  A top-level module alias (e.g., ``module M = SomeTopMod``) is not supported.
+
+
 Parameterized Modules
 ---------------------
 

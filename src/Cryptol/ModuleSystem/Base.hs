@@ -457,6 +457,7 @@ addPrelude m
       FunctorInstance f as ins k -> FunctorInstance f as ins k
       InterfaceModule s -> InterfaceModule s { sigImports = P.SigImport prel
                                              : sigImports s }
+      ModuleAlias t -> ModuleAlias t
 
   importedMods  = map (P.thing . P.iModule . P.thing) (P.mImports m)
   prel = P.Located
@@ -542,6 +543,7 @@ findDeps' m =
                   NamedInstArgs args -> mconcat (map loadNamedInstArg args)
       in fds <> ads
     InterfaceModule s -> mconcat (map loadSigImp (sigImports s))
+    ModuleAlias t -> loadImpName FromModuleAlias t
   where
   loadI i = (mempty, Endo (i:))
 
