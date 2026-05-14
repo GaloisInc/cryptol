@@ -2,6 +2,10 @@
 
 ## Language changes
 
+* Primitives `arrayCopy`, `arraySet`, and `arrayRangeEqual` from the
+  built-in `Array` module now have types with `fin` constraints.
+  ([#2037](https://github.com/GaloisInc/cryptol/issues/2037))
+
 * Add typechecker simplification rule: `max(a,a) == a`
   ([#1923](https://github.com/GaloisInc/cryptol/issues/1923))
 
