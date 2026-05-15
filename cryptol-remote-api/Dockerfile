@@ -1,5 +1,5 @@
 ARG GHCVER="9.6.7"
-ARG CABALVER="3.10.3.0"
+ARG CABALVER="3.14.1.0"
 # Note that we intentionally do not use ubuntu:24.04 or later pending a
 # resolution to https://github.com/coder/coder/issues/17316.
 FROM ubuntu:22.04 AS toolchain
