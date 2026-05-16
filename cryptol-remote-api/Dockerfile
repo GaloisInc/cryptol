@@ -1,4 +1,4 @@
-ARG GHCVER="9.6.7"
+ARG GHCVER="9.8.4"
 ARG CABALVER="3.14.1.0"
 # Note that we intentionally do not use ubuntu:24.04 or later pending a
 # resolution to https://github.com/coder/coder/issues/17316.

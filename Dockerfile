@@ -2,7 +2,7 @@
 # resolution to https://github.com/coder/coder/issues/17316.
 FROM ubuntu:22.04 AS build
 
-ARG GHCVER="9.6.7"
+ARG GHCVER="9.8.4"
 ARG CABALVER="3.14.1.0"
 RUN apt-get update && \
     apt-get install -y \
