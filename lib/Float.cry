@@ -154,7 +154,14 @@ primitive fpIsInf : {e,p} ValidFloat e p => Float e p -> Bool
 /** Test if this value is positive or negative zero. */
 primitive fpIsZero : {e,p} ValidFloat e p => Float e p -> Bool
 
-/** Test if this value is negative. */
+/** Test if this value is positive. Note that the following identity holds:
+ *    fpIsPos x == ~ (fpNeg x \/ fpIsNaN x)
+ */
+primitive fpIsPos : {e,p} ValidFloat e p => Float e p -> Bool
+
+/** Test if this value is negative. Note that the following identity holds:
+ *    fpIsNeg x == ~ (fpPos x \/ fpIsNaN x)
+ */
 primitive fpIsNeg : {e,p} ValidFloat e p => Float e p -> Bool
 
 /** Test if this value is normal (not NaN, not infinite, not zero, and not subnormal). */
@@ -197,6 +204,41 @@ primitive
   fpDiv : {e,p} ValidFloat e p =>
     RoundingMode -> Float e p -> Float e p -> Float e p
 
+/** Compute the remainder from the division of two floating point numbers. */
+primitive
+  fpRem : {e,p} ValidFloat e p =>
+    Float e p -> Float e p -> Float e p
+
+/** Compute the minimum of two floating-point numbers. Note that:
+
+  * If one of the arguments is NaN, this will return the other argument.
+  * If both arguments are zeroes, then this will return the first argument. In
+    particular, this means that 'fpMin (-0) (+0) == -0' and
+    'fpMin (+0) (-0) == (+0)'.
+
+  */
+fpMin : {e, p} (ValidFloat e p) => Float e p -> Float e p -> Float e p
+fpMin x y =
+  if fpIsNaN x then y
+   | fpIsNaN y then x
+   | x <= y    then x
+  else              y
+
+/** Compute the maximum of two floating-point numbers. Note that:
+
+  * If one of the arguments is NaN, this will return the other argument.
+  * If both arguments are zeroes, then this will return the first argument. In
+    particular, this means that 'fpMax (-0) (+0) == -0' and
+    'fpMax (+0) (-0) == (+0)'.
+
+  */
+fpMax : {e, p} (ValidFloat e p) => Float e p -> Float e p -> Float e p
+fpMax x y =
+  if fpIsNaN x then y
+   | fpIsNaN y then x
+   | x >= y    then x
+  else              y
+
 /**
  * Fused-multiply-add.  'fpFMA r x y z' computes the value '(x*y)+z',
  * rounding the result according to mode 'r' only after performing both
@@ -237,3 +279,86 @@ given rounding mode, if the number cannot be represented exactly. */
 primitive
   fpFromRational : {e,p} ValidFloat e p =>
     RoundingMode -> Rational -> Float e p
+
+/* ------------------------------------------------------------ *
+ * Float casts
+ * ------------------------------------------------------------ */
+
+/** Convert a value of one floating point type to another using the given
+  * rounding mode.
+  */
+primitive
+  fpCast : {e1,p1,e2,p2} (ValidFloat e1 p1, ValidFloat e2 p2) =>
+    RoundingMode -> Float e1 p1 -> Float e2 p2
+
+/** Round a floating point value to an integer (represented as a float) using
+  * the given rounding mode.
+  */
+primitive
+  fpRound : {e,p} ValidFloat e p =>
+    RoundingMode -> Float e p -> Float e p
+
+/* ------------------------------------------------------------ *
+ * Bitvector casts
+ * ------------------------------------------------------------ */
+
+/** Convert an unsigned bitvector to a floating point value using the given
+  * rounding mode.
+  *
+  * 'fpFromBV' should not be confused with 'fpFromBits', which reinterprets the
+  * bits of a float value as-is.
+  */
+primitive
+  fpFromBV : {n,e,p} (fin n, n >= 1, ValidFloat e p) =>
+    RoundingMode -> [n] -> Float e p
+
+/** Convert an signed bitvector to a floating point value using the given
+  * rounding mode.
+  *
+  * 'fpFromSBV' should not be confused with 'fpFromBits', which reinterprets
+  * the bits of a float value as-is.
+  */
+primitive
+  fpFromSBV : {n,e,p} (fin n, n >= 1, ValidFloat e p) =>
+    RoundingMode -> [n] -> Float e p
+
+/** Convert a floating point value to an unsigned bitvector using the given
+    rounding mode. For instance, 'fpToBV rm fpPosZero == (0 : [n])' and
+    'fpToBV rm fpNegZero == (0 : [n])' for all rounding modes 'rm'.
+
+    'fpToBV' should not be confused with 'fpToBits', which reinterprets the
+    bits of a bitvector as-is.
+
+    Note that not all floating-point values fit within the range of possible
+    unsigned bitvector values of type '[n]'. 'fpToBV' behaves as follows on
+    such values:
+
+    * 'fpNaN' is converted to '0'.
+    * Values smaller than '0' (including 'fpNegInf') will saturate to '0'.
+    * Values larger than the maximum unsigned value of type '[n]' (including
+      'fpPosInf') will saturate to the maximum unsigned value.
+  */
+primitive
+  fpToBV : {n,e,p} (fin n, n >= 1, ValidFloat e p) =>
+    RoundingMode -> Float e p -> [n]
+
+/** Convert a floating point value to a signed bitvector using the given
+    rounding mode. For instance, 'fpToSBV rm fpPosZero == (0 : [n])' and
+    'fpToSBV rm fpNegZero == (0 : [n])' for all rounding modes 'rm'.
+
+    'fpToSBV' should not be confused with 'fpToBits', which reinterprets the
+    bits of a bitvector as-is.
+
+    Note that not all floating-point values fit within the range of possible
+    signed bitvector values of type '[n]'. 'fpToSBV' behaves as follows on such
+    values:
+
+    * 'fpNaN' is converted to '0'.
+    * Values smaller than the minimum signed value of type '[n]' (including
+      'fpNegInf') will saturate to the minimum signed value.
+    * Values larger than the maximum signed value of type '[n]' (including
+      'fpPosInf') will saturate to the maximum signed value.
+  */
+primitive
+  fpToSBV : {n,e,p} (fin n, n >= 1, ValidFloat e p) =>
+    RoundingMode -> Float e p -> [n]
