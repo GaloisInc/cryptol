@@ -1,10 +1,13 @@
 {-# Language BlockArguments, OverloadedStrings #-}
 {-# Language BangPatterns #-}
+{-# Language TypeApplications #-}
 module Cryptol.Backend.FloatHelpers where
 
+import Data.Bits (bit)
 import Data.Char (isDigit)
 import Data.Ratio(numerator,denominator)
 import LibBF
+import Numeric.Natural (Natural)
 
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
@@ -118,6 +121,10 @@ fpLit ::
   BF
 fpLit e p rat = floatFromRational e p NearEven rat
 
+-- | Make a floating point number from an integer, using the given rounding mode
+floatFromInteger :: BFOpts -> Integer -> BigFloat
+floatFromInteger opts i = fpCheckStatus (bfRoundFloat opts (bfFromInteger i))
+
 -- | Make a floating point number from a rational, using the given rounding mode
 floatFromRational :: Integer -> Integer -> RoundMode -> Rational -> BF
 floatFromRational e p r rat =
@@ -186,3 +193,69 @@ floatToBits e p bf = bfToBits (fpOpts e p NearEven) bf
 -- | Create a 64-bit IEEE-754 float.
 floatFromDouble :: Double -> BF
 floatFromDouble = uncurry BF float64ExpPrec . bfFromDouble
+
+-- | Convert a floating point number to an unsigned bitvector. See the
+-- documentation for @fpToBV@ in @Float.cry@ for an explanation of how
+-- exceptional values are treated.
+floatToBV :: Natural -> RoundMode -> BF -> Integer
+floatToBV w r fp
+  | bfIsNaN bf
+  = 0
+  | bfIsInf bf
+  = if bfIsNeg bf then 0 else maxUnsigned
+  | otherwise
+  = case floatToInteger fun r fp of
+      -- 'floatToInteger' can only return 'Left' if the argument is NaN or
+      -- infinite, which we have already checked above.
+      Left err ->
+        panic fun
+          [ "Unexpected error when converting " ++ show bf ++ " to integer"
+          , show err
+          ]
+      Right i
+        | i < 0 -> 0
+        | maxUnsigned < i -> maxUnsigned
+        | otherwise -> i
+  where
+    fun = "fpToBV"
+
+    bf :: BigFloat
+    bf = bfValue fp
+
+    maxUnsigned :: Integer
+    maxUnsigned = bit (fromIntegral @Natural @Int w) - 1
+
+-- | Convert a floating point number to a signed bitvector. See the
+-- documentation for @fpToSBV@ in @Float.cry@ for an explanation of how
+-- exceptional values are treated.
+floatToSBV :: Natural -> RoundMode -> BF -> Integer
+floatToSBV w r fp
+  | bfIsNaN bf
+  = 0
+  | bfIsInf bf
+  = if bfIsNeg bf then minSigned else maxSigned
+  | otherwise
+  = case floatToInteger fun r fp of
+      -- 'floatToInteger' can only return 'Left' if the argument is NaN or
+      -- infinite, which we have already checked above.
+      Left err ->
+        panic fun
+          [ "Unexpected error when converting " ++ show bf ++ " to integer"
+          , show err
+          ]
+      Right i
+        | i < minSigned -> minSigned
+        | maxSigned < i -> maxSigned
+        | otherwise -> i
+  where
+    fun = "fpToSBV"
+
+    bf :: BigFloat
+    bf = bfValue fp
+
+    signedUpperBound :: Integer
+    signedUpperBound = bit (fromIntegral @Natural @Int w - 1)
+
+    minSigned, maxSigned :: Integer
+    minSigned = negate signedUpperBound
+    maxSigned = signedUpperBound - 1

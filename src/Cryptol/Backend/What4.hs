@@ -28,6 +28,7 @@ import           Data.Set (Set)
 import           Data.Text (Text)
 import           Data.Parameterized.NatRepr
 import           Data.Parameterized.Some
+import           Numeric.Natural (Natural)
 
 import qualified GHC.Num.Compat as Integer
 
@@ -463,6 +464,8 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   fpMult  = fpBinArith FP.fpMul
   fpDiv   = fpBinArith FP.fpDiv
 
+  fpRem sym x y = liftIO $ FP.fpRem (w4 sym) x y
+
   fpNeg sym x = liftIO $ FP.fpNeg (w4 sym) x
   fpAbs sym x = liftIO $ FP.fpAbs (w4 sym) x
   fpSqrt sym r x =
@@ -474,6 +477,7 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
        liftIO $ FP.fpFMA (w4 sym) rm x y z
 
   fpIsZero sym x = liftIO $ FP.fpIsZero (w4 sym) x
+  fpIsPos sym x = liftIO $ FP.fpIsPos (w4 sym) x
   fpIsNeg sym x = liftIO $ FP.fpIsNeg (w4 sym) x
   fpIsNaN sym x = liftIO $ FP.fpIsNaN (w4 sym) x
   fpIsInf sym x = liftIO $ FP.fpIsInf (w4 sym) x
@@ -488,6 +492,25 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
 
   fpFromRational = fpCvtFromRational
   fpToRational = fpCvtToRational
+
+  fpCast sym e p r x =
+    do rm <- fpRoundingMode sym r
+       liftIO $ FP.fpCast (w4 sym) e p rm x
+
+  fpRound sym r x =
+    do rm <- fpRoundingMode sym r
+       liftIO $ FP.fpRound (w4 sym) rm x
+
+  fpFromBV sym e p r x =
+    do rm <- fpRoundingMode sym r
+       liftIO $ FP.fpFromBV (w4 sym) e p rm x
+
+  fpFromSBV sym e p r x =
+    do rm <- fpRoundingMode sym r
+       liftIO $ FP.fpFromSBV (w4 sym) e p rm x
+
+  fpToBV = fpCvtToBV
+  fpToSBV = fpCvtToSBV
 
 sModAdd :: W4.IsSymExprBuilder sym =>
   sym -> Integer -> W4.SymInteger sym -> W4.SymInteger sym -> IO (W4.SymInteger sym)
@@ -615,17 +638,24 @@ fpBinArith fun = \sym r x y ->
      liftIO (fun (w4 sym) m x y)
 
 
-fpCvtToInteger ::
+-- | Convert a floating-point value to an integer. This returns a pair
+-- containing:
+--
+-- 1. A safety predicate that the value is non-NaN and finite.
+-- 2. The converted integer value.
+--
+-- Note that this function does not assert the safety predicate as a side
+-- condition.
+fpCvtToIntegerPred ::
   (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
-  sym -> String -> SWord sym -> SFloat sym -> SEval sym (SInteger sym)
-fpCvtToInteger sym fun r x =
+  sym -> SWord sym -> SFloat sym -> SEval sym (W4.Pred sy, SInteger sym)
+fpCvtToIntegerPred sym r x =
   do grd <- liftIO
               do bad1 <- FP.fpIsInf (w4 sym) x
                  bad2 <- FP.fpIsNaN (w4 sym) x
                  W4.notPred (w4 sym) =<< W4.orPred (w4 sym) bad1 bad2
-     assertSideCondition sym grd (BadValue fun)
-     rnd  <- fpRoundingMode sym r
-     liftIO
+     rnd <- fpRoundingMode sym r
+     res <- liftIO
        do y <- FP.fpToReal (w4 sym) x
           case rnd of
             W4.RNE -> W4.realRoundEven (w4 sym) y
@@ -633,6 +663,17 @@ fpCvtToInteger sym fun r x =
             W4.RTP -> W4.realCeil (w4 sym) y
             W4.RTN -> W4.realFloor (w4 sym) y
             W4.RTZ -> W4.realTrunc (w4 sym) y
+     pure (grd, res)
+
+-- | Convert a floating-point value to an integer. This asserts that the
+-- argument is non-NaN and finite, throwing an error otherwise.
+fpCvtToInteger ::
+  (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
+  sym -> String -> SWord sym -> SFloat sym -> SEval sym (SInteger sym)
+fpCvtToInteger sym fun r x =
+  do (grd, res) <- fpCvtToIntegerPred sym r x
+     assertSideCondition sym grd (BadValue fun)
+     pure res
 
 
 fpCvtToRational ::
@@ -655,6 +696,204 @@ fpCvtFromRational ::
 fpCvtFromRational sym e p r rat =
   do rnd <- fpRoundingMode sym r
      liftIO (FP.fpFromRational (w4 sym) e p rnd (sNum rat) (sDenom rat))
+
+fpCvtToBV ::
+  (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
+  sym -> Natural -> SWord sym ->
+  SFloat sym -> SEval sym (SWord sym)
+fpCvtToBV sym w r fp =
+  do Some w' <- pure $ mkNatRepr w
+     LeqProof <-
+       case isPosNat w' of
+         Just p -> pure p
+         Nothing -> panic "fpToBV" ["bit width must be non-zero"]
+     rnd <- fpRoundingMode sym r
+     fpBV <- liftIO $ FP.fpToBV (w4 sym) w rnd fp
+     fpIsNaN' <- liftIO $ FP.fpIsNaN (w4 sym) fp
+     fpIsNeg' <- liftIO $ FP.fpIsNeg (w4 sym) fp
+     zeroBV <- liftIO $ SW.DBV <$> W4.bvZero (w4 sym) w'
+     maxUnsignedBV <- liftIO $ SW.DBV <$> W4.maxUnsignedBV (w4 sym) w'
+     -- Note [Checking boundary cases in fpTo{BV,SBV}]
+     case rnd of
+       W4.RTZ -> liftIO $
+         do let (e, p) = FP.fpSize fp
+            fp' <- FP.fpFromBV (w4 sym) e p rnd fpBV
+            fpRounded <- FP.fpRound (w4 sym) rnd fp
+            fpRoundedIsZero <- FP.fpIsZero (w4 sym) fpRounded
+            roundtrips <- FP.fpEq (w4 sym) fp' fpRounded
+            noOverflow <- W4.orPred (w4 sym) fpRoundedIsZero roundtrips
+            fpIsNaNOrNeg <- W4.orPred (w4 sym) fpIsNaN' fpIsNeg'
+            res <- SW.bvIte (w4 sym) noOverflow fpBV maxUnsignedBV
+            SW.bvIte (w4 sym) fpIsNaNOrNeg zeroBV res
+       _ ->
+         do (_, i) <- fpCvtToIntegerPred sym r fp
+            liftIO $
+              do fpIsInf' <- FP.fpIsInf (w4 sym) fp
+                 fpIsPos' <- FP.fpIsPos (w4 sym) fp
+                 fpIsNegInf <- W4.andPred (w4 sym) fpIsInf' fpIsNeg'
+                 fpIsPosInf <- W4.andPred (w4 sym) fpIsInf' fpIsPos'
+                 zeroInt <- W4.intLit (w4 sym) 0
+                 maxUnsignedInt <- SW.bvToInteger (w4 sym) maxUnsignedBV
+                 overflowsMin <- W4.intLt (w4 sym) i zeroInt
+                 overflowsMax <- W4.intLt (w4 sym) maxUnsignedInt i
+                 res1 <- SW.bvIte (w4 sym) overflowsMax maxUnsignedBV fpBV
+                 res2 <- SW.bvIte (w4 sym) overflowsMin zeroBV res1
+                 res3 <- SW.bvIte (w4 sym) fpIsPosInf maxUnsignedBV res2
+                 res4 <- SW.bvIte (w4 sym) fpIsNegInf zeroBV res3
+                 SW.bvIte (w4 sym) fpIsNaN' zeroBV res4
+
+fpCvtToSBV ::
+  (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
+  sym -> Natural -> SWord sym ->
+  SFloat sym -> SEval sym (SWord sym)
+fpCvtToSBV sym w r fp =
+  do Some w' <- pure $ mkNatRepr w
+     LeqProof <-
+       case isPosNat w' of
+         Just p -> pure p
+         Nothing -> panic "fpToSBV" ["bit width must be non-zero"]
+     rnd <- fpRoundingMode sym r
+     fpSBV <- liftIO $ FP.fpToSBV (w4 sym) w rnd fp
+     fpIsNaN' <- liftIO $ FP.fpIsNaN (w4 sym) fp
+     fpIsNeg' <- liftIO $ FP.fpIsNeg (w4 sym) fp
+     zeroBV <- liftIO $ SW.DBV <$> W4.bvZero (w4 sym) w'
+     minSignedBV <- liftIO $ SW.DBV <$> W4.minSignedBV (w4 sym) w'
+     maxSignedBV <- liftIO $ SW.DBV <$> W4.maxSignedBV (w4 sym) w'
+     -- Note [Checking boundary cases in fpTo{BV,SBV}]
+     case rnd of
+       W4.RTZ -> liftIO $
+         do let (e, p) = FP.fpSize fp
+            fp' <- FP.fpFromSBV (w4 sym) e p rnd fpSBV
+            fpRounded <- FP.fpRound (w4 sym) rnd fp
+            fpRoundedIsZero <- FP.fpIsZero (w4 sym) fpRounded
+            roundtrips <- FP.fpEq (w4 sym) fp' fpRounded
+            noOverflow <- W4.orPred (w4 sym) fpRoundedIsZero roundtrips
+            res1 <- SW.bvIte (w4 sym) fpIsNeg' minSignedBV maxSignedBV
+            res2 <- SW.bvIte (w4 sym) noOverflow fpSBV res1
+            SW.bvIte (w4 sym) fpIsNaN' zeroBV res2
+       _ ->
+         do (_, i) <- fpCvtToIntegerPred sym r fp
+            liftIO $
+              do fpIsInf' <- FP.fpIsInf (w4 sym) fp
+                 fpIsPos' <- FP.fpIsPos (w4 sym) fp
+                 fpIsNegInf <- W4.andPred (w4 sym) fpIsInf' fpIsNeg'
+                 fpIsPosInf <- W4.andPred (w4 sym) fpIsInf' fpIsPos'
+                 minSignedInt <- SW.bvToInteger (w4 sym) minSignedBV
+                 maxSignedInt <- SW.bvToInteger (w4 sym) maxSignedBV
+                 overflowsMin <- W4.intLt (w4 sym) i minSignedInt
+                 overflowsMax <- W4.intLt (w4 sym) maxSignedInt i
+                 res1 <- SW.bvIte (w4 sym) overflowsMax maxSignedBV fpSBV
+                 res2 <- SW.bvIte (w4 sym) overflowsMin minSignedBV res1
+                 res3 <- SW.bvIte (w4 sym) fpIsPosInf maxSignedBV res2
+                 res4 <- SW.bvIte (w4 sym) fpIsNegInf minSignedBV res3
+                 SW.bvIte (w4 sym) fpIsNaN' zeroBV res4
+
+{-
+Note [Checking boundary cases in fpTo{BV,SBV}]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The semantics of fpToBV and fpToSBV are such that if the argument float does
+not fit in the given bitvector size (unsigned for fpToBV, and signed for
+fpToSBV), then they will return specific values rather than erroring. There are
+various float values that may not fit:
+
+1. NaN values
+2. Infinite values
+3. Values that are less than the minimum bitvector value
+4. Values that are larger than the maximum bitvector value
+
+(1) and (2) are simple to check for, but (3) and (4) are surprisingly tricky to
+check for due to tricky edge cases involving floating-point rounding. The
+problem is that fpToBV and fpToSBV are implemented under the hood using
+SMT-LIB's fp.to_ubv and fp.to_sbv operations, which can return unspecified
+results if you supply arguments of types (3) or (4). What's more, SMT-LIB does
+not offer an overflow predicate to check if an argument is of type (3) or (4).
+This means that in the general case, you cannot use fp.to_{ubv,sbv} to check if
+a float is out of range, because if it *is* out of range, then the result of
+invoking 'fp.to_{ubv,sbv}' can be equal to anything, making it unreliable for
+comparison purposes.
+
+In the general case, we check for properties (3) and (4) by adopting a very
+literal interpretation of the semantics of fp.to_{ubv,sbv}. We first convert
+the argument float, the minimum integer value, and the maximum integer value to
+unbounded integers (i.e., SMT-LIB's Integer type), and then check if the
+converted float lies within the range of possible bitvector values by using
+unbounded integer comparisons. There is no risk of unspecified conversion
+results here, as converting floats to unbounded integers is always well-defined
+(assuming that the float is non-NaN and finite, which we have already checked
+with properties (1) and (2)). There are two notable downsides to this approach,
+however:
+
+1. This requires SMT-LIB's Ints theory, which is not supported by all SMT
+   solvers (e.g., Bitwuzla). Indeed, it's pretty surprising that fpTo{BV,SBV}
+   would need unbounded integers, as nothing about the types of these
+   functions would suggest this.
+
+2. Even if we restrict ourselves to solvers that do support unbounded integers
+   (e.g., CVC5 and Z3), these solvers' performance on unbounded integer
+   problems is usually much worse than problems that exclusively use bitvector
+   or floating-point types.
+
+This is unfortunate, but it is not obvious how to do better in the general
+case. (See also the discussion at
+https://github.com/LeventErkok/sbv/issues/462.)
+
+Note that the discussion above assumed "the general case", i.e., when we are
+dealing with an arbitrary rounding mode. We actually *can* do better if we know
+that we are using the rtz (rounding to zero) rounding mode in particular, as
+there exists a trick for checking overflow in this rounding mode that doesn't
+rely on unbounded integers. The algorithm for checking for overflow on an
+argument float `val` is as follows:
+
+1. If `val` is zero, then no overflow occurs.
+2. Otherwise:
+  a. Compute `bv` by converting `val` to a bitvector using SMT-LIB's
+     `fp.to_{ubv,sbv}` operation with the rtz (rounding towards zero) rounding
+     mode.
+  b. Compute `fp2` by converting `bv` back to a float using SMT-LIB's `to_fp`
+     operation with the rtz rounding mode.
+  c. Compute `val_rounded` by rounding `val` to the nearest integral value
+     that is representable in the `val`'s floating-point type. This is done by
+     using SMT-LIB's `fp.roundToIntegral` operation with the rtz rounding mode.
+  d. If `fp2` equals `val_rounded` (according to SMT-LIB's logical equality,
+     equality, i.e., (= fp2 val_rounded)), then no overflow occurs. Otherwise,
+     it does.
+
+Here is an argument for why this algorithm is correct:
+
+* As noted above, it is possible for `fp.to_{ubv,sbv}` to return an unspecified
+  value if `val` lies outside the range of possible bitvectors. Steps (2)(b)
+  through (2)(d) are crucial for preventing unspecified values from producing
+  misleading results. Note that `to_fp` and `fp.roundToIntegral` are
+  well-defined for all possible inputs, and because we are using the rtz
+  rounding mode, they will never round a float up to positive infinity or down
+  to negative infinity. Moreover, `to_fp` will always return a float that lies
+  within the range of valid bitvectors.
+
+  If the equality check in step (2)(d) succeeds, then we know that
+  `fp.to_{ubv,sbv}` did not take a float lying outside the range of valid
+  bitvectors and turn it into a completely different bitvector. If it did, then
+  `to_fp` would produce a different float than what `fp.roundToIntegral` would
+  produce. It is worth emphasizing that this trick only works with the rtz
+  rounding mode.
+
+* Why the special case for zero values in step (1)? It's because calling
+  `fp.to_{ubv,sbv}` on negative zero will drop the negative sign, so converting
+  it back to a float with `to_fp` will return positive zero. On the other hand,
+  calling `fp.roundToIntegral` on negative zero will return negative zero,
+  which is deemed logically unequal to positive zero.
+
+  An alternative approach would be to use IEEE floating-point equality (i.e.,
+  SMT-LIB's `fp.eq` operation) instead of logical equality (i.e., SMT-LIB's (=)
+  operation) in step (2)(d), as the former equates positive and negative zero.
+  On the other hand, we would need to change step (1) to add a special case for
+  NaN values, since NaN is deemded unequal to itself according to IEEE
+  equality. Either way, you need a special case of some sort.
+
+This approach is directly inspired by how the Alive2 translation validation
+tool for LLVM translates the `fpto{ui,si}` instructions, which are LLVM's
+counterparts to invoking `fp.to_{ubv,sbv}` with the rtz rounding mode . See
+https://github.com/AliveToolkit/alive2/blob/efddfc43bae2760cb5878b932a9c1a001fec374e/ir/instr.cpp#L2048-L2106
+-}
 
 -- Create a fresh constant and assert that it is the
 -- multiplicitive inverse of x; return the constant.

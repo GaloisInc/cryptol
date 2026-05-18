@@ -2125,6 +2125,8 @@ genericFloatTable sym =
                        PPrim (VBit <$> fpIsInf sym x)
     , "fpIsZero"    ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
                        PPrim (VBit <$> fpIsZero sym x)
+    , "fpIsPos"     ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
+                       PPrim (VBit <$> fpIsPos sym x)
     , "fpIsNeg"     ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
                        PPrim (VBit <$> fpIsNeg sym x)
     , "fpIsNormal"  ~> PFinPoly \_ -> PFinPoly \_ -> PFloatFun \x ->
@@ -2136,6 +2138,9 @@ genericFloatTable sym =
     , "fpSub"       ~> fpBinArithV sym fpMinus
     , "fpMul"       ~> fpBinArithV sym fpMult
     , "fpDiv"       ~> fpBinArithV sym fpDiv
+    , "fpRem"       ~> PFinPoly \_ -> PFinPoly \_ ->
+                       PFloatFun \x -> PFloatFun \y ->
+                       PPrim (VFloat <$> fpRem sym x y)
     , "fpFMA"       ~> PFinPoly \_ -> PFinPoly \_ -> PWordFun \r ->
                        PFloatFun \x -> PFloatFun \y -> PFloatFun \z ->
                        PPrim (VFloat <$> fpFMA sym r x y z)
@@ -2157,6 +2162,32 @@ genericFloatTable sym =
        PPrim
          do rat <- fromVRational <$> x
             VFloat <$> fpFromRational sym e p r rat
+
+    , "fpCast" ~>
+       PFinPoly \_e1 -> PFinPoly \_p1 ->
+       PFinPoly \e2 -> PFinPoly \p2 ->
+       PWordFun \r -> PFloatFun \x ->
+       PPrim (VFloat <$> fpCast sym e2 p2 r x)
+
+    , "fpRound" ~>
+       PFinPoly \_e -> PFinPoly \_p -> PWordFun \r -> PFloatFun \x ->
+       PPrim (VFloat <$> fpRound sym r x)
+
+    , "fpFromBV" ~>
+       PFinPoly \_n -> PFinPoly \e -> PFinPoly \p -> PWordFun \r -> PWordFun \x ->
+       PPrim (VFloat <$> fpFromBV sym e p r x)
+
+    , "fpFromSBV" ~>
+       PFinPoly \_n -> PFinPoly \e -> PFinPoly \p -> PWordFun \r -> PWordFun \x ->
+       PPrim (VFloat <$> fpFromSBV sym e p r x)
+
+    , "fpToBV" ~>
+       PFinPoly \n -> PFinPoly \_e -> PFinPoly \_p -> PWordFun \r -> PFloatFun \x ->
+       PPrim (VWord . wordVal <$> fpToBV sym (fromInteger n) r x)
+
+    , "fpToSBV" ~>
+       PFinPoly \n -> PFinPoly \_e -> PFinPoly \_p -> PWordFun \r -> PFloatFun \x ->
+       PPrim (VWord . wordVal <$> fpToSBV sym (fromInteger n) r x)
 
     ]
 

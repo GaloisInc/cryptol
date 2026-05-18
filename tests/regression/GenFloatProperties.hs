@@ -28,6 +28,8 @@ data Result = Result
   { resultName :: !Text
   , resultType :: !ResultType
   , resultHasRoundingMode :: !Bool
+  , resultUsesFpCast :: !Bool
+  , resultUsesBvConversion :: !Bool
   }
 
 propertiesFile :: FilePath
@@ -63,33 +65,83 @@ scrapeResults = do
               else error $ "Unsupported result name: " ++ T.unpack name
           , resultHasRoundingMode =
               any ("RoundingMode" `T.isInfixOf`) [l1, l2]
+          , resultUsesFpCast = "fpCast" `T.isInfixOf` l1
+          , resultUsesBvConversion =
+              any (`T.isInfixOf` l1)
+                  ["fpFromBV", "fpFromSBV", "fpToBV", "fpToSBV"]
           })
       ls2
 
 resultCommandLines :: Result -> [Text]
-resultCommandLines r =
-  [ "\"" <> action <> " " <> resultName r <> "...\""
-  | let action = case resultType r of
-                   ProveProperty -> "Proving"
-                   CheckProperty -> "Checking"
-                   Counterexample -> "Disproving"
-  ] ++
-  if resultHasRoundingMode r
-    then [basicCommand <> " " <> rm | rm <- roundingModes]
-    else [basicCommand]
+resultCommandLines r
+  -- Special cases for results involving `fpCast` or bitvector conversions,
+  -- which take extra type parameters.
+  | resultUsesFpCast r
+  = [ fpCastCommand floatSize1 floatSize2 <> " " <> rm
+    | floatSize1 <- allFloatSizes
+    , floatSize2 <- allFloatSizes
+    , rm <- roundingModes
+    ]
+  | resultUsesBvConversion r
+  = [ bvConversionCommand bvSize <> " " <> rm
+    | bvSize <- bvConversionSizes
+    , rm <- roundingModes
+    ]
+
+  | otherwise
+  = [ "\"" <> action <> " " <> resultName r <> "...\""
+    | let action = case resultType r of
+                     ProveProperty -> "Proving"
+                     CheckProperty -> "Checking"
+                     Counterexample -> "Disproving"
+    ] ++
+    if resultHasRoundingMode r
+      then [basicCommand <> " " <> rm | rm <- roundingModes]
+      else [basicCommand]
   where
+    basicCommand :: Text
+    basicCommand =
+      command <> " " <> resultName r <>
+      "`{" <> ppFloatSize defaultFloatSize <> "}"
+
+    fpCastCommand :: (Int, Int) -> (Int, Int) -> Text
+    fpCastCommand floatSize1 floatSize2 =
+      command <> " " <> resultName r <>
+      "`{" <> ppFloatSize floatSize1 <> ", " <> ppFloatSize floatSize2 <> "}"
+
+    bvConversionCommand :: Int -> Text
+    bvConversionCommand bvSize =
+      command <> " " <> resultName r <>
+      "`{" <> T.pack (show bvSize) <> ", " <>
+      ppFloatSize defaultFloatSize <> "}"
+
+    command :: Text
+    command =
+      case resultType r of
+        ProveProperty -> ":prove"
+        CheckProperty -> ":check"
+        Counterexample -> ":sat"
+
     -- We arbitrarily instantiate each property at Float32 (`{8, 24}), but
     -- these properties should hold for any Float size.
-    basicCommand :: Text
-    basicCommand = command <> " " <> resultName r <> "`{8, 24}"
-      where
-        command = case resultType r of
-                    ProveProperty -> ":prove"
-                    CheckProperty -> ":check"
-                    Counterexample -> ":sat"
+    defaultFloatSize :: (Int, Int)
+    defaultFloatSize = (8, 24)
+
+    -- For results involving `fpCast`, we include both Float32 and Float64
+    -- (`{11, 53}) for increased coverage.
+    allFloatSizes :: [(Int, Int)]
+    allFloatSizes = [(8, 24), (11, 53)]
+
+    ppFloatSize :: (Int, Int) -> Text
+    ppFloatSize (e, p) = T.pack (show e) <> ", " <> T.pack (show p)
 
     roundingModes :: [Text]
     roundingModes = ["rne", "rna", "rtp", "rtn", "rtz"]
+
+    -- A variety of bitvector sizes to use for properties involving bitvector
+    -- conversions.
+    bvConversionSizes :: [Int]
+    bvConversionSizes = [16, 32, 64]
 
 main :: IO ()
 main = do
