@@ -146,7 +146,7 @@ instance Backend Concrete where
 
   wordLen' _ (BV w _) = w
   {-# INLINE wordLen' #-}
-  
+
   wordAsChar _ (BV _ x) = Just $! integerToChar x
 
   wordBit _ (BV w x) idx = pure $! testBit x (fromInteger (w - 1 - idx))
@@ -370,6 +370,17 @@ instance Backend Concrete where
   fpMinus = fpBinArith FP.bfSub
   fpMult  = fpBinArith FP.bfMul
   fpDiv   = fpBinArith FP.bfDiv
+  fpRem _sym x y =
+    let opts = FP.fpOpts (FP.bfExpWidth x) (FP.bfPrecWidth x) FP.NearEven
+     in pure $! x { FP.bfValue = FP.fpCheckStatus $ FP.bfRem opts (FP.bfValue x) (FP.bfValue y) }
+  fpMin sym x y =
+    case FP.floatMin (FP.bfValue x) (FP.bfValue y) of
+      Right m -> pure $! x { FP.bfValue = m }
+      Left err -> raiseError sym err
+  fpMax sym x y =
+    case FP.floatMax (FP.bfValue x) (FP.bfValue y) of
+      Right m -> pure $! x { FP.bfValue = m }
+      Left err -> raiseError sym err
   fpNeg _ x = pure $! x { FP.bfValue = FP.bfNeg (FP.bfValue x) }
 
   fpAbs _ x = pure $! x { FP.bfValue = FP.bfAbs (FP.bfValue x) }
@@ -414,6 +425,45 @@ instance Backend Concrete where
       case FP.floatToRational "fpToRational" fp of
         Left err -> raiseError sym err
         Right r  -> pure $ SRational { sNum = numerator r, sDenom = denominator r }
+
+  fpCast sym e p r x =
+    do r' <- fpRoundMode sym r
+       let opts = FP.fpOpts e p r'
+       pure $! x { FP.bfValue = FP.fpCheckStatus (FP.bfRoundFloat opts (FP.bfValue x)) }
+
+  fpRound sym r x =
+    do r' <- fpRoundMode sym r
+       let opts = FP.fpOpts (FP.bfExpWidth x) (FP.bfPrecWidth x) r'
+       let x' = FP.fpCheckStatus (FP.bfRoundInt r' (FP.bfValue x))
+       pure $! x { FP.bfValue = FP.fpCheckStatus (FP.bfRoundFloat opts x') }
+
+  fpFromBV sym e p r x =
+    do r' <- fpRoundMode sym r
+       let opts = FP.fpOpts e p r'
+       pure FP.BF { bfExpWidth = e
+                  , bfPrecWidth = p
+                  , bfValue = FP.floatFromInteger opts $ bvVal x
+                  }
+
+  fpFromSBV sym e p r x =
+    do r' <- fpRoundMode sym r
+       let opts = FP.fpOpts e p r'
+       pure FP.BF { bfExpWidth = e
+                  , bfPrecWidth = p
+                  , bfValue = FP.floatFromInteger opts $ signedBV x
+                  }
+
+  fpToBV sym w r fp =
+    do r' <- fpRoundMode sym r
+       case FP.floatToBV w r' fp of
+         Right i -> pure $ mkBv (toInteger w) i
+         Left err -> raiseError sym err
+
+  fpToSBV sym w r fp =
+    do r' <- fpRoundMode sym r
+       case FP.floatToSBV w r' fp of
+         Right i -> pure $ mkBv (toInteger w) i
+         Left err -> raiseError sym err
 
 {-# INLINE liftBinIntMod #-}
 liftBinIntMod :: Monad m =>

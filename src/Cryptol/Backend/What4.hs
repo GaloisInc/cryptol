@@ -28,6 +28,7 @@ import           Data.Set (Set)
 import           Data.Text (Text)
 import           Data.Parameterized.NatRepr
 import           Data.Parameterized.Some
+import           Numeric.Natural (Natural)
 
 import qualified GHC.Num.Compat as Integer
 
@@ -463,6 +464,10 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
   fpMult  = fpBinArith FP.fpMul
   fpDiv   = fpBinArith FP.fpDiv
 
+  fpRem sym x y = liftIO $ FP.fpRem (w4 sym) x y
+  fpMin = fpMinimum
+  fpMax = fpMaximum
+
   fpNeg sym x = liftIO $ FP.fpNeg (w4 sym) x
   fpAbs sym x = liftIO $ FP.fpAbs (w4 sym) x
   fpSqrt sym r x =
@@ -488,6 +493,25 @@ instance W4.IsSymExprBuilder sym => Backend (What4 sym) where
 
   fpFromRational = fpCvtFromRational
   fpToRational = fpCvtToRational
+
+  fpCast sym e p r x =
+    do rm <- fpRoundingMode sym r
+       liftIO $ FP.fpCast (w4 sym) e p rm x
+
+  fpRound sym r x =
+    do rm <- fpRoundingMode sym r
+       liftIO $ FP.fpRound (w4 sym) rm x
+
+  fpFromBV sym e p r x =
+    do rm <- fpRoundingMode sym r
+       liftIO $ FP.fpFromBV (w4 sym) e p rm x
+
+  fpFromSBV sym e p r x =
+    do rm <- fpRoundingMode sym r
+       liftIO $ FP.fpFromSBV (w4 sym) e p rm x
+
+  fpToBV = fpCvtToBV
+  fpToSBV = fpCvtToSBV
 
 sModAdd :: W4.IsSymExprBuilder sym =>
   sym -> Integer -> W4.SymInteger sym -> W4.SymInteger sym -> IO (W4.SymInteger sym)
@@ -602,6 +626,45 @@ fpRoundingMode sym v =
         x -> raiseError sym (BadRoundingMode x)
     _ -> liftIO $ X.throwIO $ UnsupportedSymbolicOp "rounding mode"
 
+fpMinimum ::
+  (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
+  sym -> SFloat sym -> SFloat sym -> SEval sym (SFloat sym)
+fpMinimum sym x y = do
+  noAlternatingZeroSigns <-
+    liftIO $ W4.notPred (w4 sym) =<< fpAlternatingZeroSigns (w4 sym) x y
+  assertSideCondition sym noAlternatingZeroSigns
+    (BadAlternatingZeroSigns "fpMin")
+  liftIO $ FP.fpMin (w4 sym) x y
+
+fpMaximum ::
+  (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
+  sym -> SFloat sym -> SFloat sym -> SEval sym (SFloat sym)
+fpMaximum sym x y = do
+  noAlternatingZeroSigns <-
+    liftIO $ W4.notPred (w4 sym) =<< fpAlternatingZeroSigns (w4 sym) x y
+  assertSideCondition sym noAlternatingZeroSigns
+    (BadAlternatingZeroSigns "fpMax")
+  liftIO $ FP.fpMax (w4 sym) x y
+
+-- | Check if the arguments are both zeroes with alternating signs.
+fpAlternatingZeroSigns ::
+  (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
+  sy -> SFloat sym -> SFloat sym -> IO (W4.Pred sy)
+fpAlternatingZeroSigns sym x y =
+  do xZero <- FP.fpIsZero sym x
+     yZero <- FP.fpIsZero sym y
+     xNeg <- FP.fpIsNeg sym x
+     xPos <- FP.fpIsPos sym x
+     xNegZero <- W4.andPred sym xZero xNeg
+     xPosZero <- W4.andPred sym xZero xPos
+     yNeg <- FP.fpIsNeg sym y
+     yPos <- FP.fpIsPos sym y
+     yNegZero <- W4.andPred sym yZero yNeg
+     yPosZero <- W4.andPred sym yZero yPos
+     xNegZeroYPosZero <- W4.andPred sym xNegZero yPosZero
+     xPosZeroYNegZero <- W4.andPred sym xPosZero yNegZero
+     W4.orPred sym xNegZeroYPosZero xPosZeroYNegZero
+
 fpBinArith ::
   W4.IsSymExprBuilder sym =>
   FP.SFloatBinArith sym ->
@@ -655,6 +718,56 @@ fpCvtFromRational ::
 fpCvtFromRational sym e p r rat =
   do rnd <- fpRoundingMode sym r
      liftIO (FP.fpFromRational (w4 sym) e p rnd (sNum rat) (sDenom rat))
+
+fpCvtToBV ::
+  (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
+  sym -> Natural -> SWord sym ->
+  SFloat sym -> SEval sym (SWord sym)
+fpCvtToBV sym w r fp =
+  do Some w' <- pure $ mkNatRepr w
+     LeqProof <-
+       case isPosNat w' of
+         Just p -> pure p
+         Nothing -> panic fun ["bit width must be non-zero"]
+     inRange <-
+       do i <- fpCvtToInteger sym fun r fp
+          minUnsignedBV <- liftIO $ W4.minUnsignedBV (w4 sym) w'
+          maxUnsignedBV <- liftIO $ W4.maxUnsignedBV (w4 sym) w'
+          minUnsignedInt <- liftIO $ W4.bvToInteger (w4 sym) minUnsignedBV
+          maxUnsignedInt <- liftIO $ W4.bvToInteger (w4 sym) maxUnsignedBV
+          inRange1 <- liftIO $ W4.intLe (w4 sym) minUnsignedInt i
+          inRange2 <- liftIO $ W4.intLt (w4 sym) i maxUnsignedInt
+          liftIO $ W4.andPred (w4 sym) inRange1 inRange2
+     assertSideCondition sym inRange (BadFloatOutOfRange fun)
+     rnd <- fpRoundingMode sym r
+     liftIO $ FP.fpToBV (w4 sym) w rnd fp
+  where
+    fun = "fpToBV"
+
+fpCvtToSBV ::
+  (W4.IsSymExprBuilder sy, sym ~ What4 sy) =>
+  sym -> Natural -> SWord sym ->
+  SFloat sym -> SEval sym (SWord sym)
+fpCvtToSBV sym w r fp =
+  do Some w' <- pure $ mkNatRepr w
+     LeqProof <-
+       case isPosNat w' of
+         Just p -> pure p
+         Nothing -> panic fun ["bit width must be non-zero"]
+     inRange <-
+       do i <- fpCvtToInteger sym fun r fp
+          minSignedBV <- liftIO $ W4.minSignedBV (w4 sym) w'
+          maxSignedBV <- liftIO $ W4.maxSignedBV (w4 sym) w'
+          minSignedInt <- liftIO $ W4.sbvToInteger (w4 sym) minSignedBV
+          maxSignedInt <- liftIO $ W4.sbvToInteger (w4 sym) maxSignedBV
+          inRange1 <- liftIO $ W4.intLe (w4 sym) minSignedInt i
+          inRange2 <- liftIO $ W4.intLe (w4 sym) i maxSignedInt
+          liftIO $ W4.andPred (w4 sym) inRange1 inRange2
+     assertSideCondition sym inRange (BadFloatOutOfRange fun)
+     rnd <- fpRoundingMode sym r
+     liftIO $ FP.fpToSBV (w4 sym) w rnd fp
+  where
+    fun = "fpToSBV"
 
 -- Create a fresh constant and assert that it is the
 -- multiplicitive inverse of x; return the constant.

@@ -39,6 +39,7 @@ import qualified Control.Exception as X
 import Control.Monad.IO.Class
 import Data.Kind (Type)
 import Data.Proxy(Proxy(..))
+import Numeric.Natural (Natural)
 
 import Cryptol.Backend.FloatHelpers (BF)
 import Cryptol.Backend.Monad
@@ -767,6 +768,7 @@ class MonadIO (SEval sym) => Backend sym where
   fpPosInf :: sym -> Integer {- ^ exponent bits -} -> Integer {- ^ precision bits -} -> SEval sym (SFloat sym)
 
   fpPlus, fpMinus, fpMult, fpDiv :: FPArith2 sym
+  fpRem, fpMin, fpMax :: sym -> SFloat sym -> SFloat sym -> SEval sym (SFloat sym)
   fpNeg, fpAbs :: sym -> SFloat sym -> SEval sym (SFloat sym)
   fpSqrt :: sym -> SWord sym -> SFloat sym -> SEval sym (SFloat sym)
 
@@ -809,6 +811,50 @@ class MonadIO (SEval sym) => Backend sym where
     SWord sym       {- ^ rounding mode -} ->
     SRational sym ->
     SEval sym (SFloat sym)
+
+  fpCast ::
+    sym ->
+    Integer         {- ^ exp width -} ->
+    Integer         {- ^ prec width -} ->
+    SWord sym       {- ^ rounding mode -} ->
+    SFloat sym ->
+    SEval sym (SFloat sym)
+
+  fpRound ::
+    sym ->
+    SWord sym       {- ^ rounding mode -} ->
+    SFloat sym ->
+    SEval sym (SFloat sym)
+
+  fpFromBV ::
+    sym ->
+    Integer         {- ^ exp width -} ->
+    Integer         {- ^ prec width -} ->
+    SWord sym       {- ^ rounding mode -} ->
+    SWord sym ->
+    SEval sym (SFloat sym)
+
+  fpFromSBV ::
+    sym ->
+    Integer         {- ^ exp width -} ->
+    Integer         {- ^ prec width -} ->
+    SWord sym       {- ^ rounding mode -} ->
+    SWord sym ->
+    SEval sym (SFloat sym)
+
+  fpToBV ::
+    sym ->
+    Natural         {- ^ bit width -} ->
+    SWord sym       {- ^ rounding mode -} ->
+    SFloat sym ->
+    SEval sym (SWord sym)
+
+  fpToSBV ::
+    sym ->
+    Natural         {- ^ bit width -} ->
+    SWord sym       {- ^ rounding mode -} ->
+    SFloat sym ->
+    SEval sym (SWord sym)
 
 type FPArith2 sym =
   sym ->

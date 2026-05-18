@@ -12,6 +12,7 @@
 > {-# LANGUAGE LambdaCase #-}
 > {-# LANGUAGE NamedFieldPuns #-}
 > {-# LANGUAGE ViewPatterns #-}
+> {-# LANGUAGE TypeApplications #-}
 >
 > module Cryptol.Eval.Reference
 >   ( Value(..)
@@ -37,6 +38,7 @@
 > import qualified Data.List as List
 > import Data.Vector (Vector)
 > import qualified Data.Vector as Vector
+> import Numeric.Natural (Natural)
 >
 > import Cryptol.ModuleSystem.Name (asPrim,nameIdent)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
@@ -1889,6 +1891,28 @@ true for all supported precisions.
 >    , "fpSub"      ~> fpBinArith FP.bfSub
 >    , "fpMul"      ~> fpBinArith FP.bfMul
 >    , "fpDiv"      ~> fpBinArith FP.bfDiv
+>    , "fpRem"      ~> vFinPoly \e -> pure $
+>                      vFinPoly \p -> pure $
+>                      VFun \xv -> pure $
+>                      VFun \yv ->
+>                         do let opts = FP.fpOpts e p fpImplicitRound
+>                            x <- fromVFloat <$> xv
+>                            y <- fromVFloat <$> yv
+>                            pure $ VFloat $ fpToBF e p $ FP.fpCheckStatus $ FP.bfRem opts x y
+>    , "fpMin"      ~> vFinPoly \e -> pure $
+>                      vFinPoly \p -> pure $
+>                      VFun \xv -> pure $
+>                      VFun \yv ->
+>                         do x <- fromVFloat <$> xv
+>                            y <- fromVFloat <$> yv
+>                            VFloat . fpToBF e p <$> eitherToE (FP.floatMin x y)
+>    , "fpMax"      ~> vFinPoly \e -> pure $
+>                      vFinPoly \p -> pure $
+>                      VFun \xv -> pure $
+>                      VFun \yv ->
+>                         do x <- fromVFloat <$> xv
+>                            y <- fromVFloat <$> yv
+>                            VFloat . fpToBF e p <$> eitherToE (FP.floatMax x y)
 >    , "fpFMA"      ~> fpTernArith FP.bfFMA
 >    , "fpAbs"      ~> vFinPoly \e -> pure $
 >                      vFinPoly \p -> pure $
@@ -1912,6 +1936,71 @@ true for all supported precisions.
 >           rm' <- eitherToE (FP.fpRound rm)
 >           rat <- fromVRational <$> rv
 >           pure (VFloat (FP.floatFromRational e p rm' rat))
+>    , "fpCast" ~>
+>      vFinPoly \_e1 -> pure $
+>      vFinPoly \_p1 -> pure $
+>      vFinPoly \e2 -> pure $
+>      vFinPoly \p2 -> pure $
+>      VFun \rmv -> pure $
+>      VFun \xv ->
+>        do rm  <- fromVWord =<< rmv
+>           rm' <- eitherToE (FP.fpRound rm)
+>           let opts = FP.fpOpts e2 p2 rm'
+>           x <- fromVFloat <$> xv
+>           pure $ VFloat $ fpToBF e2 p2 $ FP.fpCheckStatus $ FP.bfRoundFloat opts x
+>    , "fpRound" ~>
+>      vFinPoly \e -> pure $
+>      vFinPoly \p -> pure $
+>      VFun \rmv -> pure $
+>      VFun \xv ->
+>        do rm  <- fromVWord =<< rmv
+>           rm' <- eitherToE (FP.fpRound rm)
+>           let opts = FP.fpOpts e p rm'
+>           x <- fromVFloat <$> xv
+>           let x' = FP.fpCheckStatus $ FP.bfRoundInt rm' x
+>           pure $ VFloat $ fpToBF e p $ FP.fpCheckStatus $ FP.bfRoundFloat opts x'
+>    , "fpFromBV" ~>
+>      vFinPoly \_w -> pure $
+>      vFinPoly \e -> pure $
+>      vFinPoly \p -> pure $
+>      VFun \rmv -> pure $
+>      VFun \bvv ->
+>        do rm  <- fromVWord =<< rmv
+>           rm' <- eitherToE (FP.fpRound rm)
+>           let opts = FP.fpOpts e p rm'
+>           bv <- fromVWord =<< bvv
+>           pure $ VFloat $ fpToBF e p $ FP.floatFromInteger opts bv
+>    , "fpFromSBV" ~>
+>      vFinPoly \_w -> pure $
+>      vFinPoly \e -> pure $
+>      vFinPoly \p -> pure $
+>      VFun \rmv -> pure $
+>      VFun \bvv ->
+>        do rm  <- fromVWord =<< rmv
+>           rm' <- eitherToE (FP.fpRound rm)
+>           let opts = FP.fpOpts e p rm'
+>           bv <- fromSignedVWord =<< bvv
+>           pure $ VFloat $ fpToBF e p $ FP.floatFromInteger opts bv
+>    , "fpToBV" ~>
+>      vFinPoly \_e -> pure $
+>      vFinPoly \_p -> pure $
+>      vFinPoly \w -> pure $
+>      VFun \rmv -> pure $
+>      VFun \xv ->
+>        do rm  <- fromVWord =<< rmv
+>           rm' <- eitherToE (FP.fpRound rm)
+>           x <- fromVFloat' <$> xv
+>           vWord w <$> eitherToE (FP.floatToBV (fromInteger @Natural w) rm' x)
+>    , "fpToSBV" ~>
+>      vFinPoly \_e -> pure $
+>      vFinPoly \_p -> pure $
+>      vFinPoly \w -> pure $
+>      VFun \rmv -> pure $
+>      VFun \xv ->
+>        do rm  <- fromVWord =<< rmv
+>           rm' <- eitherToE (FP.fpRound rm)
+>           x <- fromVFloat' <$> xv
+>           vWord w <$> eitherToE (FP.floatToSBV (fromInteger @Natural w) rm' x)
 >    ]
 >   where
 >   fpUnArith f = vFinPoly \e -> pure $

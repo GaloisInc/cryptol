@@ -186,6 +186,31 @@ primitive
   fpDiv : {e,p} ValidFloat e p =>
     RoundingMode -> Float e p -> Float e p -> Float e p
 
+/** Compute the remainder from the division of two floating point numbers. */
+primitive
+  fpRem : {e,p} ValidFloat e p =>
+    Float e p -> Float e p -> Float e p
+
+/** Compute the minimum of two floating-point numbers. Note that:
+
+  * If one of the arguments is NaN, this will return the other argument.
+  * This function will error if both arguments are zeroes with different signs.
+
+  */
+primitive
+  fpMin : {e,p} ValidFloat e p =>
+    Float e p -> Float e p -> Float e p
+
+/** Compute the maximum of two floating-point numbers. Note that:
+
+  * If one of the arguments is NaN, this will return the other argument.
+  * This function will error if both arguments are zeroes with different signs.
+
+  */
+primitive
+  fpMax : {e,p} ValidFloat e p =>
+    Float e p -> Float e p -> Float e p
+
 /**
  * Fused-multiply-add.  'fpFMA r x y z' computes the value '(x*y)+z',
  * rounding the result according to mode 'r' only after performing both
@@ -226,3 +251,67 @@ given rounding mode, if the number cannot be represented exactly. */
 primitive
   fpFromRational : {e,p} ValidFloat e p =>
     RoundingMode -> Rational -> Float e p
+
+/* ------------------------------------------------------------ *
+ * Float casts
+ * ------------------------------------------------------------ */
+
+/** Convert a value of one floating point type to another using the given
+  * rounding mode.
+  */
+primitive
+  fpCast : {e1,p1,e2,p2} (ValidFloat e1 p1, ValidFloat e2 p2) =>
+    RoundingMode -> Float e1 p1 -> Float e2 p2
+
+/** Round a floating point value to an integer (represented as a float) using
+  * the given rounding mode.
+  */
+primitive
+  fpRound : {e,p} ValidFloat e p =>
+    RoundingMode -> Float e p -> Float e p
+
+/* ------------------------------------------------------------ *
+ * Bitvector casts
+ * ------------------------------------------------------------ */
+
+/** Convert an unsigned bitvector to a floating point value using the given
+  * rounding mode.
+  *
+  * This should not be confused with 'fpToBV', which reinterprets the bits
+  * of a float value as-is.
+  */
+primitive
+  fpFromBV : {w,e,p} (fin w, w >= 1, ValidFloat e p) =>
+    RoundingMode -> [w] -> Float e p
+
+/** Convert an signed bitvector to a floating point value using the given
+  * rounding mode.
+  *
+  * This should not be confused with 'fpToBV', which reinterprets the bits
+  * of a float value as-is.
+  */
+primitive
+  fpFromSBV : {w,e,p} (fin w, w >= 1, ValidFloat e p) =>
+    RoundingMode -> [w] -> Float e p
+
+/** Convert a floating point value to an unsigned bitvector using the given
+  * rounding mode. It is an error to call this on a 'Float' whose value lies
+  * outside of the range of possible 'w'-bit unsigned integers.
+  *
+  * This should not be confused with 'fpFromBV', which reinterprets the bits
+  * of a bitvector as-is.
+  */
+primitive
+  fpToBV : {e,p,w} (ValidFloat e p, fin w, w >= 1) =>
+    RoundingMode -> Float e p -> [w]
+
+/** Convert a floating point value to a signed bitvector using the given
+  * rounding mode. It is an error to call this on a 'Float' whose value lies
+  * outside of the range of possible 'w'-bit signed integers.
+  *
+  * This should not be confused with 'fpFromBV', which reinterprets the bits
+  * of a bitvector as-is.
+  */
+primitive
+  fpToSBV : {e,p,w} (ValidFloat e p, fin w, w >= 1) =>
+    RoundingMode -> Float e p -> [w]

@@ -423,6 +423,8 @@ data EvalError
   | LoopError String                     -- ^ Detectable nontermination
   | NoPrim Name                          -- ^ Primitive with no implementation
   | BadRoundingMode Integer              -- ^ Invalid rounding mode
+  | BadAlternatingZeroSigns String       -- ^ @fpMin@/@fpMax@ called on zeroes with alternating signs
+  | BadFloatOutOfRange String            -- ^ @fpToBV@/@fpToSBV@ called on out-of-range float
   | BadValue String                      -- ^ Value outside the domain of a partial function.
   | NoMatchingPropGuardCase String    -- ^ No prop guard holds for the given type variables.
   | NoMatchingConstructor (Maybe String) -- ^ Missing `case` alternative
@@ -467,6 +469,12 @@ instance PP EvalError where
                         -- error from a blackhole detected by GHC, which
                         -- would display '<<loop>>'
     BadRoundingMode r -> "invalid rounding mode" <+> integer r
+    BadAlternatingZeroSigns fun ->
+      "calling" <+> backticks (text fun) <+>
+      "on zeroes with alternating signs is not supported"
+    BadFloatOutOfRange fun ->
+      "calling" <+> backticks (text fun) <+>
+      "on a float that is outside of the intended range of bitvectors"
     BadValue x -> "invalid input for" <+> backticks (text x)
     NoPrim x -> text "unimplemented primitive:" <+> pp x
     NoMatchingPropGuardCase msg -> text $ "No matching constraint guard; " ++ msg
@@ -511,7 +519,7 @@ instance PP ImportThing where
       ATag -> "a tag"
       ASign -> "a sign"
       AFloat -> "a float"
-      
+
 
 
 

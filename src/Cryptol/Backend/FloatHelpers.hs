@@ -1,10 +1,13 @@
 {-# Language BlockArguments, OverloadedStrings #-}
 {-# Language BangPatterns #-}
+{-# Language TypeApplications #-}
 module Cryptol.Backend.FloatHelpers where
 
+import Data.Bits (bit)
 import Data.Char (isDigit)
 import Data.Ratio(numerator,denominator)
 import LibBF
+import Numeric.Natural (Natural)
 
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
@@ -118,6 +121,10 @@ fpLit ::
   BF
 fpLit e p rat = floatFromRational e p NearEven rat
 
+-- | Make a floating point number from an integer, using the given rounding mode
+floatFromInteger :: BFOpts -> Integer -> BigFloat
+floatFromInteger opts i = fpCheckStatus (bfRoundFloat opts (bfFromInteger i))
+
 -- | Make a floating point number from a rational, using the given rounding mode
 floatFromRational :: Integer -> Integer -> RoundMode -> Rational -> BF
 floatFromRational e p r rat =
@@ -186,3 +193,79 @@ floatToBits e p bf = bfToBits (fpOpts e p NearEven) bf
 -- | Create a 64-bit IEEE-754 float.
 floatFromDouble :: Double -> BF
 floatFromDouble = uncurry BF float64ExpPrec . bfFromDouble
+
+-- | Compute the minimum of two 'BigFloat's, mirroring how SMT-LIB works.
+-- Namely:
+--
+-- * If one of the argument is a NaN, return the other argument.
+--
+-- * SMT-LIB does not specify what should be returned if the arguments are both
+--   zeroes with alternating signs. We choose to raise an error in this case.
+floatMin :: BigFloat -> BigFloat -> Either EvalError BigFloat
+floatMin x y
+  | bfIsNaN x = Right y
+  | bfIsNaN y = Right x
+  | floatAlternatingZeroSigns x y = Left $ BadAlternatingZeroSigns "fpMin"
+  | x < y = Right x
+  | otherwise = Right y
+
+-- | Compute the maximum of two 'BigFloat's, mirroring how SMT-LIB works.
+-- Namely:
+--
+-- * If one of the argument is a NaN, return the other argument.
+--
+-- * SMT-LIB does not specify what should be returned if the arguments are both
+--   zeroes with alternating signs. We choose to raise an error in this case.
+floatMax :: BigFloat -> BigFloat -> Either EvalError BigFloat
+floatMax x y
+  | bfIsNaN x = Right y
+  | bfIsNaN y = Right x
+  | floatAlternatingZeroSigns x y = Left $ BadAlternatingZeroSigns "fpMax"
+  | x > y = Right x
+  | otherwise = Right y
+
+-- | Check if the arguments are both zeroes with alternating signs.
+floatAlternatingZeroSigns :: BigFloat -> BigFloat -> Bool
+floatAlternatingZeroSigns x y =
+    (xNegZero && yPosZero) || (xPosZero && yNegZero)
+  where
+    xZero = bfIsZero x
+    yZero = bfIsZero y
+    xNegZero = xZero && bfIsNeg x
+    xPosZero = xZero && bfIsPos x
+    yNegZero = yZero && bfIsNeg y
+    yPosZero = yZero && bfIsPos y
+
+-- | Convert a floating point number to an unsigned bitvector. If the value of
+-- the float does not lie within the range of possible unsigned bitvector
+-- values, then this will return an 'EvalError'.
+floatToBV :: Natural -> RoundMode -> BF -> Either EvalError Integer
+floatToBV w r bf =
+  do i <- floatToInteger fun r bf
+     if 0 <= i && i <= maxUnsigned
+       then Right i
+       else Left $ BadFloatOutOfRange fun
+  where
+    fun = "fpToBV"
+
+    maxUnsigned :: Integer
+    maxUnsigned = bit (fromIntegral @Natural @Int w) - 1
+
+-- | Convert a floating point number to a signed bitvector. If the value of the
+-- float does not lie within the range of possible signed bitvector values,
+-- then this will return an 'EvalError'.
+floatToSBV :: Natural -> RoundMode -> BF -> Either EvalError Integer
+floatToSBV w r bf =
+  do i <- floatToInteger fun r bf
+     if minSigned <= i && i <= maxSigned
+       then Right i
+       else Left $ BadFloatOutOfRange fun
+  where
+    fun = "fpToSBV"
+
+    signedUpperBound :: Integer
+    signedUpperBound = bit (fromIntegral @Natural @Int w - 1)
+
+    minSigned, maxSigned :: Integer
+    minSigned = negate signedUpperBound
+    maxSigned = signedUpperBound - 1

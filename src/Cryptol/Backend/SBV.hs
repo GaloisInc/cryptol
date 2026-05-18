@@ -348,6 +348,9 @@ instance Backend SBV where
   fpMinus _ _ _ _           = unsupported "fpMinus"
   fpMult _ _ _ _            = unsupported "fpMult"
   fpDiv _ _ _ _             = unsupported "fpDiv"
+  fpRem _ _ _               = unsupported "fpRem"
+  fpMin _ _ _               = unsupported "fpMin"
+  fpMax _ _ _               = unsupported "fpMax"
   fpAbs _ _                 = unsupported "fpAbs"
   fpSqrt _ _ _              = unsupported "fpSqrt"
   fpFMA _ _ _ _ _           = unsupported "fpFMA"
@@ -364,6 +367,12 @@ instance Backend SBV where
   fpFromBits _ _ _ _        = unsupported "fpFromBits"
   fpToRational _ _          = unsupported "fpToRational"
   fpFromRational _ _ _ _ _  = unsupported "fpFromRational"
+  fpCast _ _ _ _ _          = unsupported "fpCast"
+  fpRound _ _ _             = unsupported "fpRound"
+  fpFromBV _ _ _ _ _        = unsupported "fpFromBV"
+  fpFromSBV _ _ _ _ _       = unsupported "fpFromSBV"
+  fpToBV _ _ _ _            = unsupported "fpToBV"
+  fpToSBV _ _ _ _           = unsupported "fpToSBV"
 
 
 unsupported :: String -> SEval SBV a

@@ -24,6 +24,18 @@ fpSignificand x = drop`{1 + e} (fpToBits x)
 fpIsPos : {e, p} ValidFloat e p => Float e p -> Bit
 fpIsPos x = ~ (fpIsNeg x)
 
+fpFromInteger : {e, p} ValidFloat e p => RoundingMode -> Integer -> Float e p
+fpFromInteger m x = fpFromRational m (ratio x 1)
+
+fpToInteger : {e, p} ValidFloat e p => RoundingMode -> Float e p -> Integer
+fpToInteger m x =
+  if m == rne then roundToEven x
+   | m == rna then roundAway x
+   | m == rtn then floor x
+   | m == rtp then ceiling x
+   | m == rtz then trunc x
+  else error "fpToInteger: Unsupported rounding mode"
+
 ///// fpNaN
 
 prop_fpNaNIsNaN : {e, p} ValidFloat e p => Bit
@@ -587,6 +599,97 @@ counterexample_fpDivDistributive :
 counterexample_fpDivDistributive m x y z =
   ~ (fpDiv m (fpAdd m x y) z =.= fpAdd m (fpDiv m x z) (fpDiv m y z))
 
+///// fpRem
+
+prop_fpRemInfDivisor :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpRemInfDivisor x y =
+  fpIsInf x ==> (fpRem x y =.= fpNaN)
+
+prop_fpRemNaNDivisor :
+  {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpRemNaNDivisor y =
+  fpRem fpNaN y =.= fpNaN
+
+prop_fpRemInfDividend :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpRemInfDividend x y =
+  ~ (fpIsInf x) /\ fpIsInf y ==> (fpRem x y =.= x)
+
+prop_fpRemZeroDividend :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpRemZeroDividend x y =
+  fpIsZero y ==> (fpRem x y =.= fpNaN)
+
+prop_fpRemNaNDividend :
+  {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpRemNaNDividend x =
+  fpRem x fpNaN =.= fpNaN
+
+// Special cases for zero, infinite, and NaN values, where `x % x =.= NaN`
+// (not 1).
+prop_fpRemInverse :
+  {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpRemInverse x =
+  ~ (fpIsZero x \/ fpIsInf x \/ fpIsNaN x) ==>
+    fpRem x x =.= if fpIsNeg x then fpNegZero else fpPosZero
+
+check_fpRemCorrect :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+check_fpRemCorrect x y =
+  ~ (fpIsInf x \/ fpIsNaN x \/ fpIsZero y \/ fpIsInf y \/ fpIsNaN y) ==>
+    fpRem x y =.= pSign (fpFromRational rne (rx - fromInteger d * ry))
+  where
+    rx, ry, rd : Rational
+    rx = fpToRational x
+    ry = fpToRational y
+    rd = rx /. ry
+
+    d : Integer
+    d = roundToEven rd
+
+    pSign : Float e p -> Float e p
+    pSign r =
+      if fpIsZero r
+        then (if fpIsNeg r then fpNegZero else fpPosZero)
+        else r
+
+///// fpMin
+
+prop_fpMinLeftNaN :
+  {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpMinLeftNaN y = fpMin fpNaN y =.= y
+
+prop_fpMinRightNaN :
+  {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpMinRightNaN x = fpMin x fpNaN =.= x
+
+prop_fpMinCorrect :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpMinCorrect x y =
+  ~ (fpIsNaN x \/
+     fpIsNaN y \/
+     (fpIsZero x /\ fpIsZero y /\ (fpIsNeg x != fpIsNeg y))) ==>
+    fpMin x y =.= if x < y then x else y
+
+///// fpMax
+
+prop_fpMaxLeftNaN :
+  {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpMaxLeftNaN y = fpMax fpNaN y =.= y
+
+prop_fpMaxRightNaN :
+  {e, p} ValidFloat e p => Float e p -> Bit
+prop_fpMaxRightNaN x = fpMax x fpNaN =.= x
+
+prop_fpMaxCorrect :
+  {e, p} ValidFloat e p => Float e p -> Float e p -> Bit
+prop_fpMaxCorrect x y =
+  ~ (fpIsNaN x \/
+     fpIsNaN y \/
+     (fpIsZero x /\ fpIsZero y /\ (fpIsNeg x != fpIsNeg y))) ==>
+    fpMax x y =.= if x > y then x else y
+
 ///// fpFMA
 
 prop_fpFMACommutative :
@@ -623,6 +726,58 @@ prop_fpAbsNaN = fpAbs (fpNaN`{e, p}) =.= fpNaN
 
 prop_fpAbsInf : {e, p} ValidFloat e p => Float e p -> Bit
 prop_fpAbsInf x = fpIsInf x ==> (fpAbs x =.= fpPosInf)
+
+///// fpCast
+
+prop_fpCastNaN :
+  {e1, p1, e2, p2} (ValidFloat e1 p1, ValidFloat e2 p2) =>
+  RoundingMode -> Bit
+prop_fpCastNaN m = fpCast`{e1, p1, e2, p2} m fpNaN =.= fpNaN
+
+prop_fpCastInf :
+  {e1, p1, e2, p2} (ValidFloat e1 p1, ValidFloat e2 p2) =>
+  RoundingMode -> Float e1 p1 -> Bit
+prop_fpCastInf m x =
+  fpIsInf x ==>
+    (fpCast`{e1, p1, e2, p2} m x =.=
+      if fpIsNeg x then fpNegInf else fpPosInf)
+
+prop_fpCastZero :
+  {e1, p1, e2, p2} (ValidFloat e1 p1, ValidFloat e2 p2) =>
+  RoundingMode -> Float e1 p1 -> Bit
+prop_fpCastZero m x =
+  fpIsZero x ==>
+    (fpCast`{e1, p1, e2, p2} m x =.=
+      if fpIsNeg x then fpNegZero else fpPosZero)
+
+prop_fpCastCorrect :
+  {e1, p1, e2, p2} (ValidFloat e1 p1, ValidFloat e2 p2) =>
+  RoundingMode -> Float e1 p1 -> Bit
+prop_fpCastCorrect m x =
+  ~ (fpIsNaN x \/ fpIsInf x \/ fpIsZero x) ==>
+    (fpCast`{e1, p1, e2, p2} m x =.= fpFromRational m (fpToRational x))
+
+///// fpRound
+
+prop_fpRoundNaN : {e, p} ValidFloat e p => RoundingMode -> Bit
+prop_fpRoundNaN m = fpRound m fpNaN`{e, p} =.= fpNaN
+
+prop_fpRoundZero : {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpRoundZero m x = fpIsZero x ==> (fpRound m x =.= x)
+
+prop_fpRoundInf : {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+prop_fpRoundInf m x = fpIsInf x ==> (fpRound m x =.= x)
+
+check_fpRoundCorrect : {e, p} ValidFloat e p => RoundingMode -> Float e p -> Bit
+check_fpRoundCorrect m x =
+  ~ (fpIsNaN x \/ fpIsInf x) ==>
+    (fpRound m x =.=
+      (if i == 0
+        then (if fpIsNeg x then fpNegZero else fpPosZero)
+        else fpFromInteger m i))
+  where
+    i : Integer
+    i = fpToInteger m x
 
 ///// fpSqrt
 
@@ -674,6 +829,48 @@ check_fpFromToRational :
 check_fpFromToRational m x =
   ~ (fpIsInf x \/ fpIsNaN x) ==>
     fpFromRational m (fpToRational x) == x
+
+///// fpFromBV and fpFromSBV
+
+check_fpFromBVCorrect :
+  {w, e, p} (fin w, w >= 1, ValidFloat e p) => RoundingMode -> [w] -> Bit
+check_fpFromBVCorrect m x =
+  fpFromBV`{w, e, p} m x =.= fpFromInteger m (toInteger x)
+
+check_fpFromSBVCorrect :
+  {w, e, p} (fin w, w >= 1, ValidFloat e p) => RoundingMode -> [w] -> Bit
+check_fpFromSBVCorrect m x =
+  fpFromSBV`{w, e, p} m x =.= fpFromInteger m (toSignedInteger x)
+
+///// fpToBV and fpToSBV
+
+check_fpToBVCorrect :
+  {e, p, w} (ValidFloat e p, fin w, w >= 1) => RoundingMode -> Float e p -> Bit
+check_fpToBVCorrect m x =
+  (~ (fpIsInf x \/ fpIsNaN x) /\
+   toInteger minUnsigned <= i /\ i <= toInteger maxUnsigned) ==>
+    fpToBV`{e, p, w} m x == fromInteger i
+  where
+    i : Integer
+    i = fpToInteger m x
+
+    minUnsigned, maxUnsigned : [w]
+    minUnsigned = 0
+    maxUnsigned = complement minUnsigned
+
+check_fpToSBVCorrect :
+  {e, p, w} (ValidFloat e p, fin w, w >= 1) => RoundingMode -> Float e p -> Bit
+check_fpToSBVCorrect m x =
+  (~ (fpIsInf x \/ fpIsNaN x) /\
+   toSignedInteger minSigned <= i /\ i <= toSignedInteger maxSigned) ==>
+    fpToSBV`{e, p, w} m x == fromInteger i
+  where
+    i : Integer
+    i = fpToInteger m x
+
+    minSigned, maxSigned : [w]
+    minSigned = [True] # repeat False
+    maxSigned = complement minSigned
 
 ///// Eq
 
