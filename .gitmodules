@@ -4,3 +4,10 @@
 [submodule "deps/argo"]
 	path = deps/argo
 	url = https://github.com/galoisinc/argo
+# TODO RGS: Remove these
+[submodule "deps/rme"]
+	path = deps/rme
+	url = https://github.com/GaloisInc/rme
+[submodule "deps/what4"]
+	path = deps/what4
+	url = https://github.com/GaloisInc/what4

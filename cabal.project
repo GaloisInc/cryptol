@@ -4,3 +4,7 @@ packages:
     language-server
     tests
     deps/argo/argo
+    -- TODO RGS: Remove these
+    deps/rme/rme-what4
+    deps/what4/what4
+    deps/what4/what4-domains
