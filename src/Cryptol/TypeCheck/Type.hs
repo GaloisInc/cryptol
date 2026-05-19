@@ -1132,7 +1132,7 @@ ppNominalFull nt =
       ctrs = case ntConstraints nt of
                [] -> mempty
                _  -> parens (commaSep (map ppC (ntConstraints nt))) <+> "=>"
-  
+
 
 
 instance PP Schema where
@@ -1143,15 +1143,15 @@ instance PP (WithNames Schema) where
     withPPCfg $ \cfg ->
     let
       body = ppWithNames ns1 (sType s)
-  
+
       vars = case sVars s of
         [] -> []
         vs -> [nest 1 (braces (commaSepFill (map (ppWithNames ns1) vs)))]
-  
+
       props = case sProps s of
         [] -> []
         ps -> [nest 1 (parens (commaSepFill (map (ppWithNames ns1) ps))) <+> text "=>"]
-  
+
       ns1 = addTNames cfg (sVars s) ns
     in if null (sVars s) && null (sProps s)
         then body
@@ -1414,7 +1414,7 @@ instance PP ModParamNames where
             | not (null (mpnConstraints ps))
             ] ++
            [ pp t | t <- Map.elems (mpnTySyn ps) ] ++
-           map pp (Map.elems (mpnFuns ps)) 
+           map pp (Map.elems (mpnFuns ps))
 
 instance PP ModTParam where
   ppPrec _ p =
