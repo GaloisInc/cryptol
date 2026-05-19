@@ -678,6 +678,11 @@ pIsEqual ty = case tNoUser ty of
                 TCon (PC PEqual) [t1,t2] -> Just (t1,t2)
                 _                        -> Nothing
 
+pIsNeq :: Prop -> Maybe (Type,Type)
+pIsNeq ty = case tNoUser ty of
+              TCon (PC PNeq) [t1,t2] -> Just (t1,t2)
+              _                      -> Nothing
+
 pIsZero :: Prop -> Maybe Type
 pIsZero ty = case tNoUser ty of
                TCon (PC PZero) [t1] -> Just t1
