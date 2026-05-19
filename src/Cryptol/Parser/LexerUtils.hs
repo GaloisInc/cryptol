@@ -6,7 +6,40 @@
 -- Stability   :  provisional
 -- Portability :  portable
 {-# LANGUAGE OverloadedStrings #-}
-module Cryptol.Parser.LexerUtils where
+module Cryptol.Parser.LexerUtils
+  ( Config(..)
+  , defaultConfig
+  , Action
+  , LexS(..)
+  , startComment
+  , endComment
+  , addToComment
+  , startEndComment
+  , startString
+  , endString
+  , addToString
+  , startChar
+  , endChar
+  , addToChar
+  , mkIdent
+  , mkQualIdent
+  , mkQualOp
+  , emit
+  , emitS
+  , emitFancy
+  , splitQual
+  , numToken
+  , fromDigit
+  , fnumTokens
+  , isValidIdent
+  , selectorToken
+  , readDecimal
+  , AlexInput(..)
+  , alexGetByte
+  , Layout(..)
+  , dropWhite
+  , byteForChar
+  ) where
 
 import           Control.Monad(guard)
 import           Data.Char(toLower,generalCategory,isAscii,ord,isSpace,
@@ -309,19 +342,26 @@ fnumTokens file pos ds =
   eBase          = if rad == 10 then 10 else 2 :: Rational
 
 
+
+
+-- | Check if a name is a valid Cryptol identifier.
+isValidIdent :: Text -> Bool
+isValidIdent body =
+  case T.uncons body of
+    Just (x, xs) -> id_first x && T.all id_next xs
+    Nothing -> False
+  where
+    id_first x = isAlpha x || x == '_'
+    id_next  x = isAlphaNum x || x == '_' || x == '\''
+
 -- assumes we start with a dot
 selectorToken :: Text -> TokenT
 selectorToken txt
   | Just n <- readDecimal body, n >= 0 = Selector (TupleSelectorTok n)
-  | Just (x,xs) <- T.uncons body
-  , id_first x
-  , T.all id_next xs = Selector (RecordSelectorTok body)
+  | isValidIdent body = Selector (RecordSelectorTok body)
   | otherwise = Err MalformedSelector
-
   where
   body = T.drop 1 txt
-  id_first x = isAlpha x || x == '_'
-  id_next  x = isAlphaNum x || x == '_' || x == '\''
 
 
 readDecimal :: Integral a => Text -> Maybe a
