@@ -31,6 +31,7 @@ module Cryptol.Parser.LexerUtils
   , numToken
   , fromDigit
   , fnumTokens
+  , isValidIdent
   , selectorToken
   , readDecimal
   , AlexInput(..)
@@ -341,19 +342,26 @@ fnumTokens file pos ds =
   eBase          = if rad == 10 then 10 else 2 :: Rational
 
 
+
+
+-- | Check if a name is a valid Cryptol identifier.
+isValidIdent :: Text -> Bool
+isValidIdent body =
+  case T.uncons body of
+    Just (x, xs) -> id_first x && T.all id_next xs
+    Nothing -> False
+  where
+    id_first x = isAlpha x || x == '_'
+    id_next  x = isAlphaNum x || x == '_' || x == '\''
+
 -- assumes we start with a dot
 selectorToken :: Text -> TokenT
 selectorToken txt
   | Just n <- readDecimal body, n >= 0 = Selector (TupleSelectorTok n)
-  | Just (x,xs) <- T.uncons body
-  , id_first x
-  , T.all id_next xs = Selector (RecordSelectorTok body)
+  | isValidIdent body = Selector (RecordSelectorTok body)
   | otherwise = Err MalformedSelector
-
   where
   body = T.drop 1 txt
-  id_first x = isAlpha x || x == '_'
-  id_next  x = isAlphaNum x || x == '_' || x == '\''
 
 
 readDecimal :: Integral a => Text -> Maybe a

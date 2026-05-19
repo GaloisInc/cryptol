@@ -74,6 +74,12 @@
   incorrect results on concrete values.
   ([#2044](https://github.com/GaloisInc/cryptol/issues/2044))
 
+## API changes
+
+* Add `isValidIdent` to `Cryptol.Parser.LexerUtils`, which checks if a name is
+  a valid Cryptol identifier.
+  ([#2036](https://github.com/GaloisInc/cryptol/issues/2036))
+
 # 3.5.0 -- 2026-01-27
 
 ## Administrative changes
