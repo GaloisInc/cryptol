@@ -6,7 +6,39 @@
 -- Stability   :  provisional
 -- Portability :  portable
 {-# LANGUAGE OverloadedStrings #-}
-module Cryptol.Parser.LexerUtils where
+module Cryptol.Parser.LexerUtils
+  ( Config(..)
+  , defaultConfig
+  , Action
+  , LexS(..)
+  , startComment
+  , endComment
+  , addToComment
+  , startEndComment
+  , startString
+  , endString
+  , addToString
+  , startChar
+  , endChar
+  , addToChar
+  , mkIdent
+  , mkQualIdent
+  , mkQualOp
+  , emit
+  , emitS
+  , emitFancy
+  , splitQual
+  , numToken
+  , fromDigit
+  , fnumTokens
+  , selectorToken
+  , readDecimal
+  , AlexInput(..)
+  , alexGetByte
+  , Layout(..)
+  , dropWhite
+  , byteForChar
+  ) where
 
 import           Control.Monad(guard)
 import           Data.Char(toLower,generalCategory,isAscii,ord,isSpace,
