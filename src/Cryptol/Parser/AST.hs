@@ -206,24 +206,27 @@ data ModuleDefinition name =
 {- | Information about a functor instance, filled in by the renamer.  -}
 data ModuleInstance name = ModuleInstance
   { modInstMap :: Map name name
-    -- ^ Maps names in the original functor with names in the instance.
-    -- Does *NOT* include the parameters, just names for the definitions.
-    -- This *DOES* include entries for all names in the instantiated functor,
+    -- ^ Maps names in the original functor to names in the instance.
+    -- For non-parameter definitions, maps to fresh instance names.
+    -- For parameter definitions, maps to names in the virtual submodules.
+    -- Backtick parameter names are treated as non-parameter definitions.
+    -- This includes entries for all names in the instantiated functor,
     -- including names in modules nested inside the functor.
   , modInstVirtParamMods :: [VirtParamMod name]
-    -- ^ Virtual submodules exposing functor parameter definitions.
+    -- ^ Virtual submodules that are the definition sites for functor
+    -- parameter values.
   } deriving (Show, Generic, NFData)
 
--- | A virtual submodule that exposes the definitions from a functor parameter.
+-- | A virtual submodule that defines the values from a functor parameter.
 data VirtParamMod name = VirtParamMod
   { vpmIdent :: Ident
     -- ^ The parameter identifier (or "Parameter" for inline params).
   , vpmName :: name
     -- ^ The module name for the virtual submodule.
   , vpmDefs :: Map name name
-    -- ^ Maps names defined in the virtual submodule to the corresponding
-    -- parameter names (from @modInstMap@).  The type-checker uses this
-    -- to generate forwarding definitions.
+    -- ^ Maps names defined in the virtual submodule to the original
+    -- parameter names in the functor.  The @modInstMap@ maps the original
+    -- parameter names to these virtual submodule definition names.
   } deriving (Show, Generic, NFData)
 
 emptyModuleInstance :: Ord name => ModuleInstance name

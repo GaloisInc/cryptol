@@ -195,27 +195,43 @@ generateFunctorInstance ::
 generateFunctorInstance btParams instKind moF =
   do
     mpath <- getCurModPath
-    (inst,newDefs) <- mkModInst mpath moF
 
-    -- For SignatureInst, the result is a signature---no nested submodules
-    -- or virtual parameter modules are needed.
-    (subI, vparamMods) <-
-      case instKind of
-        SignatureInst -> pure (Map.empty, [])
-        ModuleInst ->
-          do
-            s <- doSubs mpath inst
-            v <- makeVirtParamModules btParams mpath inst
-            pure (s, v)
+    case instKind of
 
-    let vparamModDefs = Set.fromList [ vpmName s | s <- vparamMods ]
-        allDefs = newDefs `Set.union` vparamModDefs
-        scope   = nameDefsToNamingEnv newDefs -- XXX: figure out what we want this to be...
-    pure (allDefs, scope, ModuleInstance
-            { modInstMap = Map.union inst subI
-            , modInstVirtParamMods = vparamMods
-            })
+      -- For SignatureInst, the result is a signature---no nested submodules
+      -- or virtual parameter modules are needed.
+      SignatureInst ->
+        do
+          (inst, newDefs) <- mkModInst mpath moF
+          let scope = nameDefsToNamingEnv newDefs
+          pure (newDefs, scope, ModuleInstance
+                  { modInstMap = inst
+                  , modInstVirtParamMods = []
+                  })
+
+      ModuleInst ->
+        do
+          let (virtNames, instNames) = Set.partition isVirtParam (modDefines moF)
+          (inst, newDefs) <- mkModInst mpath (moF { modDefines = instNames })
+          subI <- doSubs mpath inst
+          (vparamMods, paramInst) <- makeVirtParamModules mpath virtNames
+
+          let fullInst = inst `Map.union` paramInst `Map.union` subI
+              vparamModDefs = Set.fromList (map vpmName vparamMods)
+              allDefs = newDefs `Set.union` vparamModDefs
+                        `Set.union` Set.fromList (Map.elems paramInst)
+              scope = nameDefsToNamingEnv newDefs
+          pure (allDefs, scope, ModuleInstance
+                  { modInstMap = fullInst
+                  , modInstVirtParamMods = vparamMods
+                  })
   where
+  isVirtParam n =
+    case nameModParam n of
+      Just i  -> case btParams of
+                   Nothing -> False
+                   Just s  -> not (i `Set.member` s)
+      Nothing -> False
 
   -- Generate fresh instantiations for the modules contained in the
   -- module at this path
@@ -254,26 +270,27 @@ generateFunctorInstance btParams instKind moF =
       subMap <- doSubs newMPath newI
       pure (Map.union newI subMap)
 
--- | Create virtual submodules exposing the parameter definitions of a functor
+-- | Create virtual submodules for the parameter definitions of a functor
 -- instance.  For each parameter (e.g., @import interface I@), we generate a
--- nested module (e.g., @M::I@) containing fresh names that forward to the
--- instantiated parameter values.
--- Parameters instantiated with @_@ (backtick) are skipped.
+-- nested module (e.g., @M::I@) whose names are the definition sites for the
+-- parameter values.  Returns the virtual submodules and a mapping from the
+-- original parameter names to the virtual submodule definition names (to be
+-- merged into the instMap).
 makeVirtParamModules ::
-  Maybe (Set Ident) -> ModPath -> Map.Map Name Name -> RenameM [VirtParamMod Name]
-makeVirtParamModules btParams mpath inst =
+  ModPath -> Set Name -> RenameM ([VirtParamMod Name], Map.Map Name Name)
+makeVirtParamModules mpath paramNames =
   do
     loc <- getCurLoc
-    let isBacktick i = case btParams of
-                         Nothing -> True
-                         Just s  -> i `Set.member` s
-        paramGroups = Map.fromListWith (<>)
-          [ (paramId, [(old, new)])
-          | (old, new) <- Map.toList inst
+    let paramGroups = Map.fromListWith (<>)
+          [ (paramId, [old])
+          | old <- Set.toList paramNames
           , Just paramId <- [nameModParam old]
-          , not (isBacktick paramId)
           ]
-    forM (Map.toList paramGroups) \(paramId, paramEntries) -> do
+    (vpmods, instMaps) <- mapAndUnzipM (mkVirtMod loc) (Map.toList paramGroups)
+    pure (vpmods, Map.unions instMaps)
+  where
+  mkVirtMod loc (paramId, paramEntries) =
+    do
       let vsubId = if isAnonIfaceModIdnet paramId
                    then packIdent "Parameter"
                    else paramId
@@ -281,24 +298,30 @@ makeVirtParamModules btParams mpath inst =
       vsubName <- liftSupply
                     (mkDeclared NSModule mpath UserName vsubId Nothing loc)
 
-      -- Create fresh names inside the virtual submodule
-      defs <- Map.fromList <$>
-        forM paramEntries \(_old, paramName) -> do
+      -- Create names inside the virtual submodule; these become the
+      -- definition sites for the parameter values.
+      results <- forM paramEntries \old ->
+        do
           defName <- liftSupply
-            (mkDeclared (nameNamespace paramName) vsubPath UserName
-                        (nameIdent paramName) (nameFixity paramName) loc)
-          pure (defName, paramName)
-      let defNames = Map.keysSet defs
+            (mkDeclared (nameNamespace old) vsubPath UserName
+                        (nameIdent old) (nameFixity old) loc)
+          pure (defName, old)
+
+      let defs    = Map.fromList results
+          instMap = Map.fromList [ (old, defName) | (defName, old) <- results ]
+          defNames = Map.keysSet defs
       addInstMod vsubName
         Mod { modKind = AModule
             , modDefines = defNames
             , modPublic = defNames
             }
-      pure VirtParamMod
-            { vpmIdent = vsubId
-            , vpmName = vsubName
-            , vpmDefs = defs
-            }
+      pure ( VirtParamMod
+               { vpmIdent = vsubId
+               , vpmName = vsubName
+               , vpmDefs = defs
+               }
+           , instMap
+           )
 
 instance Rename ModuleInstanceArgs where
   rename args =
