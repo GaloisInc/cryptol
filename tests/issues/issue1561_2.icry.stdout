@@ -50,11 +50,15 @@ Type Synonyms
     type String n = [n]Char
     type Word n = [n]
      
-  From Inst2
-  ----------
+  From Inst2::J
+  -------------
        
     type J::m = 4
     type J::n = 2
+     
+  From Inst2::K
+  -------------
+       
     type K::m = 6
     type K::n = 3
      
@@ -290,8 +294,16 @@ Symbols
     jb : [J::m]
     ka : [3]
     kb : [K::m]
+     
+  From Inst2::J
+  -------------
+       
     J::x : [2]
     J::y : [4]
+     
+  From Inst2::K
+  -------------
+       
     K::x : [3]
     K::y : [6]
      
