@@ -15,7 +15,7 @@ import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Ident(Ident,Namespace(..),isInfixIdent)
 import Cryptol.Parser.Position (Range,Located(..), thing)
 import qualified Cryptol.Parser.AST as P
-import Cryptol.ModuleSystem.Name(nameIdent,nameNamespace,nameFixity)
+import Cryptol.ModuleSystem.Name(nameIdent)
 import Cryptol.ModuleSystem.NamingEnv
           (NamingEnv(..), modParamNamesNamingEnv, shadowing, without, mapNamingEnv)
 import Cryptol.ModuleSystem.Interface
@@ -158,43 +158,14 @@ doFunctorInst m f as modInst instKind enclosingInScope doc =
 
 
 
--- | Generate forwarding definitions for virtual parameter submodules
--- (e.g., @M::I::x@).  For each virtual parameter module we create value
--- forwarding decls (@defName = paramName@) and type synonym aliases.
--- Returns the submodule map and nested name set to be registered by the caller.
+-- | Register virtual parameter submodules. The actual definitions for the
+-- parameter values are created by checkParamType/checkParamValue (using the
+-- instMap which now maps directly to virtual submodule names).  This function
+-- just registers the submodule metadata.
 makeVirtParamModDefs ::
   [P.VirtParamMod Name] -> InferM (Map Name Submodule, Set Name)
 makeVirtParamModDefs vpmods =
-  do forM_ vpmods \ps ->
-       forM_ (Map.toList (P.vpmDefs ps)) \(defName, paramName) ->
-         case nameNamespace defName of
-           NSValue ->
-             do mb <- tryLookupVar paramName
-                case mb of
-                  Nothing -> pure ()
-                  Just vt ->
-                    do let schema = case vt of
-                             ExtVar s -> s
-                             CurSCC {} -> bad "CurSCC for parameter variable"
-                           body = fwdDef schema paramName
-                       addDecls $ NonRecursive Decl
-                         { dName       = defName
-                         , dSignature  = schema
-                         , dDefinition = DExpr body
-                         , dPragmas    = []
-                         , dInfix      = isInfixIdent (nameIdent defName)
-                         , dFixity     = nameFixity defName
-                         , dDoc        = Nothing
-                         }
-           NSType ->
-             do ts <- lookupTSyn paramName
-                case ts of
-                  Just origSyn ->
-                    addTySyn origSyn { tsName = defName }
-                  Nothing -> pure ()
-           ns -> bad ("Unexpected namespace for parameter: " ++ show ns)
-
-     let submodules = Map.fromList
+  do let submodules = Map.fromList
            [ (P.vpmName ps, Submodule
                { smIface = IfaceNames
                    { ifsName    = P.vpmName ps
@@ -209,16 +180,7 @@ makeVirtParamModDefs vpmods =
            | ps <- vpmods
            ]
          nested = Set.fromList [ P.vpmName ps | ps <- vpmods ]
-
      pure (submodules, nested)
-  where
-  bad msg = panic "makeVirtParamModDefs" [msg]
-
-  fwdDef (Forall tps props _) name =
-    foldr ETAbs (foldr EProofAbs call props) tps
-    where
-    call = foldl (\e _ -> EProofApp e) tyApp props
-    tyApp = foldl ETApp (EVar name) (map (TVar . TVBound) tps)
 
 
 data ActualArg =

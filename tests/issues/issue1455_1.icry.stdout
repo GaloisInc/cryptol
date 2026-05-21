@@ -27,8 +27,8 @@ Type Synonyms
     type String n = [n]Char
     type Word n = [n]
      
-  From Inst1
-  ----------
+  From Inst1::I
+  -------------
        
     type m = 8
     type n = 4
@@ -263,6 +263,10 @@ Symbols
        
     a : [4]
     b : [m]
+     
+  From Inst1::I
+  -------------
+       
     x : [4]
     y : [8]
      

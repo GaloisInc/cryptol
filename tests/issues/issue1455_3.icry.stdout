@@ -30,8 +30,8 @@ Type Synonyms
     type String n = [n]Char
     type Word n = [n]
      
-  From Inst3
-  ----------
+  From Inst3::I
+  -------------
        
     type m = 8
     type n = 4
@@ -265,6 +265,10 @@ Symbols
   ----------
        
     c : [m]
+     
+  From Inst3::I
+  -------------
+       
     x : [4]
     y : [8]
      
