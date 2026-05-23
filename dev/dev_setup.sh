@@ -43,7 +43,6 @@ WHAT4_SOLVERS_MACOS_13="macos-13-X64-bin.zip"
 WHAT4_SOLVERS_MACOS_14="macos-14-ARM64-bin.zip"
 WHAT4_SOLVERS_UBUNTU_22="ubuntu-22.04-X64-bin.zip"
 WHAT4_SOLVERS_UBUNTU_24="ubuntu-24.04-X64-bin.zip"
-WHAT4_CVC4_VERSION="version 1.8"
 WHAT4_CVC5_VERSION="version 1.1.1"
 WHAT4_Z3_VERSION="version 4.8.14"
 
@@ -204,8 +203,8 @@ install_zlib() {
 # includes a half dozen other packages that are compatible with cryptol.
 install_solvers() {
     # Install solvers using the cryptol-approved set of binaries
-    if ! is_installed cvc4 || ! is_installed cvc5 || ! is_installed z3; then
-        notice "Installing cvc4, cvc5, and/or z3 solvers via direct download"
+    if ! is_installed cvc5 || ! is_installed z3; then
+        notice "Installing cvc5 and/or z3 solvers via direct download"
 
         case $CRYPTOL_PLATFORM in
             $MACOS13) solvers_version=$WHAT4_SOLVERS_MACOS_13;;
@@ -233,7 +232,7 @@ install_solvers() {
         logged unzip solvers.bin.zip
 
         # If we want to install more solvers by default, we can do so here
-        for solver in cvc4 cvc5 z3; do
+        for solver in cvc5 z3; do
             if ! is_installed $solver ; then
                 notice "Installing $solver"
                 chmod u+x $solver
@@ -246,11 +245,10 @@ install_solvers() {
         cd $HERE
         rm -r $solvers_dir
     else
-        notice "Not installing cvc4, cvc5, or z3 solvers because they already exist"
+        notice "Not installing cvc5 or z3 solvers because they already exist"
     fi
 
     # Make sure the installed versions are the versions that have been tested
-    check_version cvc4 $WHAT4_CVC4_VERSION
     check_version cvc5 $WHAT4_CVC5_VERSION
     check_version z3 $WHAT4_Z3_VERSION
 }
