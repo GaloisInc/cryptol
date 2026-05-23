@@ -164,6 +164,7 @@ onlineProveSat proverName cmd hConsing timeout = do
     EmptyResult -> raise $ proverError "got empty result for online prover!"
     CounterExample cexType es -> Invalid cexType <$> convertSatResult es
     ThmResult _ts -> pure Unsatisfiable
+    CountResult _n -> raise $ proverError "model counting not supported via remote API"
     AllSatResult results ->
       Satisfied <$> traverse convertSatResult results
 

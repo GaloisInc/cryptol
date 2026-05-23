@@ -55,6 +55,7 @@ satProve decls expr exprType numResults timeoutSec =
       AllSatResult xs   -> pure xs
       ThmResult {}      -> pure []
       CounterExample {} -> panic "satProve" ["Unexpected CounterExample"]
-      EmptyResult       -> panic "satProve" ["Unexpecetd EmptyResult"]
+      CountResult {}    -> panic "satProve" ["Unexpected CountResult"]
+      EmptyResult       -> panic "satProve" ["Unexpected EmptyResult"]
       ProverError d     -> fail (show d)
 
