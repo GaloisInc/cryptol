@@ -14,7 +14,7 @@ import Data.Foldable (for_)
 import Control.Monad(when,guard,unless,msum,mplus)
 
 import Cryptol.Utils.PP
-import Cryptol.Utils.Ident(OrigName(..),identIsNormal)
+import Cryptol.Utils.Ident(OrigName(..),identIsNormal,identText)
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Name as M
@@ -28,7 +28,14 @@ import Cryptol.TypeCheck.PP(emptyNameMap,ppWithNames)
 import Cryptol.REPL.Monad
 
 helpForNamed :: P.PName -> REPL Bool
-helpForNamed qname =
+helpForNamed pn =
+  -- Prefix operators @~@ and @-@ are syntactic sugar for @complement@
+  -- and @negate@ respectively.  Redirect so that @:? ~@ and @:? -@
+  -- display the help for the underlying function instead.
+  helpForNamed' (fromMaybe pn (prefixOpRedirect pn))
+
+helpForNamed' :: P.PName -> REPL Bool
+helpForNamed' qname =
   do fe <- getFocusedEnv
      let params = M.mctxParams fe
          env    = M.mctxDecls  fe
@@ -54,6 +61,17 @@ helpForNamed qname =
     
      pure (not failure)
 
+
+-- | Prefix operators @~@ and @-@ are syntactic sugar for @complement@
+-- and @negate@ respectively.  Redirect to the underlying function name
+-- so that @:? ~@ and @:? -@ show the right documentation.
+prefixOpRedirect :: P.PName -> Maybe P.PName
+prefixOpRedirect (P.UnQual' i _)
+  | identText i == "~" =
+      Just (P.mkUnqual (P.mkIdent "complement"))
+  | identText i == "-" =
+      Just (P.mkUnqual (P.mkIdent "negate"))
+prefixOpRedirect _ = Nothing
 
 noInfo :: NameDisp -> M.Name -> REPL ()
 noInfo nameEnv name =
