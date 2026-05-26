@@ -1,0 +1,3 @@
+interface module Iffy where
+  type t : #
+  x : Integer

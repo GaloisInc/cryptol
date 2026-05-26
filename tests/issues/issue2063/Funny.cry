@@ -1,0 +1,2 @@
+module Funny where
+  import Iffy

@@ -1,0 +1,3 @@
+module Inst = Funny where
+  type t = 64
+  x = 3
