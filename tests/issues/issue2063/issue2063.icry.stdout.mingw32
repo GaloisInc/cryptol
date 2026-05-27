@@ -1,0 +1,9 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Inst__where
+Loading interface module Iffy
+Loading module Funny
+
+[error] at .\Funny.cry:2:3--2:14
+    • Expected a module
+    • `Iffy` is an interface

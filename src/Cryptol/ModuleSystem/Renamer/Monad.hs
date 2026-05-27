@@ -295,7 +295,9 @@ recordTopImport m =
     case Map.lookup m (loadedIfaces ro) of
       Just ifa ->
         R (sets_ \rw -> rw { externalDeps = ifDefines ifa <> externalDeps rw })
-      Nothing -> panic "recordTopImport" ["Missing module"]
+      -- This can happen if the module is of the wrong kind (e.g., importing
+      -- an interface as a module). The error is already reported by lookupMod.
+      Nothing -> pure ()
 
 getExternalDeps :: RenameM IfaceDecls
 getExternalDeps = R (externalDeps <$> get)
