@@ -768,13 +768,13 @@ by corresponding type classes:
 >   , "/$"         ~> vFinPoly $ \n -> pure $
 >                     VFun $ \l -> pure $
 >                     VFun $ \r ->
->                       vWord n <$> appOp2 divWrap
+>                       vWord n <$> appOp2 signedDivWrap
 >                                          (fromSignedVWord =<< l)
 >                                          (fromSignedVWord =<< r)
 >   , "%$"         ~> vFinPoly $ \n -> pure $
 >                     VFun $ \l -> pure $
 >                     VFun $ \r ->
->                       vWord n <$> appOp2 modWrap
+>                       vWord n <$> appOp2 signedModWrap
 >                                          (fromSignedVWord =<< l)
 >                                          (fromSignedVWord =<< r)
 >   , ">>$"        ~> signedShiftRV
@@ -1381,19 +1381,31 @@ Integral
 >                      (\x y -> pure (x * y))
 >                      (fpBin FP.bfMul fpImplicitRound)
 
+The division (`/`) and remainder (`%`) operations on unsigned bitvectors and
+integers are defined so that division rounds towards negative infinity, and the
+remainder `x % y` is always equal to `x - (x / y) * y`. Accordingly, they are
+implemented with Haskell's `div` and `mod` operations.
+
+> divWrap :: Integer -> Integer -> E Integer
+> divWrap _ 0 = cryError DivideByZero
+> divWrap x y = pure (x `div` y)
+>
+> modWrap :: Integer -> Integer -> E Integer
+> modWrap _ 0 = cryError DivideByZero
+> modWrap x y = pure (x `mod` y)
 
 Signed bitvector division (`/$`) and remainder (`%$`) are defined so
 that division rounds toward zero, and the remainder `x %$ y` has the
 same sign as `x`. Accordingly, they are implemented with Haskell's
 `quot` and `rem` operations.
 
-> divWrap :: Integer -> Integer -> E Integer
-> divWrap _ 0 = cryError DivideByZero
-> divWrap x y = pure (x `quot` y)
+> signedDivWrap :: Integer -> Integer -> E Integer
+> signedDivWrap _ 0 = cryError DivideByZero
+> signedDivWrap x y = pure (x `quot` y)
 >
-> modWrap :: Integer -> Integer -> E Integer
-> modWrap _ 0 = cryError DivideByZero
-> modWrap x y = pure (x `rem` y)
+> signedModWrap :: Integer -> Integer -> E Integer
+> signedModWrap _ 0 = cryError DivideByZero
+> signedModWrap x y = pure (x `rem` y)
 >
 > lg2Wrap :: Integer -> E Integer
 > lg2Wrap x = if x < 0 then cryError LogNegative else pure (lg2 x)
