@@ -1942,6 +1942,38 @@ foldl'V sym =
        forceValue =<< a'
        go1 f a' bs
 
+foldWhileV :: Backend sym => sym -> Prim sym
+foldWhileV sym =
+  PNumPoly \_n ->
+  PTyPoly  \_a ->
+  PTyPoly  \_b ->
+  PFun     \f ->
+  PFun     \z ->
+  PStrict  \v ->
+  PPrim
+    case v of
+      VSeq n m  -> unwrapF f z (enumerateSeqMap n m)
+      VWord  wv -> unwrapF f z . map (pure . VBit) =<< enumerateWordValue sym wv
+      _ -> panic "Cryptol.Eval.Generic.foldWhileV" ["Expected finite sequence"]
+  where
+  unwrapF _f a [] = a
+  unwrapF f a bs =
+    do
+      f' <- fromVFun sym <$> f
+      go f' a bs
+
+  go _f a [] = a
+  go f a (b:bs) =
+    do
+      f' <- fromVFun sym <$> f a
+      tup <- fromVTuple <$> f' b
+      case tup of
+        [condition, a'] ->
+          do
+            bit <- fromVBit <$> condition
+            iteValue sym bit (go f a' bs) a
+        _ -> panic "Cryptol.Eval.Generic.foldWhileV" ["function returned tuple with wrong number of elements"]
+
 
 -- scanl : {n, a, b}  (a -> b -> a) -> a -> [n]b -> [1+n]a
 scanlV :: forall sym. Backend sym => sym -> Prim sym
@@ -2365,6 +2397,9 @@ genericPrimTable sym getEOpts =
 
   , ("foldl'"     , {-# SCC "Prelude::foldl'" #-}
                     foldl'V sym)
+
+  , ("foldWhile"  , {-# SCC "Prelude::foldWhile'" #-}
+                    foldWhileV sym)
 
   , ("scanl"      , {-# SCC "Prelude::scanl" #-}
                     scanlV sym)
