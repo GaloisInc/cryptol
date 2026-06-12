@@ -59,7 +59,7 @@ syn keyword cryKeywordFun   parmap
 syn keyword cryKeywordFun   deepseq rnf
 syn keyword cryKeywordFun   random trace traceVal
 syn keyword cryKeywordFun   and or all any
-syn keyword cryKeywordFun   map foldl foldr sum product scanl scanr elem
+syn keyword cryKeywordFun   map foldl foldr foldWhile sum product scanl scanr elem
 syn keyword cryKeywordFun   repeat iterate
 syn keyword cryKeywordFun   zip zipWith
 syn keyword cryKeywordFun   curry uncurry

@@ -377,15 +377,16 @@ Utility operations
     deepseq : {a, b} Eq a => a -> b -> b
     rnf : {a} Eq a => a -> a
 
-    map     : {n, a, b} (a -> b) -> [n]a -> [n]b
-    foldl   : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
-    foldl'  : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
-    foldr   : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
-    foldl'  : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
-    scanl   : {n, b, a}  (b -> a -> b) -> b -> [n]a -> [n+1]b
-    scanr   : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [n+1]b
-    sum     : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
-    product : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
+    map       : {n, a, b} (a -> b) -> [n]a -> [n]b
+    foldl     : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+    foldl'    : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
+    foldr     : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
+    foldl'    : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
+    foldWhile : {n, a, b} (fin n) => (a -> b -> (Bool, a)) -> a -> [n]b -> a
+    scanl     : {n, b, a}  (b -> a -> b) -> b -> [n]a -> [n+1]b
+    scanr     : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [n+1]b
+    sum       : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
+    product   : {n, a} (fin n, Eq a, Ring a) => [n]a -> a
 
     iterate : {a} (a -> a) -> a -> [inf]a
     repeat  : {n, a} a -> [n]a
