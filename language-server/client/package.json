@@ -69,7 +69,7 @@
     "@types/vscode": "^1.100.0",
     "@typescript-eslint/eslint-plugin": "^8.31.1",
     "@typescript-eslint/parser": "^8.31.1",
-    "esbuild": "^0.25.5",
+    "esbuild": "^0.28.1",
     "eslint": "^9.25.1",
     "typescript": "^5.8.3"
   }
