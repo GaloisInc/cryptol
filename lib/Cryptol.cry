@@ -1171,6 +1171,19 @@ foldr' f acc xs = foldl' g acc (reverse xs)
   where g b a = f a b
 
 /**
+ * Functional left fold that can conditionally stop early.
+ *
+ * Returns the accumulator when the array has been fully traversed
+ * or when the function returns `False`.
+ *
+ * let f = \a b -> (b < 10, max a b)
+ * foldWhile f 0 [1, 2, 3] == 3
+ * foldWhile f 0 [1, 2, 10, 8] == 10
+ * foldWhile f 0 [10, 8, 6] == 10
+ */
+primitive foldWhile : {n, a, b} (fin n) => (a -> b -> (Bool, a)) -> a -> [n]b -> a
+
+/**
  * Compute the sum of the values in the sequence.
  */
 sum : {n, a} (fin n, Eq a, Ring a) => [n]a -> a

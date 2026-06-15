@@ -13,23 +13,23 @@ Loading module Main
     Unused name: g
 
 [error] at issue1024a.cry:1:6--1:11:
-  Illegal kind assigned to type variable: f`892
-  Expected: # or *
-  Actual: # -> *
-  where
-  f`892 is signature variable 'f' at issue1024a.cry:1:13--1:14
-[error] at issue1024a.cry:2:6--2:13:
-  Illegal kind assigned to type variable: f`893
-  Expected: # or *
-  Actual: Prop
-  where
-  f`893 is signature variable 'f' at issue1024a.cry:2:15--2:16
-[error] at issue1024a.cry:4:13--4:49:
   Illegal kind assigned to type variable: f`895
   Expected: # or *
   Actual: # -> *
   where
-  f`895 is signature variable 'f' at issue1024a.cry:4:22--4:32
+  f`895 is signature variable 'f' at issue1024a.cry:1:13--1:14
+[error] at issue1024a.cry:2:6--2:13:
+  Illegal kind assigned to type variable: f`896
+  Expected: # or *
+  Actual: Prop
+  where
+  f`896 is signature variable 'f' at issue1024a.cry:2:15--2:16
+[error] at issue1024a.cry:4:13--4:49:
+  Illegal kind assigned to type variable: f`898
+  Expected: # or *
+  Actual: # -> *
+  where
+  f`898 is signature variable 'f' at issue1024a.cry:4:22--4:32
 Loading module Cryptol
 Loading module Main
 0xffff

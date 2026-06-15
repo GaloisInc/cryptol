@@ -1,0 +1,23 @@
+module issue_2028 where
+
+f : [8] -> [8] -> (Bool, [8])
+f s a = (s' < 10, s')
+    where
+        s' = a + s
+
+x = foldWhile f 0 [2, 1, 0, 3, 7, 12]
+
+g : [8] -> Bit -> (Bool, [8])
+g s a = (a, s + zext [a])
+
+y = foldWhile g 8 0b11110110
+y' = foldWhile g 8 0xf6
+y'' = foldWhile g 8 (246:[8])
+
+// Test cases from docs
+h : [8] -> [8] -> (Bool, [8])
+h a b = (b < 10, max a b)
+
+l = foldWhile h 0 [1, 2, 3]
+m = foldWhile h 0 [1, 2, 10, 8]
+n = foldWhile h 0 [10, 8, 6]
