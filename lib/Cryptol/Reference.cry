@@ -58,17 +58,18 @@ foldl f z bs = last (scanl f z bs)
 /**
  * Functional left fold that can conditionally stop early.
  *
- * If the function returns `False`, returns the previous accumulator.
+ * Returns the accumulator when the array has been fully traversed
+ * or when the function returns `False`.
  *
  * let f = \a b -> (b < 10, max a b)
  * foldWhile f 0 [1, 2, 3] == 3
- * foldWhile f 0 [1, 2, 10, 8] == 2
- * foldWhile f 0 [10, 8, 6] == 0
+ * foldWhile f 0 [1, 2, 10, 8] == 10
+ * foldWhile f 0 [10, 8, 6] == 10
  */
 foldWhile : {n, a, b} (fin n) => (a -> b -> (Bool, a)) -> a -> [n]b -> a
 foldWhile f z bs
   | n == 0 => z
-  | n > 0 => if c then foldWhile f z' ys else z
+  | n > 0 => if c then foldWhile f z' ys else z'
     where
       [y] # ys = bs
       (c, z') = f z y

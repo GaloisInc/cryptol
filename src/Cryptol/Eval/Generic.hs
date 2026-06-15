@@ -1971,7 +1971,7 @@ foldWhileV sym =
         [condition, a'] ->
           do
             bit <- fromVBit <$> condition
-            iteValue sym bit (go f a' bs) a
+            iteValue sym bit (go f a' bs) a'
         _ -> panic "Cryptol.Eval.Generic.foldWhileV" ["function returned tuple with wrong number of elements"]
 
 
