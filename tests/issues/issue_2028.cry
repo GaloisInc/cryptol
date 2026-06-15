@@ -1,4 +1,4 @@
-module issue_2082 where
+module issue_2028 where
 
 f : [8] -> [8] -> (Bool, [8])
 f s a = (s' < 10, s')
