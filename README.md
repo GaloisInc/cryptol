@@ -25,7 +25,7 @@ predicates written in Cryptol against randomly-generated test vectors
 (in the style of
 [QuickCheck](http://hackage.haskell.org/package/QuickCheck)). There is
 also a `:prove` command, which calls out to SMT solvers, such as
-Yices, Z3, CVC4, or CVC5, to prove predicates for all possible inputs.
+Yices, Z3, or CVC5, to prove predicates for all possible inputs.
 
 # Getting Cryptol Binaries
 

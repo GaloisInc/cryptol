@@ -1,6 +1,6 @@
 :set show-examples=off
 :set prover-stats=off
-:set prover=w4-cvc4
+:set prover=w4-cvc5
 
 :l cplx.cry
 

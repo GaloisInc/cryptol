@@ -54,8 +54,7 @@ class TestSMT(unittest.TestCase):
         # are commented out for now.
         ex_true  = '\(x : [128]) -> negate (complement x + 1) == complement (negate x) + 1'
         solvers = \
-            [solver.CVC4,
-             solver.CVC5,
+            [solver.CVC5,
              solver.YICES,
              solver.Z3,
              solver.BITWUZLA,
@@ -64,7 +63,6 @@ class TestSMT(unittest.TestCase):
              solver.ABC,
              #solver.OFFLINE,
              solver.ANY,
-             solver.SBV_CVC4,
              solver.SBV_CVC5,
              solver.SBV_YICES,
              solver.SBV_Z3,
@@ -74,7 +72,6 @@ class TestSMT(unittest.TestCase):
              solver.SBV_ABC,
              #solver.SBV_OFFLINE,
              solver.SBV_ANY,
-             solver.W4_CVC4,
              solver.W4_CVC5,
              solver.W4_YICES,
              solver.W4_Z3,
