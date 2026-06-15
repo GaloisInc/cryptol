@@ -42,6 +42,9 @@
   existing modules, functors, or interfaces.
   ([#1591](https://github.com/GaloisInc/cryptol/issues/1591))
 
+* Add new `foldWhile` primitive, which can optionally break early while
+  folding. ([#2028](https://github.com/GaloisInc/cryptol/issues/2028))
+
 ## Bug fixes
 
 * Fix pretty printing of types in errors messages
