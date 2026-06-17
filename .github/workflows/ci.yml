@@ -103,6 +103,19 @@ jobs:
           submodules: true
           ref: ${{ github.event.pull_request.head.sha }}
 
+      # On macOS, import the signing certificate, which we will use later to
+      # sign the binaries after they have been built.
+      # Do not run this step in forks, as this requires repo-specific secrets.
+      - name: Import signing certificate (macOS)
+        uses: apple-actions/import-codesign-certs@v3
+        if: runner.os == 'macOS' &&
+            github.event.pull_request.head.repo.fork == false &&
+            github.repository_owner == 'GaloisInc' &&
+            github.actor != 'dependabot[bot]'
+        with:
+          p12-file-base64: ${{ secrets.APPLE_P12_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_P12_PASSWORD }}
+
       - uses: actions/setup-python@v6
         with:
           # Ensure pyproject.toml and python/mypy.ini are kept in sync with the Python version here.
@@ -154,6 +167,46 @@ jobs:
       - shell: bash
         name: Extract Cryptol executables to dist/bin/
         run: .github/ci.sh setup_dist_bins
+
+      # On macOS, code sign the binaries to verify that Galois is the author.
+      # Do not run this step in forks, as this requires repo-specific secrets.
+      - name: Sign binaries (macOS)
+        if: runner.os == 'macOS' &&
+            github.event.pull_request.head.repo.fork == false &&
+            github.repository_owner == 'GaloisInc' &&
+            github.actor != 'dependabot[bot]'
+        env:
+          IDENTITY_NAME: ${{ secrets.APPLE_P12_IDENTITY_NAME }}
+        run: |
+          codesign \
+            --force \
+            --options runtime \
+            --sign "$IDENTITY_NAME" \
+            dist/bin/*
+
+      # On macOS, notarize the binaries so that users can run them without
+      # needing to whitelist them. Note that Apple's documentation suggests
+      # that you shouldn't notarize more than 75 times in one day
+      # (https://developer.apple.com/documentation/security/customizing-the-notarization-workflow#Avoid-long-notarization-response-times-and-size-limits),
+      # so as a precaution, we only perform this step for scheduled events,
+      # workflow dispatches, or releases (and not in pull requests).
+      - name: Notarize binaries (macOS)
+        if: runner.os == 'macOS' &&
+            (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.config.outputs.release == 'true' || needs.config.outputs.event-tag == 'true') &&
+            github.repository_owner == 'GaloisInc' &&
+            github.actor != 'dependabot[bot]'
+        env:
+          KEY_ID: ${{ secrets.APPLE_P8_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPLE_P8_ISSUER_ID }}
+          API_KEY: ${{ secrets.APPLE_P8_API_KEY }}
+        run: |
+          zip binaries.zip dist/bin/*
+          echo "$API_KEY" > "AuthKey_$KEY_ID.p8"
+          xcrun notarytool submit binaries.zip \
+            --key "AuthKey_$KEY_ID.p8" \
+            --key-id "$KEY_ID" \
+            --issuer "$ISSUER_ID" \
+            --wait
 
       - shell: bash
         name: Extract Cryptol API test suite executable to bin/
