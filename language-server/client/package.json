@@ -60,17 +60,17 @@
     "publish": "node esbuild.js && vsce publish"
   },
   "dependencies": {
-    "@vscode/vsce": "^3.6.0",
-    "vscode-languageclient": "^9.0.1"
+    "@vscode/vsce": "^3.9.2",
+    "vscode-languageclient": "^10.0.0"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@types/vscode": "^1.100.0",
-    "@typescript-eslint/eslint-plugin": "^8.31.1",
-    "@typescript-eslint/parser": "^8.31.1",
+    "@typescript-eslint/eslint-plugin": "^8.61.1",
+    "@typescript-eslint/parser": "^8.61.1",
     "esbuild": "^0.28.1",
-    "eslint": "^9.25.1",
+    "eslint": "^10.5.0",
     "typescript": "^5.8.3"
   }
 }
