@@ -136,16 +136,15 @@ jobs:
           restore-keys: |
             ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
 
+      - name: Download what4-solvers
+        uses: GaloisInc/what4-solvers@v1
+        with:
+          dest: bin
+          release: ${{ env.SOLVER_PKG_VERSION }}
+
       - shell: bash
-        run: .github/ci.sh install_system_deps
-        env:
-          # The full zip file name for a what4-solvers bindist. If you update
-          # this, make sure to also update it in the following locations:
-          #
-          # - The other BIN_ZIP_FILE in the `test` job
-          # - Dockerfile
-          # - cryptol-remote-api/Dockerfile
-          BIN_ZIP_FILE: ${{ matrix.os }}-${{ runner.arch }}-bin.zip
+        name: Add what4-solvers to GITHUB_PATH
+        run: echo "$PWD/bin" >> $GITHUB_PATH
 
       - shell: bash
         env:
@@ -369,22 +368,12 @@ jobs:
           path: bin
 
       - shell: bash
-        env:
-          # The full zip file name for a what4-solvers bindist. If you update
-          # this, make sure to also update it in the following locations:
-          #
-          # - The other BIN_ZIP_FILE in the `build` job
-          # - Dockerfile
-          # - cryptol-remote-api/Dockerfile
-          BIN_ZIP_FILE: ${{ matrix.os }}-${{ runner.arch }}-bin.zip
         run: |
           set -x
           chmod +x dist/bin/cryptol
           chmod +x dist/bin/cryptol-remote-api
           chmod +x dist/bin/cryptol-eval-server
-          chmod +x bin/cryptol-api-tests
-          chmod +x bin/test-runner
-          .github/ci.sh install_system_deps
+          chmod +x bin/*
           .github/ci.sh deps bin/abc*
           .github/ci.sh deps bin/cvc4*
           .github/ci.sh deps bin/cvc5*
