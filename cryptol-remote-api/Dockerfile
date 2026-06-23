@@ -57,8 +57,6 @@ ENV PATH=/usr/local/bin:/cryptol/rootfs/usr/local/bin:$PATH
 RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
     && cp -r lib/* rootfs/"${CRYPTOLPATH}"
 WORKDIR /cryptol/rootfs/usr/local/bin
-# The URL here is based on the same logic used to specify BIN_ZIP_FILE in
-# `.github/workflow/ci.yml`, but specialized to Ubuntu.
 RUN case ${TARGETPLATFORM} in \
       "linux/amd64") \
         WHAT4_SOLVERS_ARCH=X64 ;; \
@@ -68,7 +66,7 @@ RUN case ${TARGETPLATFORM} in \
         printf "Unsupported architecture: %s\n" "${TARGETPLATFORM}" >&2 \
         exit 1 ;; \
     esac && \
-    curl -sL -o solvers.zip "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20260119/ubuntu-22.04-${WHAT4_SOLVERS_ARCH}-bin.zip" && \
+    curl -sL -o solvers.zip "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20260622/ubuntu-22.04-${WHAT4_SOLVERS_ARCH}-bin.zip" && \
     unzip solvers.zip && rm solvers.zip && chmod +x *
 USER root
 RUN chown -R root:root /cryptol/rootfs
