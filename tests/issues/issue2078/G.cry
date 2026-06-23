@@ -1,0 +1,4 @@
+module G where
+  import F
+  import submodule D2a
+  x5 = d2
