@@ -4,7 +4,7 @@ module PrimeEC where
  * The type of points of an elliptic curve in affine coordinates.
  * The coefficients are taken from the prime field 'Z p' with 'p > 3'.
  * This is intended to represent all the "normal" points
- * on the curve, which satisfy 'x^^3 == y^^2 - 3x + b', 
+ * on the curve, which satisfy 'x^^3 == y^^2 - 3x + b',
  * for some curve parameter 'b'.  This type cannot represent
  * the special projective "point at infinity".
  */
