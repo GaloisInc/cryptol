@@ -1,0 +1,3 @@
+module F where
+  import D
+  submodule D2a = submodule D2

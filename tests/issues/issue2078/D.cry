@@ -1,0 +1,4 @@
+module D where
+
+submodule D2 where
+  d2 = 2

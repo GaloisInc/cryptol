@@ -1,4 +1,4 @@
-{-# Language BlockArguments, BangPatterns, ImportQualifiedPost #-}
+{-# Language BlockArguments, BangPatterns, ImportQualifiedPost, LambdaCase #-}
 {-# Language GeneralisedNewtypeDeriving #-}
 module Cryptol.ModuleSystem.Renamer.Monad
   ( 
@@ -289,15 +289,35 @@ lookupMod' visited nm mbExpected
         panic "lookupMod" ["Resolved name, but unknown module"]
 
 recordTopImport :: ModName -> RenameM ()
-recordTopImport m =
-  do
-    ro <- R ask
-    case Map.lookup m (loadedIfaces ro) of
-      Just ifa ->
-        R (sets_ \rw -> rw { externalDeps = ifDefines ifa <> externalDeps rw })
-      -- This can happen if the module is of the wrong kind (e.g., importing
-      -- an interface as a module). The error is already reported by lookupMod.
-      Nothing -> pure ()
+recordTopImport = go Set.empty
+  where
+  go visited m
+    | m `Set.member` visited = pure ()
+    | otherwise =
+      do
+        ro <- R ask
+        case Map.lookup m (loadedIfaces ro) of
+          Just ifa ->
+            do
+              R (sets_ \rw ->
+                  rw { externalDeps = ifDefines ifa <> externalDeps rw })
+              {- The interface may contain submodule aliases whose targets
+                 live in a different top-level module.  We need to also
+                 bring the decls of those modules into scope so that the
+                 type checker can find the types of names accessed through
+                 the alias. -}
+              let visited' = Set.insert m visited
+              forM_ (Map.elems (ifModuleAliases (ifDefines ifa))) \case
+                ImpTop t -> go visited' t
+                ImpNested n ->
+                  case nameTopModuleMaybe n of
+                    Just t  -> go visited' t
+                    Nothing -> pure ()
+
+          -- This can happen if the module is of the wrong kind (e.g.,
+          -- importing an interface as a module). The error is already
+          -- reported by lookupMod.
+          Nothing -> pure ()
 
 getExternalDeps :: RenameM IfaceDecls
 getExternalDeps = R (externalDeps <$> get)
