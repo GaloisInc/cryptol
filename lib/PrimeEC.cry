@@ -45,7 +45,7 @@ type ProjectivePoint p =
  *     S.y^^2 == S.x^^3 - 3*S.x + b
  */
 ec_is_point_affine : {p} (prime p, p > 3) => Z p -> AffinePoint p -> Bit
-ec_is_point_affine b S = S.y^^(2 : Integer) == S.x^^(3 : Integer) - (3*S.x) + b
+ec_is_point_affine b S = S.y^^(2 : [8]) == S.x^^(3 : [8]) - (3*S.x) + b
 
 
 /**
@@ -56,7 +56,7 @@ ec_is_point_affine b S = S.y^^(2 : Integer) == S.x^^(3 : Integer) - (3*S.x) + b
  * throughout this module, we assume 'a = -3'.
  */
 ec_is_nonsingular : {p} (prime p, p > 3) => Z p -> Bit
-ec_is_nonsingular b = (fromInteger 4) * a^^(3 : Integer) + (fromInteger 27) * b^^(2 : Integer) != 0
+ec_is_nonsingular b = (fromInteger 4) * a^^(3 : [8]) + (fromInteger 27) * b^^(2 : [8]) != 0
   where a = -3 : Z p
 
 /**
@@ -91,7 +91,7 @@ ec_affinify : {p} (prime p, p > 3) => ProjectivePoint p -> AffinePoint p
 ec_affinify S =
  if S.z == 0 then error "Cannot affinify the point at infinity" else R
     where
-      R = {x = lambda^^(2 : Integer) * S.x, y = lambda^^(3 : Integer) * S.y }
+      R = {x = lambda^^(2 : [8]) * S.x, y = lambda^^(3 : [8]) * S.y }
       lambda = recip S.z
 
 /**

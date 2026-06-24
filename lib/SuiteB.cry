@@ -143,9 +143,9 @@ aesDecryptBlock schedule cyphertext = rnf (join final)
 private
     aesExpandEncryptSchedule : {k} (fin k, k >= 4, 8 >= k) => [k * 32] -> AESEncryptKeySchedule k
     aesExpandEncryptSchedule key = rnf
-         { aesEncInitialKey = ks @  (0 : Integer)
-         , aesEncRoundKeys  = ks @@ ([ 1 .. k+5 ] : [_]Integer)
-         , aesEncFinalKey   = ks @  (`(k+6) : Integer)
+         { aesEncInitialKey = ks @  (0 : [8])
+         , aesEncRoundKeys  = ks @@ ([ 1 .. k+5 ] : [_][8])
+         , aesEncFinalKey   = ks @  (`(k+6) : [8])
          }
       where
       ks : [k+7]AESRoundKey
