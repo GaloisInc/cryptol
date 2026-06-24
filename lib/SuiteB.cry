@@ -117,7 +117,7 @@ aes256Schedules = aesExpandSchedules
 aesEncryptBlock : {k} (fin k) => AESEncryptKeySchedule k -> [128] -> [128]
 aesEncryptBlock schedule plaintext = rnf (join final)
   where
-  final = (AESEncFinalRound (rds!0)) ^ schedule.aesEncFinalKey
+  final = (AESEncFinalRound (last rds)) ^ schedule.aesEncFinalKey
 
   rds = [ schedule.aesEncInitialKey ^ split plaintext ] #
         [ AESEncRound r ^ rdk
@@ -132,7 +132,7 @@ aesEncryptBlock schedule plaintext = rnf (join final)
 aesDecryptBlock : {k} (fin k) => AESDecryptKeySchedule k -> [128] -> [128]
 aesDecryptBlock schedule cyphertext = rnf (join final)
   where
-  final = (AESDecFinalRound (rds!0)) ^ schedule.aesDecFinalKey
+  final = (AESDecFinalRound (last rds)) ^ schedule.aesDecFinalKey
 
   rds = [ split cyphertext ^ schedule.aesDecInitialKey ] #
         [ AESDecRound r ^ rdk
@@ -143,9 +143,9 @@ aesDecryptBlock schedule cyphertext = rnf (join final)
 private
     aesExpandEncryptSchedule : {k} (fin k, k >= 4, 8 >= k) => [k * 32] -> AESEncryptKeySchedule k
     aesExpandEncryptSchedule key = rnf
-         { aesEncInitialKey = ks @  0
-         , aesEncRoundKeys  = ks @@ [ 1 .. k+5 ]
-         , aesEncFinalKey   = ks @  `(k+6)
+         { aesEncInitialKey = ks @  (0 : Integer)
+         , aesEncRoundKeys  = ks @@ ([ 1 .. k+5 ] : [_]Integer)
+         , aesEncFinalKey   = ks @  (`(k+6) : Integer)
          }
       where
       ks : [k+7]AESRoundKey

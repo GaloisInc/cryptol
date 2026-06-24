@@ -7,7 +7,7 @@ module Cryptol::Reference where
 pmult : {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + u + v]
 pmult x y = last zs
   where
-    zs = [0] # [ (z << 1) ^ (if yi then 0 # x else 0) | yi <- y | z <- zs ]
+    zs = [0] # [ (z << (1 : Integer)) ^ (if yi then 0 # x else 0) | yi <- y | z <- zs ]
 
 /**
  * Performs division of polynomials over GF(2).
@@ -41,7 +41,7 @@ pmod x y = if y == 0 then 0/0 else last zs
     reduce u = if u ! degree then u ^ y else u
 
     powers : [inf][1 + v]
-    powers = [reduce 1] # [ reduce (p << 1) | p <- powers ]
+    powers = [reduce 1] # [ reduce (p << (1 : Integer)) | p <- powers ]
 
     zs = [0] # [ z ^ (if xi then tail p else 0) | xi <- reverse x | p <- powers | z <- zs ]
 
