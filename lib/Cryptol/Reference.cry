@@ -56,6 +56,17 @@ foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
 foldl f z bs = last (scanl f z bs)
 
 /**
+ * Functional left fold, with strict evaluation of the accumulator value.
+ *
+ * The reference evaluator does not model evaluation strategy, so for the
+ * purpose of giving semantics this is identical to `foldl`.
+ *
+ * Reference implementation.
+ */
+foldl' : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
+foldl' f z bs = foldl f z bs
+
+/**
  * Functional left fold that can conditionally stop early.
  *
  * Returns the accumulator when the array has been fully traversed

@@ -1,0 +1,37 @@
+// Regression test for issue #2070: the reference evaluator was missing
+// implementations for primitives whose definitions live in
+// `lib/Cryptol/Reference.cry` (`pmult`, `pdiv`, `pmod`, `foldl`,
+// `foldl'`, `foldWhile`, `scanl`, `iterate`).  Each block runs the
+// regular evaluator and then `:eval` so the two must agree.
+
+// pmult
+pmult 0b101 0b11
+:eval pmult 0b101 0b11
+
+// pdiv
+pdiv 0b1011 0b11
+:eval pdiv 0b1011 0b11
+
+// pmod
+pmod 0b1011 0b11
+:eval pmod 0b1011 0b11
+
+// foldl
+foldl (+) 0 [1, 2, 3 : [8]]
+:eval foldl (+) 0 [1, 2, 3 : [8]]
+
+// foldl'
+foldl' (+) 0 [1, 2, 3 : [8]]
+:eval foldl' (+) 0 [1, 2, 3 : [8]]
+
+// scanl
+scanl (+) 0 [1, 2, 3 : [8]]
+:eval scanl (+) 0 [1, 2, 3 : [8]]
+
+// iterate
+iterate (\x -> x + 1) (0 : [8]) @ 5
+:eval iterate (\x -> x + 1) (0 : [8]) @ 5
+
+// foldWhile (stops on b < 10 going False)
+foldWhile (\a b -> (b < 10, max a b)) 0 [1, 2, 3 : [8]]
+:eval foldWhile (\a b -> (b < 10, max a b)) 0 [1, 2, 3 : [8]]
