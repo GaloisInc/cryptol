@@ -52,7 +52,7 @@ arrayRangeLookup arr idx = res
     res @ i = arrayLookup arr (idx + i)
 
 arrayRangeUpdate : {a, b, n} (Integral a, fin n, LiteralLessThan n a) => (Array a b) -> a -> [n]b -> (Array a b)
-arrayRangeUpdate arr idx vals = arrs ! 0
+arrayRangeUpdate arr idx vals = last arrs
   where
     arrs = [arr] # [ arrayUpdate acc (idx + i) val | acc <- arrs | i <- [0 ..< n] | val <- vals ]
 
