@@ -48,7 +48,9 @@
 >   (TValue(..), TNominalTypeValue(..), ConInfo(..),
 >    isTBit, evalValType, evalNumType, TypeEnv, bindTypeVar)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
-> import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim, unpackIdent)
+> import Cryptol.Utils.Ident
+>   ( Ident, PrimIdent, prelPrim, floatPrim, unpackIdent, identText
+>   , preludeReferenceName)
 > import Cryptol.Utils.Panic (panic)
 > import Cryptol.Utils.PP
 > import Cryptol.Utils.RecordMap
@@ -56,7 +58,10 @@
 > import Cryptol.Eval.Type (evalType, lookupTypeVar, tNumTy, tValTy)
 >
 > import qualified Cryptol.ModuleSystem as M
+> import qualified Cryptol.ModuleSystem.Base as M (loadModuleFrom)
 > import qualified Cryptol.ModuleSystem.Env as M (loadedModules,loadedNominalTypes)
+> import qualified Cryptol.ModuleSystem.Monad as M
+>   (ModuleM, runModuleM, getModuleEnv, ImportSource(..))
 
 Overview
 ========
@@ -276,23 +281,32 @@ Environments
 ------------
 
 An evaluation environment keeps track of the values of term variables
-and type variables that are in scope at any point.
+and type variables that are in scope at any point.  It additionally
+carries a table of "redirects" for primitives whose reference
+implementation is provided in Cryptol (see `loadReferencePrimImpls`).
 
 > data Env = Env
->   { envVars       :: !(Map Name (E Value))
->   , envTypes      :: !TypeEnv
+>   { envVars         :: !(Map Name (E Value))
+>   , envTypes        :: !TypeEnv
+>   , envPrimRedirect :: Map PrimIdent (E Value)
+>     -- ^ Intentionally lazy: this field is built via a recursive knot
+>     -- in `evaluate`, where its value depends on the final env that
+>     -- contains it.  Making it strict would tie the knot too tight and
+>     -- send env construction into a loop.
 >   }
 >
 > instance Semigroup Env where
 >   l <> r = Env
->     { envVars  = envVars  l <> envVars  r
->     , envTypes = envTypes l <> envTypes r
+>     { envVars         = envVars         l <> envVars         r
+>     , envTypes        = envTypes        l <> envTypes        r
+>     , envPrimRedirect = envPrimRedirect l <> envPrimRedirect r
 >     }
 >
 > instance Monoid Env where
 >   mempty = Env
->     { envVars  = mempty
->     , envTypes = mempty
+>     { envVars         = mempty
+>     , envTypes        = mempty
+>     , envPrimRedirect = mempty
 >     }
 >   mappend = (<>)
 >
@@ -577,7 +591,7 @@ the new bindings.
 > evalDecl :: Env -> Decl -> (Name, E Value)
 > evalDecl env d =
 >   case dDefinition d of
->     DPrim         -> (dName d, pure (evalPrim (dName d)))
+>     DPrim         -> (dName d, evalPrim env (dName d))
 >     DForeign _ me -> (dName d, val)
 >       where
 >         val =
@@ -626,11 +640,16 @@ constructor.
 Primitives
 ==========
 
-To evaluate a primitive, we look up its implementation by name in a table.
+To evaluate a primitive, we first look up its implementation by name in
+the built-in `primTable`.  If the primitive is not there, we fall back to
+the environment's redirect table, which may provide a Cryptol-level
+reference implementation loaded from `Cryptol::Reference` (see
+`loadReferencePrimImpls`).
 
-> evalPrim :: Name -> Value
-> evalPrim n
->   | Just i <- asPrim n, Just v <- Map.lookup i primTable = v
+> evalPrim :: Env -> Name -> E Value
+> evalPrim env n
+>   | Just i <- asPrim n, Just v <- Map.lookup i primTable               = pure v
+>   | Just i <- asPrim n, Just v <- Map.lookup i (envPrimRedirect env)   = v
 >   | otherwise = evalPanic "evalPrim" ["Unimplemented primitive", show (pp n)]
 
 Cryptol primitives fall into several groups, mostly delineated
@@ -1996,6 +2015,43 @@ Pretty Printing
 >     VPoly _    -> text "<polymorphic value>"
 >     VNumPoly _ -> text "<polymorphic value>"
 
+Loading Reference Primitive Implementations
+-------------------------------------------
+
+Force-load `Cryptol::Reference` and build a redirect table from primitive
+identifiers to the Cryptol-level definitions that live in that module.
+
+This is unusual: normally the reference evaluator just walks whatever
+modules the user has loaded.  We special-case `Cryptol::Reference` because
+a handful of primitives declared in `lib/Cryptol.cry` (e.g. `pmult`,
+`pdiv`, `pmod`, `foldl`, `scanl`, `iterate`, ...) have no Haskell
+implementation in `primTable`; their reference semantics is given in
+Cryptol itself in `lib/Cryptol/Reference.cry`.
+
+The result is a function that, when given the final evaluation
+environment, produces a map suitable for `envPrimRedirect`: each entry
+maps a primitive's `PrimIdent` to the `E Value` that the same name is
+bound to in the env.  The caller ties the knot between this map and the
+env it eventually builds.
+
+> loadReferencePrimImpls :: M.ModuleM (Env -> Map PrimIdent (E Value))
+> loadReferencePrimImpls =
+>   do _ <- M.loadModuleFrom True (M.FromModule preludeReferenceName)
+>      modEnv <- M.getModuleEnv
+>      let refNames =
+>            [ dName d
+>            | m  <- M.loadedModules modEnv
+>            , mName m == preludeReferenceName
+>            , dg <- mDecls m
+>            , d  <- groupDecls dg
+>            ]
+>      pure \env ->
+>        Map.fromList
+>          [ (prelPrim (identText (nameIdent n)), v)
+>          | n <- refNames
+>          , Just v <- [Map.lookup n (envVars env)]
+>          ]
+
 Module Command
 --------------
 
@@ -2003,11 +2059,23 @@ This module implements the core functionality of the `:eval
 <expression>` command for the Cryptol REPL, which prints the result of
 running the reference evaluator on an expression.
 
+Before evaluating, we force-load `Cryptol::Reference` and install its
+Cryptol-level definitions as fallback implementations for primitives that
+lack a Haskell implementation in `primTable`.  Note the recursive knot:
+`overrides` looks up names in `envVars env`, while `env` itself is built
+on top of an initial environment that contains those very `overrides`.
+This is safe because the redirect is consulted lazily, only when a
+`DPrim` declaration is forced during evaluation.
+
 > evaluate :: Expr -> M.ModuleCmd (E Value)
-> evaluate expr minp = return (Right (val, modEnv), [])
->   where
->     modEnv = M.minpModuleEnv minp
->     extDgs = concatMap mDecls (M.loadedModules modEnv) ++ M.deDecls (M.meDynEnv modEnv)
->     nts    = Map.elems (M.loadedNominalTypes modEnv)
->     env    = foldl evalDeclGroup (foldl evalNominalDecl mempty nts) extDgs
->     val    = evalExpr env expr
+> evaluate expr minp = M.runModuleM minp $
+>   do mkOverrides <- loadReferencePrimImpls
+>      modEnv      <- M.getModuleEnv
+>      let extDgs = concatMap mDecls (M.loadedModules modEnv)
+>                   ++ M.deDecls (M.meDynEnv modEnv)
+>          nts    = Map.elems (M.loadedNominalTypes modEnv)
+>          env0   = mempty { envPrimRedirect = mkOverrides env }
+>          env    = foldl evalDeclGroup
+>                         (foldl evalNominalDecl env0 nts)
+>                         extDgs
+>      pure (evalExpr env expr)

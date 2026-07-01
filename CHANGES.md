@@ -77,6 +77,10 @@
   incorrect results on concrete values.
   ([#2044](https://github.com/GaloisInc/cryptol/issues/2044))
 
+* Fix the reference evaluator panicking on primitives whose reference
+  implementation is written in Cryptol.
+  ([#2070](https://github.com/GaloisInc/cryptol/issues/2070))
+
 ## API changes
 
 * Add `isValidIdent` to `Cryptol.Parser.LexerUtils`, which checks if a name is
