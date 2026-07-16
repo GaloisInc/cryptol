@@ -1431,8 +1431,11 @@ instance (Show name, PPName name) => PP (Expr name) where
       ESel    e l   -> ppPrec 4 e <.> text "." <.> pp l
 
       -- low prec
-      EFun _ xs e   -> wrap n 0 ((text "\\" <.> hsep (map (ppPrec 3) xs)) <+>
+      EFun d xs e   -> wrap n 0 ((text "\\" <.> des <.> hsep (map (ppPrec 3) xs)) <+>
                                  text "->" </> pp e)
+        where
+        des = maybe mempty ppNm (funDescrName d)
+        ppNm x = "/*" <.> pp x <.> "*/"
 
       EIf e1 e2 e3  -> wrap n 0 $ sep [ text "if"   <+> pp e1
                                       , text "then" <+> pp e2
@@ -1476,6 +1479,9 @@ instance (Show name, PPName name) => PP (Expr name) where
    isInfix _ = Nothing
    prefixText PrefixNeg        = "-"
    prefixText PrefixComplement = "~"
+
+instance (Show name, PP name) => PP (FunDesc name) where
+  ppPrec _ fd = maybe mempty pp (funDescrName fd)
 
 instance (Show name, PPName name) => PP (CaseAlt name) where
   ppPrec _ (CaseAlt p e) = vcat [ pp p <+> "->", nest 2 (pp e) ]
