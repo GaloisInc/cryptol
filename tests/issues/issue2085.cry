@@ -1,0 +1,4 @@
+
+bad = \(x : [16][8]) -> map (\x -> x) x == x
+
+example example y = example + y
