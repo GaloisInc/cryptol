@@ -7,7 +7,7 @@ import Data.Maybe(fromMaybe,mapMaybe)
 import MonadLib
 import Control.Concurrent.STM
 
-import Cryptol.Parser.Position(thing,srcRange,Range)
+import Cryptol.Parser.Position(thing)
 import Cryptol.ModuleSystem
 import Cryptol.ModuleSystem.Env
 import Cryptol.ModuleSystem.Base qualified as Base
@@ -22,6 +22,7 @@ import Cryptol.TypeCheck.Error qualified as T
 import Language.LSP.Server qualified as LSP
 import Language.LSP.Protocol.Types qualified as LSP
 
+import Error(importSourceLoc)
 import State
 import Monad
 import Index
@@ -237,21 +238,12 @@ setModStatus m sta = LoadM (sets_ \s -> s { loadModStatus = Map.insert m sta (lo
 getModStatus :: P.ModName -> LoadM (Maybe Status)
 getModStatus mo = LoadM (Map.lookup mo . loadModStatus <$> get)
 
--- | Get the location of an import
-impSrcLoc :: ImportSource -> Maybe Range
-impSrcLoc isrc =
-  case isrc of
-    FromModule {} -> Nothing
-    FromImport l -> Just (srcRange l)
-    FromSigImport l -> Just (srcRange l)
-    FromModuleInstance l -> Just (srcRange l)
-
 -- | Record an error at the given inmport
 badDep :: Maybe ImportSource -> LoadM ()
 badDep mbisrc =
   case mbisrc of
     Just isrc ->
-      case impSrcLoc isrc of
+      case importSourceLoc isrc of
         Just r ->
           LoadM (sets_ \s -> s { loadErrs = TypeCheckingFailed isrc T.emptyNameMap [(r,T.TemporaryError "Import contains errors")] : loadErrs s })
         Nothing -> pure ()
