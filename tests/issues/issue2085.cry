@@ -2,3 +2,8 @@
 bad = \(x : [16][8]) -> map (\x -> x) x == x
 
 example example y = example + y
+
+fun : {n} (fin n) => [n] -> [n]
+fun x
+  | n == 0 => 0
+  | n > 0 => 1

@@ -1314,7 +1314,7 @@ instance Rename Expr where
 instance Rename FunDesc where
   rename (FunDesc nm offset fromP) =
     do
-      nm' <- traverse resolveCurBind nm
+      nm' <- traverse (resolveCurBind fromP) nm
       pure (FunDesc nm' offset fromP)
 
 --------------------------------------------------------------------------------

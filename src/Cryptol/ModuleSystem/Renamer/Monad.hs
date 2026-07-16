@@ -586,13 +586,17 @@ setCurBind :: Located PName -> Name -> RenameM a -> RenameM a
 setCurBind p n (R m) = R (mapReader upd m)
   where upd r = r { curBind = Just (p,n) }
 
-resolveCurBind :: PName -> RenameM Name
-resolveCurBind p =
+resolveCurBind :: Bool -> PName -> RenameM Name
+resolveCurBind fromP p =
   do
     mb <- R (curBind <$> ask)
     case mb of
       Just (p',n)
         | thing p' == p -> pure n
+        | fromP,
+          let i = identText (getIdent (thing p')),
+          let j = identText (getIdent p),
+          j `Text.isPrefixOf` i -> pure n
         | otherwise ->
           panic "resolveCurBind"
                 [ "Unexpected current binding"
