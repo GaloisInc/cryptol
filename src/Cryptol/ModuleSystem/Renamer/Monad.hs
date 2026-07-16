@@ -34,8 +34,9 @@ module Cryptol.ModuleSystem.Renamer.Monad
   , inSubmodule
   , inLocalScope
   , inLocalBindScope
-  , doBind
-  , getLastBindDefs
+
+  , setCurBind
+  , resolveCurBind
 
     -- * Name generation
   , doDefGroup
@@ -70,6 +71,7 @@ import Data.Text qualified as Text
 
 import Cryptol.Utils.Panic
 import Cryptol.Utils.Ident
+import Cryptol.Utils.PP(pp,(<+>))
 import Cryptol.Parser.Name
 import Cryptol.Parser.Position
 import Cryptol.Parser.AST
@@ -111,7 +113,7 @@ runRenamer info (R m) = (res, reverse (renWarnings rwFin))
         es -> Left (reverse es)
 
     ro0 = RO {
-      lastBindsEnv = mempty,
+      curBind = Nothing,
       localsEnv = mempty,
       localBindEnv = mempty,
       outEnv = renEnv info,
@@ -159,21 +161,22 @@ data RO = RO {
   -- We keep this so then if one of the modules is imported, we can
   -- collect its definitions in `externalDeps` to give the typechecker.
 
-  lastBindsEnv :: NamingEnv,
-  -- ^ This is the last environment that introduced function bindings.
-  -- It is basically the value of `getCurBinds` at the point we start
-  -- resolving a binding.  We need this, because during `NoPat`, we desugar
-  -- bindings with arguments, into lambdas, but those lambdas are annotated
-  -- with the name of the function that gave rise to them.  We use this
-  -- environment to avoid resolving this name, thus avoiding confusion with
-  -- the parameters of the function.
+  curBind :: Maybe (Located PName, Name),
+  -- ^ The current binding we are working on.  During NoPat we do
+  -- a transformation like this:
+  -- f x y = e   ~>   f = \/*f*/ x -> \/*f*/ y -> e
+  -- We use `curBind` to resolve the `f` in the lambdas.  Specifically,
+  -- we want to avoid getting confused in a situation like this:
+  -- f f y =     ~>   f = \/*f*/ f -> \/*f*/ y -> e  
+  -- If we are not careful the (f) in the second lambda could refer to the
+  -- argument instead of the original binding.
+  -- The /*f*/ is the 'FunDesc' in the 'EFun'
 
   localBindEnv :: NamingEnv,
-  -- ^ Used to resolve the names of definitions in the current scope.
+  -- ^ Local names that are in scope, for resolving definition names
 
   localsEnv :: NamingEnv,
-  -- ^ Variables local to a function. These are variables from outside the
-  -- current binding scope.
+  -- ^ Local names that are in scope, for resolving name uses
 
   outEnv :: NamingEnv,
   -- ^ Things in an enclosing scope (for nested modules).  This is used
@@ -520,8 +523,7 @@ getCurBinds = R
     pure (localBindEnv ro `shadowing` defEnv rw)
 
 
--- | Compute the current scope, including local definitions, outer environment
--- and imports.
+-- | Compute the current scope, for resolving name uses.
 getCurScope :: RenameM NamingEnv
 getCurScope = R
   do
@@ -529,7 +531,6 @@ getCurScope = R
     rw <- get
     pure $
       localsEnv ro `shadowing`
-      localBindEnv ro `shadowing`
       defEnv    rw `shadowing`
       modParamEnv (modParams rw) `shadowing`
       impEnv    rw `shadowing`
@@ -582,16 +583,29 @@ addImported rng env =
     forM_ (findShadowing env outDs) \(_,_,xs) ->
       addWarning (SymbolShadowed (ImportShadower rng) xs)
 
--- | Capture the `getCurBinds` at this point.  See the comment
--- on `lastBindsEnv` for more info.
-doBind :: RenameM a -> RenameM a
-doBind (R m) =
-  do
-    env <- getCurBinds
-    R (mapReader (\ro -> ro { lastBindsEnv = env }) m)
+setCurBind :: Located PName -> Name -> RenameM a -> RenameM a
+setCurBind p n (R m) = R (mapReader upd m)
+  where upd r = r { curBind = Just (p,n) }
 
-getLastBindDefs :: RenameM NamingEnv
-getLastBindDefs = R (lastBindsEnv <$> ask)
+resolveCurBind :: Bool -> PName -> RenameM Name
+resolveCurBind fromP p =
+  do
+    mb <- R (curBind <$> ask)
+    case mb of
+      Just (p',n)
+        | thing p' == p -> pure n
+        | fromP,
+          let i = identText (getIdent (thing p')),
+          let j = identText (getIdent p),
+          j `Text.isPrefixOf` i -> pure n
+        | otherwise ->
+          panic "resolveCurBind"
+                [ "Unexpected current binding"
+                , "Expected: " ++ show (pp (thing p') <+> pp (srcRange p'))
+                , "Actual: " ++ show (pp p)
+                ]
+      Nothing ->
+          panic "resolveCurBind" ["No current binding", "Actual: " ++ show (pp p) ]
 
 -- | Set the names of bindings for the duration of a computation.
 inLocalBindScope :: Bool -> NamingEnv -> RenameM a -> RenameM a
@@ -607,7 +621,7 @@ inLocalBindScope checkUsed env (R m) =
   where
   upd ro = ro {
     localBindEnv = env,
-    localsEnv = localBindEnv ro `shadowing` localsEnv ro
+    localsEnv = env `shadowing` localsEnv ro
   }
 
 -- | Do something that will only modify the local scope, and restore

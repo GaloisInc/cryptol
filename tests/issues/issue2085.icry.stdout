@@ -1,0 +1,9 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at issue2085.cry:2:31--2:32
+    This binding for `x` shadows the existing binding at
+    issue2085.cry:2:9--2:10
+[warning] at issue2085.cry:4:9--4:16
+    This binding for `example` shadows the existing binding at
+    issue2085.cry:4:1--4:8

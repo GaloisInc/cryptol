@@ -1197,7 +1197,6 @@ maybeLoc mb e =
 -- | Rename a binding.
 instance Rename Bind where
   rename b =
-    doBind
     do
       n'    <- rnLocated (resolveNameDef NSValue) (bName b)
       let checkSig k =
@@ -1207,7 +1206,7 @@ instance Rename Bind where
       checkSig \mbSig ->
         renameBindParams (bParams b) \ps ->
         do
-          e' <- rnLocated rename (bDef b)
+          e' <- setCurBind (bName b) (thing n') (rnLocated rename (bDef b))
           pure b {
             bName      = n',
             bParams    = ps,
@@ -1315,13 +1314,8 @@ instance Rename Expr where
 instance Rename FunDesc where
   rename (FunDesc nm offset fromP) =
     do
-      env <- getLastBindDefs
-      nm' <- forM nm \x ->
-        case lookupNS NSValue x env of
-          Just a -> pure (anyOne a)
-          Nothing -> panic "Rename FunDesc" ["Missing"]
+      nm' <- traverse (resolveCurBind fromP) nm
       pure (FunDesc nm' offset fromP)
-
 
 --------------------------------------------------------------------------------
 -- Records
