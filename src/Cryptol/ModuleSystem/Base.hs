@@ -681,7 +681,7 @@ checkModule isrc m = do
 
   -- remove pattern bindings
   npm <- noPat m
-  dump PassNoPat (pp m) 
+  dump PassNoPat (pp npm) 
 
   -- run expandPropGuards
   epgm <- expandPropGuards npm
