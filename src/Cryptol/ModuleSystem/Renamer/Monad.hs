@@ -164,12 +164,13 @@ data RO = RO {
   curBind :: Maybe (Located PName, Name),
   -- ^ The current binding we are working on.  During NoPat we do
   -- a transformation like this:
-  -- f x y = e   ~>   f = \(f) x -> \(f) y -> e
+  -- f x y = e   ~>   f = \/*f*/ x -> \/*f*/ y -> e
   -- We use `curBind` to resolve the `f` in the lambdas.  Specifically,
   -- we want to avoid getting confused in a situation like this:
-  -- f f y =     ~>   f = \(f) f -> \(f) y -> e  
+  -- f f y =     ~>   f = \/*f*/ f -> \/*f*/ y -> e  
   -- If we are not careful the (f) in the second lambda could refer to the
-  -- argument instead of the original binding.  
+  -- argument instead of the original binding.
+  -- The /*f*/ is the 'FunDesc' in the 'EFun'
 
   localBindEnv :: NamingEnv,
   -- ^ Local names that are in scope, for resolving definition names
