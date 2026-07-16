@@ -1,10 +1,10 @@
-module Error (diagnostics) where
+module Error (diagnostics, importSourceLoc) where
 
 import Data.Text(Text)
 import Data.Text qualified as Text
 import Data.Map(Map)
 import Data.Map qualified as Map
-import Data.Maybe(mapMaybe)
+import Data.Maybe(mapMaybe,maybeToList)
 import Language.LSP.Protocol.Types qualified as LSP
 import Language.LSP.Diagnostics qualified as LSP
 import Cryptol.Utils.PP
@@ -79,20 +79,20 @@ instance Diag ModuleError where
       ModuleParseError _ _ e -> toDiag noExtra e
 
       RenamerErrors imp errs ->
-        toDiag (noExtra { fallbackRange = importSourceLoc imp }) errs
+        toDiag (noExtra { fallbackRange = importSourceLocs imp }) errs
       TypeCheckingFailed _ names errs ->
         [ di | (r,e) <- errs,
                 let ex = Extra { fallbackRange = [r], nameMap = Just names }, 
                 di <- toDiag ex e ]
                                      
       ModuleNotFound isrc _ _ ->
-        [ mkErr r (pp err) | r <- importSourceLoc isrc ] 
+        [ mkErr r (pp err) | r <- importSourceLocs isrc ] 
       CantFindFile {} -> []
       BadUtf8 {} -> []
       OtherIOError {} -> []
       
       RecursiveModules imps ->
-        [ mkErr r (pp err) | i <- imps, r <- importSourceLoc i ]
+        [ mkErr r (pp err) | i <- imps, r <- importSourceLocs i ]
       
       NoPatErrors _ errs -> toDiag noExtra errs
       NoIncludeErrors _ errs -> toDiag noExtra errs
@@ -105,13 +105,17 @@ instance Diag ModuleError where
       ConfigLoadError _ -> []
       ErrorInFile _ e -> toDiag mbFile e
 
-importSourceLoc :: ImportSource -> [Range]
+importSourceLocs :: ImportSource -> [Range]
+importSourceLocs = maybeToList . importSourceLoc
+
+importSourceLoc :: ImportSource -> Maybe Range
 importSourceLoc imp =
   case imp of
-    FromModule {} -> []
-    FromImport l -> [srcRange l]
-    FromSigImport l -> [srcRange l]
-    FromModuleInstance l -> [srcRange l]
+    FromModule {} -> Nothing
+    FromImport l -> Just (srcRange l)
+    FromSigImport l -> Just (srcRange l)
+    FromModuleInstance l -> Just (srcRange l)
+    FromModuleAlias l -> Just (srcRange l)
 
 
 instance Diag P.ParseError where
@@ -149,6 +153,7 @@ instance Diag R.RenamerError where
         R.MultipleModParams _ rs -> rs
         R.ModuleKindMismatch r _ _ _ -> [r]
         R.ImportTooSoon r _ -> [r]
+        R.ConflictingModParam _ nm -> [nameLoc nm]
 
 instance Diag T.Error where
   toDiag extra e =
