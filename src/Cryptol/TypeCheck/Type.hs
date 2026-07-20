@@ -668,6 +668,11 @@ pIsPrime ty = case tNoUser ty of
                 TCon (PC PPrime) [t1] -> Just t1
                 _                     -> Nothing
 
+pIsNotPrime :: Prop -> Maybe Type
+pIsNotPrime ty = case tNoUser ty of
+                   TCon (PC PNotPrime) [t1] -> Just t1
+                   _                        -> Nothing
+
 pIsGeq :: Prop -> Maybe (Type,Type)
 pIsGeq ty = case tNoUser ty of
               TCon (PC PGeq) [t1,t2] -> Just (t1,t2)
@@ -1005,6 +1010,14 @@ pNegNumeric prop =
             -- not True  <=>  0 == 1
             PTrue -> [TCon (PC PEqual) [tZero, tOne]]
 
+            -- not (prime p)  <=>  notPrime p
+            PPrime | [ty] <- tys -> [TCon (PC PNotPrime) [ty]]
+                   | otherwise -> bad
+
+            -- not (notPrime p)  <=>  prime p
+            PNotPrime | [ty] <- tys -> [TCon (PC PPrime) [ty]]
+                      | otherwise -> bad
+
             _ -> bad
 
         TError _ki -> [prop] -- propogates `TError`
@@ -1257,6 +1270,7 @@ instance PP (WithNames Type) where
           (PGeq,  [t1,t2])    -> go 0 t1 <+> text ">=" <+> go 0 t2
           (PFin,  [t1])       -> optParens (prec > 3) $ text "fin" <+> (go 5 t1)
           (PPrime,  [t1])     -> optParens (prec > 3) $ text "prime" <+> (go 5 t1)
+          (PNotPrime,  [t1])  -> optParens (prec > 3) $ text "notPrime" <+> (go 5 t1)
           (PHas x, [t1,t2])   -> ppSelector x <+> text "of"
                                <+> go 0 t1 <+> text "is" <+> go 0 t2
           (PAnd, [t1,t2])     -> nest 1 (parens (commaSepFill (map (go 0) (t1 : pSplitAnd t2))))

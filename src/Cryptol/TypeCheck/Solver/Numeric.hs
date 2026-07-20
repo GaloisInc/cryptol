@@ -1,6 +1,6 @@
 {-# LANGUAGE PatternGuards, MagicHash, MultiWayIf, TypeOperators #-}
 module Cryptol.TypeCheck.Solver.Numeric
-  ( cryIsEqual, cryIsNotEqual, cryIsGeq, cryIsPrime, primeTable
+  ( cryIsEqual, cryIsNotEqual, cryIsGeq, cryIsPrime, cryIsNotPrime, primeTable
   ) where
 
 import           Control.Applicative(Alternative(..))
@@ -92,6 +92,21 @@ cryIsPrime _varInfo ty =
             Unsolvable
 
       | TCInf <- tc -> Unsolvable
+
+    _ -> Unsolved
+
+cryIsNotPrime :: Ctxt -> Type -> Solved
+cryIsNotPrime _varInfo ty =
+  case tNoUser ty of
+
+    TCon (TC tc) []
+      | TCNum n <- tc ->
+          if untrie primeTable n then
+            Unsolvable
+          else
+            SolvedIf []
+
+      | TCInf <- tc -> SolvedIf []
 
     _ -> Unsolved
 

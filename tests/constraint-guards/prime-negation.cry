@@ -1,0 +1,21 @@
+// A regression test for #2089. This test ensures that Cryptol can negate
+// `prime` (and `notPrime`) constraints when determining if a set of constraint
+// guards is exhaustive or not.
+
+f : {n} [n]
+f | prime n => zero
+  | fin n => zero
+  | n == n => zero
+
+g : {n} [n]
+g | notPrime n => zero
+  | fin n => zero
+  | n == n => zero
+
+h : {n} [n]
+h | prime n => zero
+  | notPrime n => zero
+
+i : {n} [n]
+i | notPrime n => zero
+  | prime n => zero
