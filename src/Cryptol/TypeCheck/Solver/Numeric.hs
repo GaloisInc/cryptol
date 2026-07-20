@@ -141,7 +141,7 @@ tryGeqThanK _ t (Nat k) =
 
 -- (K >= 2 && K^a >= K^b) => a >= b
 tryGeqExp :: Ctxt -> Type -> Type -> Match Solved
-tryGeqExp _ x y = 
+tryGeqExp _ x y =
       do  (k_1, a) <- (|^|) x
           n <- aNat k_1
           guard (n >= 2)
@@ -248,16 +248,16 @@ tryCancelVar ctxt p t1 t2 =
 -- if (K >= 2) && K^a = K^b => a = b
 tryEqExp :: Type -> Type -> Match Solved
 tryEqExp x y = check x y <|> check y x
-  where 
+  where
     check i j =
-      do  
+      do
           (k_1, a) <- (|^|) i
           n <- aNat k_1
           guard (n >= 2)
           (k_2, b) <- (|^|) j
           guard (k_1 == k_2)
           return $ SolvedIf [ a =#= b ]
-  
+
 -- min t1 t2 = t1 ~> t1 <= t2
 tryEqMin :: Type -> Type -> Match Solved
 tryEqMin x y =
@@ -462,7 +462,7 @@ tryAddConst rel l r =
 tryLinearSolution :: Ctxt -> Type -> Type -> Match Solved
 tryLinearSolution ctxt s1 t =
   do (a,xs) <- matchLinearUnifier t
-     guard (noFreeVariables s1) 
+     guard (noFreeVariables s1)
 
      -- NB: matchLinearUnifier only matches if xs is nonempty
      let s2 = foldr1 Simp.tAdd xs

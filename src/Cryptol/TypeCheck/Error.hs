@@ -64,7 +64,7 @@ cleanupErrors = dropErrorsFromSameLoc
 -- | Clean up warning messages by sorting them by source location
 --   (they are accumulated in reverse order by 'recordWarning').
 cleanupWarnings :: [(Range,Warning)] -> [(Range,Warning)]
-cleanupWarnings = 
+cleanupWarnings =
   sortBy (compare `on` (cmpR . fst))    -- order warnings
   where
     cmpR r  = ( source r    -- First by file
@@ -522,7 +522,7 @@ instance PP (WithNames Error) where
         addTVarsDescsAfter names err $
         nested "Recursive type declarations:"
                (commaSep $ map nm ts)
-      
+
       TooManyParams n t i j ->
         addTVarsDescsAfter names err $
         nested "Type signature mismatch." $
@@ -906,9 +906,9 @@ computeFreeVarNames cfg warns errs =
   (uvars,non_uvars) = partition isFreeTV
                     $ Set.toList
                     $ fvs (map snd warns, map snd errs)
-        
+
   mpNames = computeModParamNames cfg [ tp | TVBound tp <- non_uvars ] mempty
-        
+
   (numVaras,otherVars) = partition ((== KNum) . kindOf) uvars
 
   otherRoots = [ "a", "b", "c", "d" ]
