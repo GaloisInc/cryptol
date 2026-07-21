@@ -63,8 +63,7 @@ checkSchema withWild (P.Forall xs ps t mb) =
      -- XXX: We probably shouldn't do this, as we are changing what the
      -- user is doing.  We do it so that things are in a propal normal form,
      -- but we should probably figure out another time to do this.
-     let newPs = concatMap pSplitAnd $ map (simplify mempty)
-                                     $ map tRebuild ps1
+     let newPs = simplifyConstraintProps ps1
      return ( Forall xs1 newPs (tRebuild t1)
             , [ g { goal = tRebuild (goal g) } | g <- gs ]
             )
@@ -81,11 +80,17 @@ checkSchema withWild (P.Forall xs ps t mb) =
     function corresponding guard is checked.
 
   * We also check that there are no wild-cards in the constraints.
+
+  * If any constraints are trivial (e.g., `n == n`), then simplify them away.
+    This ensures that when we apply each auto-generated guard function to proof
+    arguments, we pick the correct number of 'EProofApp's.
 -}
 checkPropGuards :: [Located (P.Prop Name)] -> InferM [Prop]
 checkPropGuards props =
   do (newPs,_gs) <- collectGoals (mapM check props)
-     pure newPs
+     -- Use `simplifyConstraintProps` here for symmetry with `checkSchema`,
+     -- which also simplifies away trivial constraints in type signatures.
+     pure $ simplifyConstraintProps newPs
   where
   check lp =
     inRange (srcRange lp)
@@ -649,3 +654,9 @@ checkKind _ (Just k1) k2
   | k1 /= k2    = do kRecordError (KindMismatch Nothing k1 k2)
                      kNewType TypeErrorPlaceHolder k1
 checkKind t _ _ = return t
+
+-- | Simplify constraints arising from a user-written type signature (see
+-- 'checkSchema') or numeric constraint guards (see 'checkPropGuards').
+simplifyConstraintProps :: [Prop] -> [Prop]
+simplifyConstraintProps =
+  concatMap pSplitAnd . map (simplify mempty) . map tRebuild

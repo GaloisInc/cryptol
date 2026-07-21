@@ -91,6 +91,10 @@
   implementation is written in Cryptol.
   ([#2070](https://github.com/GaloisInc/cryptol/issues/2070))
 
+* Fix a bug in which numeric constraint guards that include "trivial"
+  constraints (e.g., `n == n`) could generate ill-typed code.
+  ([#2093](https://github.com/GaloisInc/cryptol/issues/2093))
+
 ## API changes
 
 * Add `isValidIdent` to `Cryptol.Parser.LexerUtils`, which checks if a name is

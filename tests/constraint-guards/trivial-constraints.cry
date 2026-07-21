@@ -1,0 +1,18 @@
+f : {n} [n] -> Bit
+f _ | n != n => False
+    | n == n => True
+
+g : {n} [n] -> Bit
+g _ | n != n => False
+    | (n == n, fin n) => False
+    | n == n => True
+
+h : {n} [n] -> Bit
+h _ | (n == n, n != n) => False
+    | n == n => True
+
+i : {n} [n] -> Bit
+i _ | (n == n, n == n) => True
+
+j : {n} [n] -> Bit
+j _ | n == n => True
