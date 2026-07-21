@@ -265,6 +265,10 @@ checkProp = \case
         case n of
           Nat n' -> isPrime n'
           Inf -> False
+      PC PNotPrime | [n] <- ns ->
+        case n of
+          Nat n' -> not (isPrime n')
+          Inf -> True
       PC PTrue -> True
       TError {} -> False
       _ -> evalPanic "evalProp" ["cannot use this as a guarding constraint: ", show . pp $ TCon tcon ts ]

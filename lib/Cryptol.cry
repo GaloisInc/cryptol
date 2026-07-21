@@ -86,6 +86,9 @@ primitive type fin : # -> Prop
 /** Assert that a numeric type is a prime number. */
 primitive type prime : # -> Prop
 
+/** Assert that a numeric type is not a prime number. */
+primitive type notPrime : # -> Prop
+
 /** Add numeric types. */
 primitive type (+) : # -> # -> #
 

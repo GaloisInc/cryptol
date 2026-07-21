@@ -12,7 +12,7 @@ Loading module Cryptol
 
 Run-time error: undefined
 -- Backtrace --
-Cryptol::error called at Cryptol:1062:13--1062:18
+Cryptol::error called at Cryptol:1065:13--1065:18
 Cryptol::undefined called at issue1249.icry:16:14--16:23
 Cryptol::deepseq called at issue1249.icry:16:1--16:8
 Run-time error: undefined

@@ -5,7 +5,8 @@ import Cryptol.TypeCheck.Type hiding
   ( tSub, tMul, tDiv, tMod, tExp, tMin, tLenFromThenTo)
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.Solver.Numeric.Fin(cryIsFinType)
-import Cryptol.TypeCheck.Solver.Numeric(cryIsEqual, cryIsNotEqual, cryIsGeq, cryIsPrime)
+import Cryptol.TypeCheck.Solver.Numeric
+  ( cryIsEqual, cryIsNotEqual, cryIsGeq, cryIsPrime, cryIsNotPrime )
 import Cryptol.TypeCheck.Solver.Class
   ( solveDerivedInst
   , solveZeroInst, solveLogicInst, solveRingInst
@@ -67,6 +68,7 @@ simplifyStep ctxt prop =
 
     TCon (PC PValidFloat) [t1,t2] -> solveValidFloat t1 t2
     TCon (PC PPrime) [ty]      -> cryIsPrime ctxt ty
+    TCon (PC PNotPrime) [ty]   -> cryIsNotPrime ctxt ty
     TCon (PC PFin)   [ty]      -> cryIsFinType ctxt ty
 
     TCon (PC PEqual) [t1,t2]   -> cryIsEqual ctxt t1 t2

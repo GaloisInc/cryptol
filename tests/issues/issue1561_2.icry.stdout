@@ -104,6 +104,7 @@ Primitive Types
     lengthFromThenTo : # -> # -> # -> #
     max : # -> # -> #
     min : # -> # -> #
+    notPrime : # -> Prop
     prime : # -> Prop
     Rational : *
     Ring : * -> Prop

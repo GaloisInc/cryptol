@@ -25,7 +25,7 @@ module Cryptol.TypeCheck.TypePat
   , aRec
   , (|->|)
 
-  , aFin, aPrime, (|=|), (|/=|), (|>=|)
+  , aFin, aPrime, aNotPrime, (|=|), (|/=|), (|>=|)
   , aAnd
   , aTrue
 
@@ -168,6 +168,9 @@ aFin = tp PFin ar1
 
 aPrime :: Pat Prop Type
 aPrime = tp PPrime ar1
+
+aNotPrime :: Pat Prop Type
+aNotPrime = tp PNotPrime ar1
 
 (|=|) :: Pat Prop (Type,Type)
 (|=|) = tp PEqual ar2

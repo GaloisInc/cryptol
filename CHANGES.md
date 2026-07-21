@@ -45,6 +45,9 @@
 * Add new `foldWhile` primitive, which can optionally break early while
   folding. ([#2028](https://github.com/GaloisInc/cryptol/issues/2028))
 
+* Add a `notPrime` constraint.
+  ([#2089](https://github.com/GaloisInc/cryptol/issues/2089))
+
 ## Bug fixes
 
 * Fix pretty printing of types in errors messages

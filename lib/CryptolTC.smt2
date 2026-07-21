@@ -83,6 +83,11 @@
     (cryBool (and (isFin x) (cryPrimeUnknown (value x)))))
 )
 
+(define-fun cryNotPrime ((x InfNat)) MaybeBool
+  (ite (isErr x) cryErrProp
+    (cryBool (or (not (isFin x)) (not (cryPrimeUnknown (value x))))))
+)
+
 
 ; ------------------------------------------------------------------------------
 ; Basic Cryptol assume/assert

@@ -1,3 +1,7 @@
 f : {n} [n] -> Bit
 f _ | prime n => False
     | n == n  => True
+
+g : {n} [n] -> Bit
+g _ | notPrime n => False
+    | n == n  => True

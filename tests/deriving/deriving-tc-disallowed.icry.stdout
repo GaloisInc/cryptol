@@ -38,15 +38,19 @@ Loading module Main
   Cannot derive `prime`
   Derivable constraints for enum declarations are:
     Eq, Cmp, SignedCmp
-[error] at deriving-tc-disallowed.cry:3:118--3:125:
+[error] at deriving-tc-disallowed.cry:3:118--3:126:
+  Cannot derive `notPrime`
+  Derivable constraints for enum declarations are:
+    Eq, Cmp, SignedCmp
+[error] at deriving-tc-disallowed.cry:3:128--3:135:
   Cannot derive `Integer`
   Derivable constraints for enum declarations are:
     Eq, Cmp, SignedCmp
-[error] at deriving-tc-disallowed.cry:3:127--3:133:
+[error] at deriving-tc-disallowed.cry:3:137--3:143:
   Cannot derive `Option`
   Derivable constraints for enum declarations are:
     Eq, Cmp, SignedCmp
-[error] at deriving-tc-disallowed.cry:3:135--3:139:
+[error] at deriving-tc-disallowed.cry:3:145--3:149:
   Cannot derive `Main::MyEq`
   Derivable constraints for enum declarations are:
     Eq, Cmp, SignedCmp
@@ -74,19 +78,23 @@ Loading module Main
   Cannot derive `prime`
   Derivable constraints for newtype declarations are:
     Eq, Cmp, SignedCmp, Zero, Logic, Ring
-[error] at deriving-tc-disallowed.cry:5:128--5:135:
+[error] at deriving-tc-disallowed.cry:5:128--5:136:
+  Cannot derive `notPrime`
+  Derivable constraints for newtype declarations are:
+    Eq, Cmp, SignedCmp, Zero, Logic, Ring
+[error] at deriving-tc-disallowed.cry:5:138--5:145:
   Cannot derive `Integer`
   Derivable constraints for newtype declarations are:
     Eq, Cmp, SignedCmp, Zero, Logic, Ring
-[error] at deriving-tc-disallowed.cry:5:137--5:143:
+[error] at deriving-tc-disallowed.cry:5:147--5:153:
   Cannot derive `Option`
   Derivable constraints for newtype declarations are:
     Eq, Cmp, SignedCmp, Zero, Logic, Ring
-[error] at deriving-tc-disallowed.cry:5:145--5:146:
+[error] at deriving-tc-disallowed.cry:5:155--5:156:
   Cannot derive `Main::T`
   Derivable constraints for newtype declarations are:
     Eq, Cmp, SignedCmp, Zero, Logic, Ring
-[error] at deriving-tc-disallowed.cry:5:148--5:152:
+[error] at deriving-tc-disallowed.cry:5:158--5:162:
   Cannot derive `Main::MyEq`
   Derivable constraints for newtype declarations are:
     Eq, Cmp, SignedCmp, Zero, Logic, Ring

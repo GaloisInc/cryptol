@@ -1,4 +1,7 @@
-// Check that a `prime` constraint on its own does not constitute an
-// exhaustive set of numeric constraint guards.
+// Check that a `prime` or `notPrime` constraint on its own does not constitute
+// an exhaustive set of numeric constraint guards.
 f : {a,n} [n]a -> ()
 f _ | prime n => ()
+
+g : {a,n} [n]a -> ()
+g _ | notPrime n => ()
