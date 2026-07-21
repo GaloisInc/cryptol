@@ -1435,7 +1435,7 @@ instance (Show name, PPName name) => PP (Expr name) where
                                  text "->" </> pp e)
         where
         des = maybe mempty ppNm (funDescrName d)
-        ppNm x = "/*" <.> pp x <.> "*/"
+        ppNm x = "/*" <.> pp x <.> (if funDescrFromPropGuard d then " prop-guard " else mempty) <.> "*/"
 
       EIf e1 e2 e3  -> wrap n 0 $ sep [ text "if"   <+> pp e1
                                       , text "then" <+> pp e2
