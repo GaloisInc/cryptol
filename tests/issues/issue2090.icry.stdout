@@ -1,0 +1,7 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at issue2090.cry:2:9--2:11
+    Unused name: ys
+[warning] at issue2090.cry:2:4--2:6
+    Unused name: xs

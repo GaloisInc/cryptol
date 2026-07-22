@@ -137,6 +137,7 @@ expandBind bind =
           let updatedDef x =
                 case x of
                   ELocated e1 l -> ELocated (updatedDef e1) l
+                  EWhere e'' ds -> EWhere (updatedDef e'') ds
                   EFun desc xs y
                     | Just {} <- funDescrName desc ->
                       EFun desc { funDescrFromPropGuard = True } xs (updatedDef y)

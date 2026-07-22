@@ -1,0 +1,4 @@
+f : {n} (fin n) => [2*n] -> [n] -> [n]
+f (xs # ys) zs
+  | (n > 0) => xs + zs
+  | () => ys + zs
