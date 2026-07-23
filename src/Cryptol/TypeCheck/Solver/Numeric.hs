@@ -52,7 +52,11 @@ cryIsEqual ctxt t1 t2 =
 
 -- | Try to solve @t1 /= t2@
 cryIsNotEqual :: Ctxt -> Type -> Type -> Solved
-cryIsNotEqual _i t1 t2 = matchDefault Unsolved (pBin (/=) t1 t2)
+cryIsNotEqual i t1 t2 =
+  matchDefault Unsolved $
+        (pBin (/=) t1 t2)
+    <|> (aNat' t1 >>= tryNeqK i t2)
+    <|> (aNat' t2 >>= tryNeqK i t1)
 
 -- | Try to solve @t1 >= t2@
 cryIsGeq :: Ctxt -> Type -> Type -> Solved
@@ -139,6 +143,25 @@ tryGeqKThan _ ty (Nat n) =
                 Inf   -> [ b =#= tZero ]
                 Nat 0 -> []
                 Nat k -> [ tNum (div n k) >== b ]
+  <|>
+  -- K1 >= K2 ^^ t    ~~> logBase K2 K1 >= t
+  do (rk, b) <- matches ty ((|^|), aNat, __)
+     case genLog n rk of
+       Just (a,True) -> pure $ SolvedIf [ tNum a >== b ]
+       _ -> pure Unsolved
+  <|>
+  -- K1 >= 1 + (K2 ^^ t)    ~~> logBase K2 K1 >= 1 + t
+  --
+  -- Or, equivalently,
+  --
+  -- K1 > K2 ^^ t           ~~> logBase K2 K1 > t
+  do (oneTy,ty') <- anAdd ty
+     oneK <- aNat oneTy
+     guard (oneK == 1)
+     (rk, b) <- matches ty' ((|^|), aNat, __)
+     case genLog n rk of
+       Just (a,True) -> pure $ SolvedIf [ tNum a >== tf2 TCAdd (tNum (1::Int)) b ]
+       _ -> pure Unsolved
 
 -- | Try to solve @t >= K@
 tryGeqThanK :: Ctxt -> Type -> Nat' -> Match Solved
@@ -151,7 +174,21 @@ tryGeqThanK _ t (Nat k) =
      return $ SolvedIf $ if n >= k
                             then []
                             else [ b >== tNum (k - n) ]
-  -- XXX: K1 ^^ n >= K2
+  <|>
+  -- K1 ^^ t >= K2    ~~> t >= logBase K1 K2
+  do (rk, a) <- matches t ((|^|), aNat, __)
+     case genLog k rk of
+       Just (b,True) -> pure $ SolvedIf [ a >== tNum b ]
+       _ ->
+         -- K1 ^^ t >= 1 + K2 ~~> t >= 1 + logBase K1 K2
+         --
+         -- Or, equivalently,
+         --
+         -- K1 ^^ t > K2      ~~> t > logBase K2 K1
+         do guard (k > 0)
+            case genLog (k-1) rk of
+              Just (b,True) -> pure $ SolvedIf [ a >== tNum (1+b) ]
+              _ -> pure Unsolved
 
 
 -- (K >= 2 && K^a >= K^b) => a >= b
@@ -412,6 +449,17 @@ tryEqK ctxt ty lk =
   -- 2  = min (2,y)   --> y >= 2
   -- 10 = min (2,y)   --> impossible
 
+
+-- e.g., 10 = t
+tryNeqK :: Ctxt -> Type -> Nat' -> Match Solved
+tryNeqK _ ty lk =
+
+  -- K1 != K2 ^^ t    ~~> t != logBase K2 K1
+  do (rk, b) <- matches ty ((|^|), aNat, __)
+     return $ case lk of
+                Inf | rk > 1 -> SolvedIf [ b =/= tInf ]
+                Nat n | Just (a,True) <- genLog n rk -> SolvedIf [ b =/= tNum a]
+                _ -> SolvedIf []
 
 -- | K1 * t1 + K2 * t2 + ... = K3 * t3 + K4 * t4 + ...
 tryEqMulConst :: Type -> Type -> Match Solved

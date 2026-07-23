@@ -48,6 +48,13 @@
 * Add a `notPrime` constraint.
   ([#2089](https://github.com/GaloisInc/cryptol/issues/2089))
 
+* Add the following typechecker simplification rules:
+  * `K1 != K2 ^^ t ~~> t != logBase K2 K1`
+  * `K1 ^^ t >= K2 ~~> t >= logBase K2 K1`
+  * `K1 ^^ t >  K2 ~~> t >  logBase K2 K1`
+  * `K1 >= K2 ^^ t ~~> logBase K2 K1 >= t`
+  * `K1 >  K2 ^^ t ~~> logBase K2 K1 >  t`
+
 ## Bug fixes
 
 * Fix pretty printing of types in errors messages
