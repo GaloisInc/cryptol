@@ -8,7 +8,7 @@ Q.E.D.
 Q.E.D.
 "Proving prop_fpNaNIsNotZero..."
 Q.E.D.
-"Proving prop_fpNaNIsPos..."
+"Proving prop_fpNaNSign..."
 Q.E.D.
 "Proving prop_fpNaNIsNotNormal..."
 Q.E.D.
@@ -89,6 +89,8 @@ Q.E.D.
 "Proving prop_fpLogicalEqSymmetric..."
 Q.E.D.
 "Proving prop_fpLogicalEqTransitive..."
+Q.E.D.
+"Proving prop_fpIsPosSign..."
 Q.E.D.
 "Proving prop_fpIsNegSign..."
 Q.E.D.

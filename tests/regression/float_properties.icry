@@ -15,8 +15,8 @@
 :prove prop_fpNaNIsNotInf`{8, 24}
 "Proving prop_fpNaNIsNotZero..."
 :prove prop_fpNaNIsNotZero`{8, 24}
-"Proving prop_fpNaNIsPos..."
-:prove prop_fpNaNIsPos`{8, 24}
+"Proving prop_fpNaNSign..."
+:prove prop_fpNaNSign`{8, 24}
 "Proving prop_fpNaNIsNotNormal..."
 :prove prop_fpNaNIsNotNormal`{8, 24}
 "Proving prop_fpNaNIsNotSubnormal..."
@@ -97,6 +97,8 @@
 :prove prop_fpLogicalEqSymmetric`{8, 24}
 "Proving prop_fpLogicalEqTransitive..."
 :prove prop_fpLogicalEqTransitive`{8, 24}
+"Proving prop_fpIsPosSign..."
+:prove prop_fpIsPosSign`{8, 24}
 "Proving prop_fpIsNegSign..."
 :prove prop_fpIsNegSign`{8, 24}
 "Proving prop_fpIsNormalCorrect..."

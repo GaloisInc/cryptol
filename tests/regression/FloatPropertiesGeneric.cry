@@ -11,7 +11,13 @@ import Float
 
 ///// Helpers
 
-// `True` if negative, `False` if positive
+// `True` if the sign bit is set, `False` otherwise. If a number's sign bit is
+// set, then that usually implies that the number is negative, and inversely,
+// if a number's sign bit is unset, then that usually implies that the number
+// is positive. The one exception to this rule is NaN, whose sign bit is unset
+// but is considered to be neither a negative nor a positive number. The
+// IEEE-754 standard does not interpret the sign of a NaN, so the sign bit has
+// no mathematical meaning.
 fpSign : {e, p} (ValidFloat e p, p >= 1) => Float e p -> Bit
 fpSign x = head (fpToBits x)
 
@@ -22,7 +28,7 @@ fpSignificand : {e, p} (ValidFloat e p, p >= 1) => Float e p -> [p - 1]
 fpSignificand x = drop`{1 + e} (fpToBits x)
 
 fpIsPos : {e, p} ValidFloat e p => Float e p -> Bit
-fpIsPos x = ~ (fpIsNeg x)
+fpIsPos x = ~ (fpIsNeg x \/ fpIsNaN x)
 
 ///// fpNaN
 
@@ -35,9 +41,9 @@ prop_fpNaNIsNotInf = ~ (fpIsInf (fpNaN`{e, p}))
 prop_fpNaNIsNotZero : {e, p} ValidFloat e p => Bit
 prop_fpNaNIsNotZero = ~ (fpIsZero (fpNaN`{e, p}))
 
-// Cryptol chooses to represent NaN as a positive value.
-prop_fpNaNIsPos : {e, p} ValidFloat e p => Bit
-prop_fpNaNIsPos = fpIsPos (fpNaN`{e, p})
+// Cryptol chooses to represent NaN with a sign bit of 0:
+prop_fpNaNSign : {e, p} (ValidFloat e p, p >= 1) => Bit
+prop_fpNaNSign = ~ (fpSign (fpNaN`{e, p}))
 
 prop_fpNaNIsNotNormal : {e, p} ValidFloat e p => Bit
 prop_fpNaNIsNotNormal = ~ (fpIsNormal (fpNaN`{e, p}))
@@ -206,8 +212,11 @@ prop_fpLogicalEqTransitive x y z = (x =.= y /\ y =.= z) ==> (x =.= z)
 
 ///// fpIsNeg
 
+prop_fpIsPosSign : {e, p} (ValidFloat e p, p >= 1) => Float e p -> Bit
+prop_fpIsPosSign x = fpIsPos x ==> ~ (fpSign x)
+
 prop_fpIsNegSign : {e, p} (ValidFloat e p, p >= 1) => Float e p -> Bit
-prop_fpIsNegSign x = fpIsNeg x == fpSign x
+prop_fpIsNegSign x = fpIsNeg x ==> fpSign x
 
 ///// fpIsNormal
 
@@ -432,34 +441,44 @@ prop_fpMulRightNegZero m x =
   ~ (fpIsNaN x \/ fpIsInf x) ==>
     (fpMul m x fpNegZero =.= if fpIsNeg x then fpPosZero else fpNegZero)
 
+// Special cases:
+//
+// * Infinite/zero: `-inf * -0 =.= -0 * -inf =.= NaN`, and NaN is not
+//   considered to be positive.
 prop_fpMulNegNeg :
   {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
-prop_fpMulNegNeg m x y = (fpIsNeg x /\ fpIsNeg y) ==> fpIsPos (fpMul m x y)
-
-prop_fpMulPosPos :
-  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
-prop_fpMulPosPos m x y = (fpIsPos x /\ fpIsPos y) ==> fpIsPos (fpMul m x y)
+prop_fpMulNegNeg m x y =
+  ~ ((fpIsInf x /\ fpIsZero y) \/ (fpIsZero x /\ fpIsInf y)) ==>
+  (fpIsNeg x /\ fpIsNeg y) ==> fpIsPos (fpMul m x y)
 
 // Special cases:
 //
-// * Infinite/zero: `-inf * 0 =.= -0 * inf =.= NaN`, and NaN is defined to be
-//   positive.
-// * NaN: `-x * NaN =.= NaN`, and NaN is defined to be positive.
+// * Infinite/zero: `inf * 0 =.= 0 * inf =.= NaN`, and NaN is not considered to
+//   be positive.
+prop_fpMulPosPos :
+  {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
+prop_fpMulPosPos m x y =
+  ~ ((fpIsInf x /\ fpIsZero y) \/ (fpIsZero x /\ fpIsInf y)) ==>
+  (fpIsPos x /\ fpIsPos y) ==> fpIsPos (fpMul m x y)
+
+// Special cases:
+//
+// * Infinite/zero: `-inf * 0 =.= -0 * inf =.= NaN`, and NaN is not considered
+//   to be positive.
 prop_fpMulNegPos :
   {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
 prop_fpMulNegPos m x y =
-  ~ ((fpIsInf x /\ fpIsZero y) \/ (fpIsZero x /\ fpIsInf y) \/ fpIsNaN y) ==>
+  ~ ((fpIsInf x /\ fpIsZero y) \/ (fpIsZero x /\ fpIsInf y)) ==>
     (fpIsNeg x /\ fpIsPos y) ==> fpIsNeg (fpMul m x y)
 
 // Special cases:
 //
-// * Infinite/zero: `inf * -0 =.= 0 * -inf =.= NaN`, and NaN is defined to be
-//   positive.
-// * NaN: `NaN * -inf =.= NaN`, and NaN is defined to be positive.
+// * Infinite/zero: `inf * -0 =.= 0 * -inf =.= NaN`, and NaN is not considered
+//   to be positive.
 prop_fpMulPosNeg :
   {e, p} ValidFloat e p => RoundingMode -> Float e p -> Float e p -> Bit
 prop_fpMulPosNeg m x y =
-  ~ ((fpIsInf x /\ fpIsZero y) \/ (fpIsZero x /\ fpIsInf y) \/ fpIsNaN x) ==>
+  ~ ((fpIsInf x /\ fpIsZero y) \/ (fpIsZero x /\ fpIsInf y)) ==>
     (fpIsPos x /\ fpIsNeg y) ==> fpIsNeg (fpMul m x y)
 
 prop_fpMulCommutative :
