@@ -41,19 +41,21 @@ prop_fpNaNIsNotInf = ~ (fpIsInf (fpNaN`{e, p}))
 prop_fpNaNIsNotZero : {e, p} ValidFloat e p => Bit
 prop_fpNaNIsNotZero = ~ (fpIsZero (fpNaN`{e, p}))
 
-// Cryptol chooses to represent NaN with a sign bit of 0:
-prop_fpNaNSign : {e, p} (ValidFloat e p, p >= 1) => Bit
-prop_fpNaNSign = ~ (fpSign (fpNaN`{e, p}))
-
 prop_fpNaNIsNotNormal : {e, p} ValidFloat e p => Bit
 prop_fpNaNIsNotNormal = ~ (fpIsNormal (fpNaN`{e, p}))
 
 prop_fpNaNIsNotSubnormal : {e, p} ValidFloat e p => Bit
 prop_fpNaNIsNotSubnormal = ~ (fpIsSubnormal (fpNaN`{e, p}))
 
-// Cryptol chooses to represent NaN as quiet with no info:
-prop_fpNaNIsQuiet : {e, p} (ValidFloat e p, p >= 2) => Bit
-prop_fpNaNIsQuiet = fpSignificand (fpNaN`{e, p}) == (0b1 # 0)
+// IEEE-754 specifies that a NaN value's exponent has all bits set to 1.
+prop_fpNaNExponentAllOneBits : {e, p} (ValidFloat e p, p >= 1) => Bit
+prop_fpNaNExponentAllOneBits = and (fpExponent (fpNaN`{e, p}))
+
+// IEEE-754 specifies that a NaN value's significand has at least one bit set.
+// (If the significand is all zeroes, then the value would be infinite instead
+// of a NaN.)
+prop_fpNaNSignificandAtLeastOneBit : {e, p} (ValidFloat e p, p >= 1) => Bit
+prop_fpNaNSignificandAtLeastOneBit = or (fpSignificand (fpNaN`{e, p}))
 
 ///// fpPosInf
 
