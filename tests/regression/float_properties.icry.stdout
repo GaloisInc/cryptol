@@ -8,13 +8,13 @@ Q.E.D.
 Q.E.D.
 "Proving prop_fpNaNIsNotZero..."
 Q.E.D.
-"Proving prop_fpNaNIsPos..."
-Q.E.D.
 "Proving prop_fpNaNIsNotNormal..."
 Q.E.D.
 "Proving prop_fpNaNIsNotSubnormal..."
 Q.E.D.
-"Proving prop_fpNaNIsQuiet..."
+"Proving prop_fpNaNExponentAllOneBits..."
+Q.E.D.
+"Proving prop_fpNaNSignificandAtLeastOneBit..."
 Q.E.D.
 "Proving prop_fpPosInfIsPos..."
 Q.E.D.
@@ -89,6 +89,8 @@ Q.E.D.
 "Proving prop_fpLogicalEqSymmetric..."
 Q.E.D.
 "Proving prop_fpLogicalEqTransitive..."
+Q.E.D.
+"Proving prop_fpIsPosSign..."
 Q.E.D.
 "Proving prop_fpIsNegSign..."
 Q.E.D.
