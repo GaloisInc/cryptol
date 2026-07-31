@@ -1,29 +1,29 @@
 exhaustive1 : {w} [2 ^^ (2 ^^ w)] -> [2 ^^ (2 ^^ w)]
 exhaustive1 x
-  | (2 ^^ (2 ^^ w)) < 2 => x
-  | (2 ^^ (2 ^^ w)) == 2 => ~ x
-  | (2 ^^ (2 ^^ w)) > 2 => x
+  | (2 ^^ (2 ^^ w)) < 2 => x                // Unreachable case
+  | (2 ^^ (2 ^^ w)) == 2 => [False, False]  // Constraint implies (w == 0)
+  | (2 ^^ (2 ^^ w)) > 2 => [True] # zero    // Constraint implies (w > 0)
 
 exhaustive1Reordered1: {w} [2 ^^ (2 ^^ w)] -> [2 ^^ (2 ^^ w)]
 exhaustive1Reordered1 x
-  | (2 ^^ (2 ^^ w)) == 2 => ~ x
-  | (2 ^^ (2 ^^ w)) < 2 => x
-  | (2 ^^ (2 ^^ w)) > 2 => x
+  | (2 ^^ (2 ^^ w)) == 2 => [False, False]  // Constraint implies (w == 0)
+  | (2 ^^ (2 ^^ w)) < 2 => x                // Unreachable case
+  | (2 ^^ (2 ^^ w)) > 2 => [True] # zero    // Constraint implies (w > 0)
 
 exhaustive1Reordered2 : {w} [2 ^^ (2 ^^ w)] -> [2 ^^ (2 ^^ w)]
 exhaustive1Reordered2 x
-  | (2 ^^ (2 ^^ w)) == 2 => ~ x
-  | (2 ^^ (2 ^^ w)) > 2 => x
-  | (2 ^^ (2 ^^ w)) < 2 => x
+  | (2 ^^ (2 ^^ w)) == 2 => [False, False]  // Constraint implies (w == 0)
+  | (2 ^^ (2 ^^ w)) > 2 => [True] # zero    // Constraint implies (w > 0)
+  | (2 ^^ (2 ^^ w)) < 2 => x                // Unreachable case
 
 // Note that `(2 ^^ w) >= 1`, which means that there is no need for a
 // `(2 ^^ w) < 1` guard below.
 exhaustive2 : {w} [2 ^^ w] -> [2 ^^ w]
 exhaustive2 x
-  | (2 ^^ w) == 1 => ~ x
-  | (2 ^^ w) > 1 => x
+  | (2 ^^ w) == 1 => [False]                // Constraint implies (w == 0)
+  | (2 ^^ w) > 1 => [True] # zero           // Constraint implies (w > 0)
 
 exhaustive3 : {w} [2 ^^ (2 ^^ w)] -> [2 ^^ (2 ^^ w)]
 exhaustive3 x
-  | (2 ^^ (2 ^^ w)) == 2 => ~ x
-  | (2 ^^ (2 ^^ w)) > 2 => x
+  | (2 ^^ (2 ^^ w)) == 2 => [False, False]  // Constraint implies (w == 0)
+  | (2 ^^ (2 ^^ w)) > 2 => [True] # zero    // Constraint implies (w > 0)

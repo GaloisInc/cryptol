@@ -1,0 +1,4 @@
+// A regression test for #2093. This ensures that trivial constraints mentioned
+// in numeric constraint guards result in valid code, as checked by coreLint.
+:set coreLint=on
+:l trivial-constraints.cry

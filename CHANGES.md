@@ -48,6 +48,13 @@
 * Add a `notPrime` constraint.
   ([#2089](https://github.com/GaloisInc/cryptol/issues/2089))
 
+* Add the following typechecker simplification rules:
+  * `K1 != K2 ^^ t ~~> t != logBase K2 K1`
+  * `K1 ^^ t >= K2 ~~> t >= logBase K2 K1`
+  * `K1 ^^ t >  K2 ~~> t >  logBase K2 K1`
+  * `K1 >= K2 ^^ t ~~> logBase K2 K1 >= t`
+  * `K1 >  K2 ^^ t ~~> logBase K2 K1 >  t`
+
 ## Bug fixes
 
 * Fix pretty printing of types in errors messages
@@ -84,6 +91,10 @@
   implementation is written in Cryptol.
   ([#2070](https://github.com/GaloisInc/cryptol/issues/2070))
 
+* Fix a bug in which numeric constraint guards that include "trivial"
+  constraints (e.g., `n == n`) could generate ill-typed code.
+  ([#2093](https://github.com/GaloisInc/cryptol/issues/2093))
+
 ## API changes
 
 * Add `isValidIdent` to `Cryptol.Parser.LexerUtils`, which checks if a name is
@@ -93,6 +104,10 @@
 * Add `pIsNeq` to `Cryptol.TypeCheck.Type`, which recognizes if a Cryptol
   constraint is headed by a not-equal (`!=`) operator.
   ([#2038](https://github.com/GaloisInc/cryptol/issues/2038))
+
+* `Cryptol.TypeCheck.Solver.InfNat.genLog` now takes the log base as the first
+  argument instead of the second argument. This better reflects the intuition
+  that `genLog base x` mirrors the mathematical notation `log_{base}(x)`.
 
 # 3.5.0 -- 2026-01-27
 

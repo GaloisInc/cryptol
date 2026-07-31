@@ -145,7 +145,7 @@ nCeilMod (Nat x) (Nat y)  = Just (Nat (mod (- x) y))
 nLg2 :: Nat' -> Nat'
 nLg2 Inf      = Inf
 nLg2 (Nat 0)  = Nat 0
-nLg2 (Nat n)  = case genLog n 2 of
+nLg2 (Nat n)  = case genLog 2 n of
                   Just (x,exact) | exact     -> Nat x
                                  | otherwise -> Nat (x + 1)
                   Nothing -> panic "Cryptol.TypeCheck.Solver.InfNat.nLg2"
@@ -225,12 +225,12 @@ nLenFromThenTo _ _ _ = Nothing
 -- | Compute the logarithm of a number in the given base, rounded down to the
 -- closest integer.  The boolean indicates if we the result is exact
 -- (i.e., True means no rounding happened, False means we rounded down).
--- The logarithm base is the second argument.
+-- The logarithm base is the first argument.
 genLog :: Integer -> Integer -> Maybe (Integer, Bool)
-genLog x 0    = if x == 1 then Just (0, True) else Nothing
-genLog _ 1    = Nothing
-genLog 0 _    = Nothing
-genLog x base = Just (exactLoop 0 x)
+genLog 0 x    = if x == 1 then Just (0, True) else Nothing
+genLog 1 _    = Nothing
+genLog _ 0    = Nothing
+genLog base x = Just (exactLoop 0 x)
   where
   exactLoop s i
     | i == 1     = (s,True)

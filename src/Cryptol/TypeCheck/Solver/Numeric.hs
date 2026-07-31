@@ -52,7 +52,11 @@ cryIsEqual ctxt t1 t2 =
 
 -- | Try to solve @t1 /= t2@
 cryIsNotEqual :: Ctxt -> Type -> Type -> Solved
-cryIsNotEqual _i t1 t2 = matchDefault Unsolved (pBin (/=) t1 t2)
+cryIsNotEqual i t1 t2 =
+  matchDefault Unsolved $
+        (pBin (/=) t1 t2)
+    <|> (aNat' t1 >>= tryNeqK i t2)
+    <|> (aNat' t2 >>= tryNeqK i t1)
 
 -- | Try to solve @t1 >= t2@
 cryIsGeq :: Ctxt -> Type -> Type -> Solved
@@ -139,6 +143,28 @@ tryGeqKThan _ ty (Nat n) =
                 Inf   -> [ b =#= tZero ]
                 Nat 0 -> []
                 Nat k -> [ tNum (div n k) >== b ]
+  <|>
+  -- K1 >= K2 ^^ t    ~~> logBase K2 K1 >= t
+  do let k1 = n
+     (k2, t) <- matches ty ((|^|), aNat, __)
+     case genLog k2 k1 of
+       Just (logBaseK2K1,True) -> pure $ SolvedIf [ tNum logBaseK2K1 >== t ]
+       _ -> pure Unsolved
+  <|>
+  -- K1 >= 1 + (K2 ^^ t)    ~~> logBase K2 K1 >= 1 + t
+  --
+  -- Or, equivalently,
+  --
+  -- K1 > K2 ^^ t           ~~> logBase K2 K1 > t
+  do let k1 = n
+     (oneTy,ty') <- anAdd ty
+     oneK <- aNat oneTy
+     guard (oneK == 1)
+     (k2, t) <- matches ty' ((|^|), aNat, __)
+     case genLog k2 k1 of
+       Just (logBaseK2K1,True) ->
+         pure $ SolvedIf [ tNum logBaseK2K1 >== tf2 TCAdd (tNum oneK) t ]
+       _ -> pure Unsolved
 
 -- | Try to solve @t >= K@
 tryGeqThanK :: Ctxt -> Type -> Nat' -> Match Solved
@@ -151,8 +177,68 @@ tryGeqThanK _ t (Nat k) =
      return $ SolvedIf $ if n >= k
                             then []
                             else [ b >== tNum (k - n) ]
-  -- XXX: K1 ^^ n >= K2
+  <|>
+  -- K1 ^^ t >= K2    ~~> t >= logBase K1 K2
+  do (k1, t') <- matches t ((|^|), aNat, __)
+     let k2 = k
+     case genLog k1 k2 of
+       -- Only apply the rewrite if logBase returns an exact result.
+       -- See Note [Don't weaken inequalities involving logBase].
+       Just (logBaseK1K2,True) -> pure $ SolvedIf [ t' >== tNum logBaseK1K2 ]
+       _ ->
+         -- K1 ^^ t >= 1 + K2 ~~> t >= 1 + logBase K1 K2
+         --
+         -- Or, equivalently,
+         --
+         -- K1 ^^ t > K2      ~~> t > logBase K2 K1
+         do let k2Plus1 = k
+            guard (k2Plus1 > 0)
+            case genLog k1 (k2Plus1-1) of
+              -- Only apply the rewrite if logBase returns an exact result.
+              -- See Note [Don't weaken inequalities involving logBase].
+              Just (logBaseK1K2,True) ->
+                pure $ SolvedIf [ t' >== tNum (1+logBaseK1K2) ]
+              _ -> pure Unsolved
 
+{-
+Note [Don't weaken inequalities involving logBase]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Consider the logBase(base, x) function, which returns the number y such that
+`x = base^^y`. In most math settings, logBase works over real numbers, but in
+Cryptol, all type-level numeric operators are restricted to natural numbers, so
+Cryptol defines logBase to round down to the nearest natural number if the
+result is inexact (i.e., if logBase would have otherwise returned a real
+number). For instance, this means that:
+
+  logBase 2 2 == 1 (exact result)
+  logBase 2 3 == 1 (inexact result)
+
+Now consider the following rewrites in tryGetThanK:
+
+  K1 ^^ t >= K2    ~~>    t >= logBase K1 K2
+  K1 ^^ t >  K2    ~~>    t >  logBase K1 K2
+
+Cryptol will only apply these rewrites if `logBase K1 K2` return exact results.
+Note that the left-hand sides of the `~~>` rewrites would still imply the
+right-hand sides even if the `logBase` results were inexact, but the resulting
+inequalities would be weaker than before. To see why this can be a problem,
+consider the following function:
+
+  f : {n} (2^^(2^^n) >= 3) => [n]
+  f = [False] # zero
+
+The body of `f` will only typecheck if `n > 0`. Critically, we do /not/ want to
+apply the `K1 ^^ t >= K2 ~~> t >= logBase K1 K2` rewrite above. If we did,
+the following chain of rewrites would occur:
+
+  2^^(2^^n) >= 3    ~~>    2^^n >= 1    (since `logBase 2 3 == 1` with an inexact result)
+  2^^n >= 1         ~~>    n >= 0       (since `logBase 2 1 == 0` with an exact result)
+
+But now Cryptol is left with `n >= 0`, which does not imply `n > 0`! As a
+result, Cryptol cannot typecheck `f`, which is terrible. Moral of the story:
+only apply the rewrites above if `logBase` returns exact results, which
+prevents this sort of constraint weakening.
+-}
 
 -- (K >= 2 && K^a >= K^b) => a >= b
 tryGeqExp :: Ctxt -> Type -> Type -> Match Solved
@@ -348,7 +434,7 @@ tryEqVar ty x =
 
 
 
--- e.g., 10 = t
+-- (K = t) (e.g., 10 = t)
 tryEqK :: Ctxt -> Type -> Nat' -> Match Solved
 tryEqK ctxt ty lk =
 
@@ -401,10 +487,11 @@ tryEqK ctxt ty lk =
 
   <|>
   -- K1 == K2 ^^ t    ~~> t = logBase K2 K1
-  do (rk, b) <- matches ty ((|^|), aNat, __)
+  do (k2, t) <- matches ty ((|^|), aNat, __)
      return $ case lk of
-                Inf | rk > 1 -> SolvedIf [ b =#= tInf ]
-                Nat n | Just (a,True) <- genLog n rk -> SolvedIf [ b =#= tNum a]
+                Inf | k2 > 1 -> SolvedIf [ t =#= tInf ]
+                Nat k1 | Just (logBaseK2K1,True) <- genLog k2 k1 ->
+                  SolvedIf [ t =#= tNum logBaseK2K1]
                 _ -> Unsolvable
 
   -- XXX: Min, Max, etx
@@ -412,6 +499,18 @@ tryEqK ctxt ty lk =
   -- 2  = min (2,y)   --> y >= 2
   -- 10 = min (2,y)   --> impossible
 
+
+-- K != t (e.g., 10 = t)
+tryNeqK :: Ctxt -> Type -> Nat' -> Match Solved
+tryNeqK _ ty lk =
+
+  -- K1 != K2 ^^ t    ~~> t != logBase K2 K1
+  do (k2, t) <- matches ty ((|^|), aNat, __)
+     return $ case lk of
+                Inf | k2 > 1 -> SolvedIf [ t =/= tInf ]
+                Nat k1 | Just (logBaseK2K1,True) <- genLog k2 k1 ->
+                  SolvedIf [ t =/= tNum logBaseK2K1]
+                _ -> SolvedIf []
 
 -- | K1 * t1 + K2 * t2 + ... = K3 * t3 + K4 * t4 + ...
 tryEqMulConst :: Type -> Type -> Match Solved
