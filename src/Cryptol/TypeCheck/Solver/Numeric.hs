@@ -145,9 +145,10 @@ tryGeqKThan _ ty (Nat n) =
                 Nat k -> [ tNum (div n k) >== b ]
   <|>
   -- K1 >= K2 ^^ t    ~~> logBase K2 K1 >= t
-  do (rk, b) <- matches ty ((|^|), aNat, __)
-     case genLog n rk of
-       Just (a,True) -> pure $ SolvedIf [ tNum a >== b ]
+  do let k1 = n
+     (k2, t) <- matches ty ((|^|), aNat, __)
+     case genLog k1 k2 of
+       Just (logBaseK2K1,True) -> pure $ SolvedIf [ tNum logBaseK2K1 >== t ]
        _ -> pure Unsolved
   <|>
   -- K1 >= 1 + (K2 ^^ t)    ~~> logBase K2 K1 >= 1 + t
@@ -155,12 +156,14 @@ tryGeqKThan _ ty (Nat n) =
   -- Or, equivalently,
   --
   -- K1 > K2 ^^ t           ~~> logBase K2 K1 > t
-  do (oneTy,ty') <- anAdd ty
+  do let k1 = n
+     (oneTy,ty') <- anAdd ty
      oneK <- aNat oneTy
      guard (oneK == 1)
-     (rk, b) <- matches ty' ((|^|), aNat, __)
-     case genLog n rk of
-       Just (a,True) -> pure $ SolvedIf [ tNum a >== tf2 TCAdd (tNum (1::Int)) b ]
+     (k2, t) <- matches ty' ((|^|), aNat, __)
+     case genLog k1 k2 of
+       Just (logBaseK2K1,True) ->
+         pure $ SolvedIf [ tNum logBaseK2K1 >== tf2 TCAdd (tNum oneK) t ]
        _ -> pure Unsolved
 
 -- | Try to solve @t >= K@
@@ -176,22 +179,25 @@ tryGeqThanK _ t (Nat k) =
                             else [ b >== tNum (k - n) ]
   <|>
   -- K1 ^^ t >= K2    ~~> t >= logBase K1 K2
-  do (rk, a) <- matches t ((|^|), aNat, __)
-     case genLog k rk of
+  do (k1, t') <- matches t ((|^|), aNat, __)
+     let k2 = k
+     case genLog k2 k1 of
        -- Only apply the rewrite if logBase returns an exact result.
        -- See Note [Don't weaken inequalities involving logBase].
-       Just (b,True) -> pure $ SolvedIf [ a >== tNum b ]
+       Just (logBaseK1K2,True) -> pure $ SolvedIf [ t' >== tNum logBaseK1K2 ]
        _ ->
          -- K1 ^^ t >= 1 + K2 ~~> t >= 1 + logBase K1 K2
          --
          -- Or, equivalently,
          --
          -- K1 ^^ t > K2      ~~> t > logBase K2 K1
-         do guard (k > 0)
-            case genLog (k-1) rk of
+         do let k2Plus1 = k
+            guard (k2Plus1 > 0)
+            case genLog (k2Plus1-1) k1 of
               -- Only apply the rewrite if logBase returns an exact result.
               -- See Note [Don't weaken inequalities involving logBase].
-              Just (b,True) -> pure $ SolvedIf [ a >== tNum (1+b) ]
+              Just (logBaseK1K2,True) ->
+                pure $ SolvedIf [ t' >== tNum (1+logBaseK1K2) ]
               _ -> pure Unsolved
 
 {-
@@ -428,7 +434,7 @@ tryEqVar ty x =
 
 
 
--- e.g., 10 = t
+-- (K = t) (e.g., 10 = t)
 tryEqK :: Ctxt -> Type -> Nat' -> Match Solved
 tryEqK ctxt ty lk =
 
@@ -481,10 +487,11 @@ tryEqK ctxt ty lk =
 
   <|>
   -- K1 == K2 ^^ t    ~~> t = logBase K2 K1
-  do (rk, b) <- matches ty ((|^|), aNat, __)
+  do (k2, t) <- matches ty ((|^|), aNat, __)
      return $ case lk of
-                Inf | rk > 1 -> SolvedIf [ b =#= tInf ]
-                Nat n | Just (a,True) <- genLog n rk -> SolvedIf [ b =#= tNum a]
+                Inf | k2 > 1 -> SolvedIf [ t =#= tInf ]
+                Nat k1 | Just (logBaseK2K1,True) <- genLog k1 k2 ->
+                  SolvedIf [ t =#= tNum logBaseK2K1]
                 _ -> Unsolvable
 
   -- XXX: Min, Max, etx
@@ -493,15 +500,16 @@ tryEqK ctxt ty lk =
   -- 10 = min (2,y)   --> impossible
 
 
--- e.g., 10 = t
+-- K != t (e.g., 10 = t)
 tryNeqK :: Ctxt -> Type -> Nat' -> Match Solved
 tryNeqK _ ty lk =
 
   -- K1 != K2 ^^ t    ~~> t != logBase K2 K1
-  do (rk, b) <- matches ty ((|^|), aNat, __)
+  do (k2, t) <- matches ty ((|^|), aNat, __)
      return $ case lk of
-                Inf | rk > 1 -> SolvedIf [ b =/= tInf ]
-                Nat n | Just (a,True) <- genLog n rk -> SolvedIf [ b =/= tNum a]
+                Inf | k2 > 1 -> SolvedIf [ t =/= tInf ]
+                Nat k1 | Just (logBaseK2K1,True) <- genLog k1 k2 ->
+                  SolvedIf [ t =/= tNum logBaseK2K1]
                 _ -> SolvedIf []
 
 -- | K1 * t1 + K2 * t2 + ... = K3 * t3 + K4 * t4 + ...
