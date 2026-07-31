@@ -89,7 +89,7 @@ integerToChar :: Integer -> Char
 integerToChar = toEnum . fromInteger
 
 lg2 :: Integer -> Integer
-lg2 i = case genLog i 2 of
+lg2 i = case genLog 2 i of
   Just (i',isExact) | isExact   -> i'
                     | otherwise -> i' + 1
   Nothing                       -> 0
@@ -146,7 +146,7 @@ instance Backend Concrete where
 
   wordLen' _ (BV w _) = w
   {-# INLINE wordLen' #-}
-  
+
   wordAsChar _ (BV _ x) = Just $! integerToChar x
 
   wordBit _ (BV w x) idx = pure $! testBit x (fromInteger (w - 1 - idx))

@@ -147,7 +147,7 @@ tryGeqKThan _ ty (Nat n) =
   -- K1 >= K2 ^^ t    ~~> logBase K2 K1 >= t
   do let k1 = n
      (k2, t) <- matches ty ((|^|), aNat, __)
-     case genLog k1 k2 of
+     case genLog k2 k1 of
        Just (logBaseK2K1,True) -> pure $ SolvedIf [ tNum logBaseK2K1 >== t ]
        _ -> pure Unsolved
   <|>
@@ -161,7 +161,7 @@ tryGeqKThan _ ty (Nat n) =
      oneK <- aNat oneTy
      guard (oneK == 1)
      (k2, t) <- matches ty' ((|^|), aNat, __)
-     case genLog k1 k2 of
+     case genLog k2 k1 of
        Just (logBaseK2K1,True) ->
          pure $ SolvedIf [ tNum logBaseK2K1 >== tf2 TCAdd (tNum oneK) t ]
        _ -> pure Unsolved
@@ -181,7 +181,7 @@ tryGeqThanK _ t (Nat k) =
   -- K1 ^^ t >= K2    ~~> t >= logBase K1 K2
   do (k1, t') <- matches t ((|^|), aNat, __)
      let k2 = k
-     case genLog k2 k1 of
+     case genLog k1 k2 of
        -- Only apply the rewrite if logBase returns an exact result.
        -- See Note [Don't weaken inequalities involving logBase].
        Just (logBaseK1K2,True) -> pure $ SolvedIf [ t' >== tNum logBaseK1K2 ]
@@ -193,7 +193,7 @@ tryGeqThanK _ t (Nat k) =
          -- K1 ^^ t > K2      ~~> t > logBase K2 K1
          do let k2Plus1 = k
             guard (k2Plus1 > 0)
-            case genLog (k2Plus1-1) k1 of
+            case genLog k1 (k2Plus1-1) of
               -- Only apply the rewrite if logBase returns an exact result.
               -- See Note [Don't weaken inequalities involving logBase].
               Just (logBaseK1K2,True) ->
@@ -490,7 +490,7 @@ tryEqK ctxt ty lk =
   do (k2, t) <- matches ty ((|^|), aNat, __)
      return $ case lk of
                 Inf | k2 > 1 -> SolvedIf [ t =#= tInf ]
-                Nat k1 | Just (logBaseK2K1,True) <- genLog k1 k2 ->
+                Nat k1 | Just (logBaseK2K1,True) <- genLog k2 k1 ->
                   SolvedIf [ t =#= tNum logBaseK2K1]
                 _ -> Unsolvable
 
@@ -508,7 +508,7 @@ tryNeqK _ ty lk =
   do (k2, t) <- matches ty ((|^|), aNat, __)
      return $ case lk of
                 Inf | k2 > 1 -> SolvedIf [ t =/= tInf ]
-                Nat k1 | Just (logBaseK2K1,True) <- genLog k1 k2 ->
+                Nat k1 | Just (logBaseK2K1,True) <- genLog k2 k1 ->
                   SolvedIf [ t =/= tNum logBaseK2K1]
                 _ -> SolvedIf []
 

@@ -105,6 +105,10 @@
   constraint is headed by a not-equal (`!=`) operator.
   ([#2038](https://github.com/GaloisInc/cryptol/issues/2038))
 
+* `Cryptol.TypeCheck.Solver.InfNat.genLog` now takes the log base as the first
+  argument instead of the second argument. This better reflects the intuition
+  that `genLog base x` mirrors the mathematical notation `log_{base}(x)`.
+
 # 3.5.0 -- 2026-01-27
 
 ## Administrative changes
