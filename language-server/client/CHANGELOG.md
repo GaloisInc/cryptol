@@ -2,6 +2,8 @@
 
 Update dependencies to more recent versions.
 
+Release the extension on the VSCode Marketplace and the Open VSX Registry.
+
 # Version 0.1.2
 
 Update dependencies to more recent versions.
