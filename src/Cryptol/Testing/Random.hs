@@ -369,6 +369,9 @@ randomFloat sym e p w g0 =
 
     -- generates floats uniformly chosen from among all bitpatterns
     genBinary g =
+      -- NB: Use the size (e+p) below: 1 bit for the sign bit, e bits for the
+      -- exponent, and (p - 1) bits for the mantissa for a total of
+      -- (1 + e + (p - 1)) = (e+p) bits.
       let (v, g1) = randomR (0, bit (fromInteger (e+p)) - 1) g
        in (VFloat <$> (fpFromBits sym e p =<< wordLit sym (e+p) v), g1)
 
