@@ -379,7 +379,10 @@ randomFloat sym e p w g0 =
     -- values with 0 biased exponent and nonzero mantissa.
     genSubnormal g =
       let (sgn, g1) = random g
-          (v, g2)   = randomR (1, bit (fromInteger p) - 1) g1
+          -- NB: Use size (p - 1) bits below. `p` includes the implicit leading
+          -- bit of the mantissa, which isn't explicitly included in the
+          -- overall bit pattern.
+          (v, g2)   = randomR (1, bit (fromInteger p - 1) - 1) g1
        in (VFloat <$> ((if sgn then fpNeg sym else pure) =<< fpFromBits sym e p =<< wordLit sym (e+p) v), g2)
 
     -- generates floats where the exponent and mantissa are scaled by the size
