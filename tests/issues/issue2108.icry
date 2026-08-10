@@ -1,0 +1,5 @@
+:m Float
+:set prover=w4-bitwuzla
+fpToBits (fromInteger 4294967295 : Float32)
+:eval fpToBits (fromInteger 4294967295 : Float32)
+:prove fpToBits (fromInteger 4294967295 : Float32) == 0x4f800000
