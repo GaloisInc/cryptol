@@ -54,7 +54,7 @@ import Cryptol.Eval(evalEnumCon)
 import Cryptol.Eval.Type      ( TValue(..), TNominalTypeValue(..), ConInfo(..)
                               , enumTagWidth, isNullaryCon )
 import Cryptol.Eval.Value     ( GenValue(..), ppValue, defaultPPOpts, fromVFun, mkSeq, unsafeToFinSeq, finSeq)
-import Cryptol.TypeCheck.Solver.InfNat (widthInteger, Nat' (..))
+import Cryptol.TypeCheck.Solver.InfNat (Nat' (..))
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.Utils.RecordMap
@@ -361,14 +361,14 @@ randomFloat sym e p w g0 =
            | x < 10   -> (VFloat <$> (fpNeg sym =<< fpLit sym e p 0), g')
            | x <= sz       -> genSubnormal g'  -- about 10% of the time
            | x <= 4*(sz+1) -> genBinary g'     -- about 40%
-           | otherwise     -> genNormal (toInteger sz) g'  -- remaining ~50%
+           | otherwise     -> genNormal g'     -- remaining ~50%
 
   where
-    emax = bit (fromInteger e) - 1
-    smax = bit (fromInteger p) - 1
-
     -- generates floats uniformly chosen from among all bitpatterns
     genBinary g =
+      -- NB: Use the size (e+p) below: 1 bit for the sign bit, e bits for the
+      -- exponent, and (p - 1) bits for the mantissa for a total of
+      -- (1 + e + (p - 1)) = (e+p) bits.
       let (v, g1) = randomR (0, bit (fromInteger (e+p)) - 1) g
        in (VFloat <$> (fpFromBits sym e p =<< wordLit sym (e+p) v), g1)
 
@@ -376,17 +376,20 @@ randomFloat sym e p w g0 =
     -- values with 0 biased exponent and nonzero mantissa.
     genSubnormal g =
       let (sgn, g1) = random g
-          (v, g2)   = randomR (1, bit (fromInteger p) - 1) g1
+          -- NB: Use size (p - 1) bits below. `p` includes the implicit leading
+          -- bit of the mantissa, which isn't explicitly included in the
+          -- overall bit pattern.
+          (v, g2)   = randomR (1, bit (fromInteger p - 1) - 1) g1
        in (VFloat <$> ((if sgn then fpNeg sym else pure) =<< fpFromBits sym e p =<< wordLit sym (e+p) v), g2)
 
-    -- generates floats where the exponent and mantissa are scaled by the size
-    genNormal sz g =
+    -- generates floats corresponding to normal values. These are values where
+    -- the exponent bits are not all zeros and not all ones.
+    genNormal g =
       let (sgn, g1) = random g
-          (ex,  g2) = randomR ((1-emax)*sz `div` 100, (sz*emax) `div` 100) g1
-          (mag, g3) = randomR (1, max 1 ((sz*smax) `div` 100)) g2
-          r  = fromInteger mag ^^ (ex - widthInteger mag)
-          r' = if sgn then negate r else r
-       in (VFloat <$> fpLit sym e p r', g3)
+          (ex, g2)  = randomR (1, bit (fromInteger e) - 2) g1
+          (si, g3)  = randomR (0, bit (fromInteger p - 1) - 1) g2
+          v         = (ex `shiftL` (fromInteger p - 1)) .|. si
+       in (VFloat <$> ((if sgn then fpNeg sym else pure) =<< fpFromBits sym e p =<< wordLit sym (e+p) v), g3)
 
 
 -- | A test result is either a pass, a failure due to evaluating to
