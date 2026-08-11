@@ -399,10 +399,11 @@ instance Backend Concrete where
 
   fpFromInteger sym e p r x =
     do r' <- fpRoundMode sym r
+       let opts = FP.fpOpts e p r'
        pure FP.BF { FP.bfExpWidth = e
                   , FP.bfPrecWidth = p
                   , FP.bfValue = FP.fpCheckStatus $
-                                 FP.bfRoundInt r' (FP.bfFromInteger x)
+                                 FP.bfRoundFloat opts (FP.bfFromInteger x)
                   }
   fpToInteger = fpCvtToInteger
 
