@@ -1157,7 +1157,7 @@ primitive foldl' : {n, a, b} (fin n, Eq a) => (a -> b -> a) -> a -> [n]b -> a
 /**
  * Functional right fold.
  *
- * foldr (-) 0 [1,2,3] = 0 - (1 - (2 - 3))
+ * foldr (-) 0 [1,2,3] = 1 - (2 - (3 - 0))
  */
 foldr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
 foldr f acc xs = foldl g acc (reverse xs)
@@ -1167,7 +1167,7 @@ foldr f acc xs = foldl g acc (reverse xs)
  * Functional right fold, with strict evaluation of the accumulator value.
  * The accumulator is reduced to weak head normal form at each step.
  *
- * foldr' (-) 0 [1,2,3] = 0 - (1 - (2 - 3))
+ * foldr' (-) 0 [1,2,3] = 1 - (2 - (3 - 0))
  */
 foldr' : {n, a, b} (fin n, Eq b) => (a -> b -> b) -> b -> [n]a -> b
 foldr' f acc xs = foldl' g acc (reverse xs)
