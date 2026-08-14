@@ -1,0 +1,56 @@
+module StateMachines where
+
+
+interface submodule StateMachine where
+  type State: *
+  sameState: State -> State -> Bool
+  validState: State -> Bool
+  init: State
+  step: State -> Option State
+
+interface submodule Measure where
+  type Measure: *
+  isSmaller: Measure -> Measure -> Bool
+
+
+submodule Machines where
+
+  import interface submodule StateMachine as Abstract
+  import interface submodule StateMachine as Concrete
+  import interface submodule Measure
+
+  // XXX: assumes that the measure is well founded
+
+  submodule Relation where
+    parameter
+      forget: Concrete::State -> Abstract::State
+      size: Concrete::State -> Measure
+
+    c --> a =
+      Concrete::validState c /\
+      Abstract::validState a /\
+      Abstract::sameState (forget c) a
+
+    decreased c c1 = isSmaller (size c1) (size c)
+
+    property
+      initOk = Concrete::init --> Abstract::init
+
+    property
+      stepOk c a =
+        if c --> a
+          then
+            case Concrete::step c of
+              None ->
+                case Abstract::step a of
+                  None   -> True
+                  Some _ -> False
+              Some c1 ->
+                (c1 --> a /\ decreased c c1) \/
+                case Abstract::step a of
+                  None -> False
+                  Some a1 -> c1 --> a1
+          else True
+
+
+  

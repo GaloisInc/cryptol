@@ -1,0 +1,92 @@
+import StateMachines
+
+// A measure that just counts down
+submodule CountMeasure where
+  type Measure = [64]
+
+  isSmaller: Measure -> Measure -> Bool
+  isSmaller = (<)
+
+// A simple abstract state machine (specification)
+submodule M1 where
+  enum State = Init | Work | Done
+
+  stateToInt: State -> [8]
+  stateToInt s =
+    case s of
+        Init -> 1
+        Work -> 2
+        Done -> 3
+
+  sameState: State -> State -> Bool
+  sameState x y = stateToInt x == stateToInt y
+
+  validState: State -> Bool
+  validState _ = True
+
+  init = Init
+  
+  step x =
+    case x of
+      Init -> Some Work
+      Work -> Some Done
+      Done -> None
+
+// A simple concrete state machine (implementation)
+submodule M2 where
+  enum State = I1 [8] | W1 | W2 | End 
+
+  stateToInt: State -> [16]
+  stateToInt x =
+    case x of
+      I1 n   -> n # 0x01
+      W1     -> 2
+      W2     -> 3
+      End    -> 4
+
+  sameState: State -> State -> Bool
+  sameState x y = stateToInt x == stateToInt y
+
+  validState: State -> Bool
+  validState x =
+    case x of
+      I1 n -> n < 5
+      _    -> True
+
+  init = I1 0
+
+  step x =
+    case x of
+      I1 n -> if n < 5 then Some W1 else Some (I1 (n+1))
+      W1   -> Some W2
+      W2   -> Some End
+      End  -> None
+
+
+/**
+Here's a proof that M2 conforms to the specification M1
+```
+:exhaust stepOk
+```
+*/
+submodule Properties where
+  import submodule Machines {
+    Abstract = submodule M1,
+    Concrete = submodule M2,
+    Measure  = submodule CountMeasure
+  }
+
+  import submodule Relation where
+    forget x =
+      case x of
+        M2::I1 _ -> M1::Init
+        M2::W1   -> M1::Work
+        M2::W2   -> M1::Work
+        M2::End  -> M1::Done
+
+    size x =
+      case x of
+        M2::I1 n -> 10 - (zero # n)
+        M2::W1   -> 1
+        M2::W2   -> 0
+        M2::End  -> 0
