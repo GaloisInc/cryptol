@@ -298,8 +298,9 @@ instance Monoid ModContext where
 -- | 'IfaceDecls` should contain enough information so that we can check
 -- and evalute everything in scope.  At the moment we just pass all loaded
 -- things here. See 'modContextOf'.
-findEnv :: IfaceDecls -> Name -> Iface -> T.ModuleG a -> Maybe ModContext
-findEnv loaded n iface m
+findEnv ::
+  ModuleEnv -> IfaceDecls -> Name -> Iface -> T.ModuleG a -> Maybe ModContext
+findEnv me loaded n iface m
   | Just sm <- Map.lookup n (T.mSubmodules m) =
     let localNames = T.smInScope sm in
     Just
@@ -325,7 +326,9 @@ findEnv loaded n iface m
               , mctxNameDisp = R.toNameDisp localNames
               }
 
-  | otherwise = asum (fmap (findEnv loaded n iface) (Map.elems (T.mFunctors m)))
+  | Just target <- Map.lookup n (T.mModAliases m) = modContextOf target me
+
+  | otherwise = asum (fmap (findEnv me loaded n iface) (Map.elems (T.mFunctors m)))
 
 modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
 modContextOf (ImpNested name) me =
@@ -335,7 +338,7 @@ modContextOf (ImpNested name) me =
     let loadedDecls = map (ifDefines . lmInterface)
                     $ getLoadedModules (meLoadedModules me)
         loaded = mconcat (ifDefines (lmInterface lm) : loadedDecls)
-    findEnv loaded name (lmInterface lm) (lmModule lm)
+    findEnv me loaded name (lmInterface lm) (lmModule lm)
 
   -- TODO: support focusing inside a submodule signature to support browsing?
 modContextOf (ImpTop mname) me =

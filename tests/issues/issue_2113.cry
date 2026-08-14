@@ -1,0 +1,4 @@
+submodule M where
+  x = True
+
+submodule A = submodule M
