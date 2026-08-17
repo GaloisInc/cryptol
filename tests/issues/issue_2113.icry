@@ -1,0 +1,3 @@
+:load issue_2113.cry
+:focus submodule A
+x
