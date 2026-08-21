@@ -30,7 +30,8 @@ import Data.Function(on)
 import Data.Monoid ((<>),Endo(..), Any(..))
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
-import System.Directory (doesFileExist, canonicalizePath)
+import System.Directory
+  (doesFileExist, canonicalizePath, makeRelativeToCurrentDirectory)
 import System.FilePath ( addExtension
                        , dropExtension
                        , isAbsolute
@@ -274,8 +275,9 @@ checkPathLayout fp mname =
   case stripPathSuffix (modNameChunks mname) (dropExtension (normalise fp)) of
     Just root -> pure [if null root then "." else root]
     Nothing   ->
-      do withLogger logPutStrLn $
-           "[warning] " ++ show fp ++ " does not match module name " ++
+      do relFp <- io (makeRelativeToCurrentDirectory fp)
+         withLogger logPutStrLn $
+           "[warning] " ++ show relFp ++ " does not match module name " ++
            pretty mname
          pure []
   where
