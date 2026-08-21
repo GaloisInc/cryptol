@@ -30,13 +30,15 @@ import Data.Function(on)
 import Data.Monoid ((<>),Endo(..), Any(..))
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
-import System.Directory (doesFileExist, canonicalizePath)
+import System.Directory
+  (doesFileExist, canonicalizePath, makeRelativeToCurrentDirectory)
 import System.FilePath ( addExtension
+                       , dropExtension
                        , isAbsolute
                        , joinPath
+                       , splitDirectories
                        , (</>)
                        , normalise
-                       , takeDirectory
                        , takeFileName
                        )
 import qualified System.IO.Error as IOE
@@ -84,6 +86,7 @@ import qualified Cryptol.Eval.FFI.Error as FFI
 
 import Cryptol.Utils.Ident ( preludeName, floatName, arrayName, suiteBName, primeECName
                            , preludeReferenceName, interactiveName, modNameChunks
+                           , modNameIsNormal
                            , modNamesMatch, Namespace(NSModule) )
 import Cryptol.Utils.PP (pretty, pp, hang, vcat, ($$), (<+>), (<.>), colon)
 import Cryptol.Utils.Panic (panic)
@@ -234,11 +237,15 @@ parseModule path = do
 loadModuleByPath ::
   Bool {- ^ evaluate declarations in the module -} ->
   FilePath -> ModuleM T.TCTopEntity
-loadModuleByPath eval path = withPrependedSearchPath [ takeDirectory path ] $ do
-  let fileName = takeFileName path
-  foundPath <- findFile fileName
+loadModuleByPath eval path = do
+  foundPath <- findFile path
   (fp, deps, pms) <- parseModule (InFile foundPath)
-  last <$>
+  extras <- case [ thing (P.mName pm) | pm <- pms
+                                      , modNameIsNormal (thing (P.mName pm)) ] of
+              n : _ -> checkPathLayout foundPath n
+              []    -> pure []
+  withPrependedSearchPath extras $
+    last <$>
     forM pms \pm ->
     do let n = thing (P.mName pm)
 
@@ -258,6 +265,31 @@ loadModuleByPath eval path = withPrependedSearchPath [ takeDirectory path ] $ do
           | path' == loaded -> return (lmData lm)
           | otherwise       -> duplicateModuleName n path' loaded
           where loaded = lmModuleId lm
+
+{- | Check whether the file's path layout matches the module's hierarchical
+name.  If it does, return the directory prefix that should be prepended to
+the search path so that imports from a sibling can be resolved.  If it does
+not, emit a warning and return @[]@, leaving the search path alone. -}
+checkPathLayout :: FilePath -> ModName -> ModuleM [FilePath]
+checkPathLayout fp mname =
+  case stripPathSuffix (modNameChunks mname) (dropExtension (normalise fp)) of
+    Just root -> pure [if null root then "." else root]
+    Nothing   ->
+      do relFp <- io (makeRelativeToCurrentDirectory fp)
+         withLogger logPutStrLn $
+           "[warning] " ++ show relFp ++ " does not match module name " ++
+           pretty mname
+         pure []
+  where
+  stripPathSuffix chunks p = go (reverse (splitDirectories p)) (reverse chunks)
+    where
+    go rest cs =
+      case cs of
+        []     -> Just (joinPath (reverse rest))
+        c : cs' ->
+          case rest of
+            d : ds | d == c -> go ds cs'
+            _               -> Nothing
 
 
 -- | Load a module, unless it was previously loaded.

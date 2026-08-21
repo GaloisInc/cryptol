@@ -1,0 +1,4 @@
+module A::B::M where
+
+n : [8]
+n = 42

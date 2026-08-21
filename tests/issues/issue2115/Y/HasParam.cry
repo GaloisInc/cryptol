@@ -1,0 +1,8 @@
+module Y::HasParam where
+
+import X as X
+
+parameter
+  n : [8]
+
+g = X::m # [n]
