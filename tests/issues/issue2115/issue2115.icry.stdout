@@ -1,0 +1,14 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module X
+Loading module Y::X
+[0x74, 0x6f, 0x70, 0x5f, 0x58, 0x5f, 0x66, 0x72, 0x6f, 0x6d, 0x5f,
+ 0x59]
+Loading module Cryptol
+Loading module X
+Loading interface module Y::HasParam__parameter
+Loading module Y::HasParam
+[warning] "weird/M.cry" does not match module name A::B::M
+Loading module Cryptol
+Loading module A::B::M
+0x2a

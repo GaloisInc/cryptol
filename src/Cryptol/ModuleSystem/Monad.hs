@@ -653,6 +653,12 @@ setMaybeFocusedModule mb = ModuleT $ do
 getSearchPath :: ModuleM [FilePath]
 getSearchPath  = ModuleT (meSearchPath `fmap` get)
 
+-- | Replace the search path.
+setSearchPath :: [FilePath] -> ModuleM ()
+setSearchPath fps = ModuleT $ do
+  env <- get
+  set $! env { meSearchPath = fps }
+
 -- | Run a 'ModuleM' action in a context with a prepended search
 -- path. Useful for temporarily looking in other places while
 -- resolving imports, for example.

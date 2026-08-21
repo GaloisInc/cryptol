@@ -75,6 +75,16 @@ Commands
 ``:l FILE``, ``:load FILE``
     Load a module by filename.
 
+    When the file's path ends in a sequence of directories that matches
+    the hierarchical module name (e.g., ``some/where/A/B/M.cry`` for
+    module ``A::B::M``), Cryptol temporarily prepends the containing
+    directory (``some/where``) to the module search path while loading,
+    so that imports can find sibling modules by name.  When the path
+    does not match the module name, Cryptol prints a warning and leaves
+    the search path unchanged; the module still loads, but its imports
+    may fail to resolve unless the search path already covers them (see
+    ``:set path`` or the ``CRYPTOLPATH`` environment variable).
+
 ``:m [MODULE]``, ``:module [MODULE]``
     Load a module by its name.
 

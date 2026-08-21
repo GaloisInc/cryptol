@@ -99,6 +99,9 @@
   crash if the float size was smaller than a double-precision float.
   ([#2108](https://github.com/GaloisInc/cryptol/issues/2108))
 
+* Change how `:load` adjusts the module search path; see `:help :load`.
+  ([#2115](https://github.com/GaloisInc/cryptol/issues/2115))
+
 ## API changes
 
 * Add `isValidIdent` to `Cryptol.Parser.LexerUtils`, which checks if a name is
