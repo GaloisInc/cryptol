@@ -68,7 +68,8 @@ crySession replMode stopOnError =
 
   loop :: Bool -> Int -> InputT REPL CommandResult
   loop !success !lineNum =
-    do ln <- getInputLines =<< MTL.lift getPrompt
+    do prompt <- MTL.lift getPrompt
+       ln <- getInputLines lineNum prompt
        case ln of
          NoMoreLines -> return emptyCommandResult { crSuccess = success }
          Interrupted
@@ -77,6 +78,7 @@ crySession replMode stopOnError =
          NextLine ls
            | all (all isSpace) ls -> loop success (lineNum + length ls)
            | otherwise            -> doCommand success lineNum ls
+         DefBlock ls -> doDeclBlock success lineNum ls
 
   run lineNum cmd =
     case replMode of
@@ -84,31 +86,87 @@ crySession replMode stopOnError =
       InteractiveBatch _ -> runCommand lineNum Nothing cmd
       Batch path         -> runCommand lineNum (Just path) cmd
 
+  runBlock lineNum ls =
+    case replMode of
+      InteractiveRepl    -> evalDeclBlock (lineNum + 1) ls Nothing
+      InteractiveBatch _ -> evalDeclBlock (lineNum + 1) ls Nothing
+      Batch path         -> evalDeclBlock (lineNum + 1) ls (Just path)
+
   doCommand success lineNum txt =
     case parseCommand findCommandExact (unlines txt) of
       Nothing | isBatch && stopOnError -> return emptyCommandResult { crSuccess = False }
               | otherwise -> loop False (lineNum + length txt)  -- say somtething?
       Just cmd -> join $ MTL.lift $
         do status <- handleInterrupt (handleCtrlC emptyCommandResult { crSuccess = False }) (run lineNum cmd)
-           case crSuccess status of
-             False | isBatch && stopOnError -> return (return status)
-             _ -> do goOn <- shouldContinue
-                     return (if goOn then loop (crSuccess status && success) (lineNum + length txt) else return status)
+           continueAfter success (length txt) lineNum status
+
+  doDeclBlock success lineNum ls = join $ MTL.lift $
+    do status <- handleInterrupt (handleCtrlC emptyCommandResult { crSuccess = False }) (runBlock lineNum ls)
+       -- account for the block body plus the `:{` and `:}` delimiter lines
+       continueAfter success (length ls + 2) lineNum status
+
+  continueAfter success consumed lineNum status =
+    case crSuccess status of
+      False | isBatch && stopOnError -> return (return status)
+      _ -> do goOn <- shouldContinue
+              return $ if goOn
+                then loop (crSuccess status && success) (lineNum + consumed)
+                else return status
 
 
-data NextLine = NextLine [String] | NoMoreLines | Interrupted
+-- | The result of reading a chunk of input from the user.
+data NextLine
+  = NextLine [String]
+    -- ^ A single logical command, possibly assembled from multiple physical
+    -- lines joined with @\\@ continuation.
+  | DefBlock [String]
+    -- ^ The body of a @:{@ ... @:}@ definition block, excluding the
+    -- delimiter lines.  It is parsed as a group of top-level declarations.
+  | NoMoreLines
+  | Interrupted
 
-getInputLines :: String -> InputT REPL NextLine
-getInputLines = handleInterrupt (MTL.lift (handleCtrlC Interrupted)) . loop []
+-- | Read one chunk of input, tracking multi-line continuations.
+getInputLines :: Int -> String -> InputT REPL NextLine
+getInputLines lineNum =
+  handleInterrupt (MTL.lift (handleCtrlC Interrupted)) . start
   where
-  loop ls prompt =
-    do mb <- fmap (filter (/= '\r')) <$> getInputLine prompt
-       let newPropmpt = map (\_ -> ' ') prompt
+  start prompt =
+    do mb <- readLine prompt
        case mb of
          Nothing -> return NoMoreLines
-         Just l
-           | not (null l) && last l == '\\' -> loop (init l : ls) newPropmpt
-           | otherwise -> return $ NextLine $ reverse $ l : ls
+         Just l  -> case trim l of
+                      ":{" -> block [] (lineNum + 1) (not (null prompt))
+                      _    -> continuation [] l prompt
+
+  continuation ls l prompt
+    | not (null l) && last l == '\\' =
+        do mb <- readLine (blanked prompt)
+           case mb of
+             Nothing  -> return NoMoreLines
+             Just l'  -> continuation (init l : ls) l' (blanked prompt)
+    | otherwise = return $ NextLine $ reverse (l : ls)
+
+  block ls n showPrompt =
+    do let prompt = if showPrompt then blockPrompt n else ""
+       mb <- readLine prompt
+       case mb of
+         Nothing ->
+           do MTL.lift (rPutStrLn "[error] unterminated :{ block")
+              return NoMoreLines
+         Just l -> case trim l of
+                     ":}" -> return (DefBlock (reverse ls))
+                     _    -> block (l : ls) (n + 1) showPrompt
+
+  readLine prompt = fmap (filter (/= '\r')) <$> getInputLine prompt
+
+  blanked = map (const ' ')
+
+  blockPrompt n = replicate (max 0 (blockPromptWidth - length s)) ' ' ++ s ++ "| "
+    where s = show n
+
+  blockPromptWidth = 5
+
+  trim = dropWhile isSpace . reverse . dropWhile isSpace . reverse
 
 loadCryRC :: Cryptolrc -> REPL CommandResult
 loadCryRC cryrc =
