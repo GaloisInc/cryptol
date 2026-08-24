@@ -22,7 +22,7 @@ import qualified Control.Exception as X
 import Control.Monad (unless,when,forM)
 import Data.Set(Set)
 import qualified Data.Set as Set
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, maybeToList)
 import Data.List(sortBy)
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty (NonEmpty(..))
@@ -243,8 +243,8 @@ loadModuleByPath eval path = do
   extras <- case [ thing (P.mName pm) | pm <- pms
                                       , modNameIsNormal (thing (P.mName pm)) ] of
               n : _ -> checkPathLayout foundPath n
-              []    -> pure []
-  withPrependedSearchPath extras $
+              []    -> pure Nothing
+  withPrependedSearchPath (maybeToList extras) $
     last <$>
     forM pms \pm ->
     do let n = thing (P.mName pm)
@@ -269,19 +269,19 @@ loadModuleByPath eval path = do
 {- | Check whether the file's parent directories match the parent chunks of
 the module's hierarchical name.  If they do, return the directory prefix
 that should be prepended to the search path so that imports from a sibling
-can be resolved.  If they do not, emit a warning and return @[]@, leaving
-the search path alone. -}
-checkPathLayout :: FilePath -> ModName -> ModuleM [FilePath]
+can be resolved.  If they do not, emit a warning and return 'Nothing',
+leaving the search path alone. -}
+checkPathLayout :: FilePath -> ModName -> ModuleM (Maybe FilePath)
 checkPathLayout fp mname =
   case stripParentSuffix (modNameChunks mname)
                          (splitDirectories (dropExtension (normalise fp))) of
-    Just root -> pure [if null root then "." else root]
+    Just root -> pure (Just (if null root then "." else root))
     Nothing   ->
       do relFp <- io (makeRelativeToCurrentDirectory fp)
          withLogger logPutStrLn $
            "[warning] " ++ show relFp ++ " does not match module name " ++
            pretty mname
-         pure []
+         pure Nothing
   where
   stripParentSuffix chunks p =
     case (reverse chunks, reverse p) of

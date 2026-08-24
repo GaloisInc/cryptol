@@ -3,7 +3,7 @@ module Load (reload) where
 import Data.Set qualified as Set
 import Data.Map(Map)
 import Data.Map qualified as Map
-import Data.Maybe(fromMaybe,mapMaybe)
+import Data.Maybe(fromMaybe,mapMaybe,maybeToList)
 import MonadLib
 import Control.Concurrent.STM
 
@@ -137,7 +137,7 @@ loadPath mbisrc path =
                   Just info -> fiFingerprint info /= fp || fiIncludeDeps info /= deps
                   _ -> True
           extras <- getPathExtras mbisrc path pms
-          status <- withExtraSearchPath extras $
+          status <- withExtraSearchPath (maybeToList extras) $
                        mconcat <$> mapM (loadParsed path fp deps weChanged mbisrc) pms
           setLoadStatus path status
           pure status
@@ -147,15 +147,16 @@ This mirrors 'Base.loadModuleByPath': only apply the heuristic to files
 that are entry points, and only if the file's path
 matches the user-written module's hierarchical name. -}
 getPathExtras ::
-  Maybe ImportSource -> ModulePath -> [P.Module P.PName] -> LoadM [FilePath]
+  Maybe ImportSource -> ModulePath -> [P.Module P.PName] ->
+  LoadM (Maybe FilePath)
 getPathExtras mbisrc path pms =
   case (mbisrc, path) of
     (Nothing, InFile fp) ->
-      case [ thing (P.mName pm) | pm <- pms
-                                , modNameIsNormal (thing (P.mName pm)) ] of
-        n : _ -> fromMaybe [] <$> liftMaybe (Base.checkPathLayout fp n)
-        []    -> pure []
-    _ -> pure []
+      let normNames = filter modNameIsNormal (map (thing . P.mName) pms) in
+      case normNames of
+        n : _ -> join <$> liftMaybe (Base.checkPathLayout fp n)
+        []    -> pure Nothing
+    _ -> pure Nothing
 
 {- | Run a 'LoadM' action with an extended search path.  We save the
 current path, prepend the extras, run the action, then restore. -}
