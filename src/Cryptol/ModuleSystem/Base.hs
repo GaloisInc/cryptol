@@ -266,13 +266,15 @@ loadModuleByPath eval path = do
           | otherwise       -> duplicateModuleName n path' loaded
           where loaded = lmModuleId lm
 
-{- | Check whether the file's path layout matches the module's hierarchical
-name.  If it does, return the directory prefix that should be prepended to
-the search path so that imports from a sibling can be resolved.  If it does
-not, emit a warning and return @[]@, leaving the search path alone. -}
+{- | Check whether the file's parent directories match the parent chunks of
+the module's hierarchical name.  If they do, return the directory prefix
+that should be prepended to the search path so that imports from a sibling
+can be resolved.  If they do not, emit a warning and return @[]@, leaving
+the search path alone. -}
 checkPathLayout :: FilePath -> ModName -> ModuleM [FilePath]
 checkPathLayout fp mname =
-  case stripPathSuffix (modNameChunks mname) (dropExtension (normalise fp)) of
+  case stripParentSuffix (modNameChunks mname)
+                         (splitDirectories (dropExtension (normalise fp))) of
     Just root -> pure [if null root then "." else root]
     Nothing   ->
       do relFp <- io (makeRelativeToCurrentDirectory fp)
@@ -281,7 +283,11 @@ checkPathLayout fp mname =
            pretty mname
          pure []
   where
-  stripPathSuffix chunks p = go (reverse (splitDirectories p)) (reverse chunks)
+  stripParentSuffix chunks p =
+    case (reverse chunks, reverse p) of
+      -- We just check parent directories, not file name.
+      (_ : rcs, _ : rds) -> go rds rcs
+      _                  -> Nothing
     where
     go rest cs =
       case cs of

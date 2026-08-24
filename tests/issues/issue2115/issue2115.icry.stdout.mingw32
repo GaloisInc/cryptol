@@ -12,3 +12,7 @@ Loading module Y::HasParam
 Loading module Cryptol
 Loading module A::B::M
 0x2a
+Loading module Cryptol
+Loading module Helper
+Loading module Main
+0x2a
