@@ -342,7 +342,16 @@ commandList  =
     ""
   , CommandDescr [ ":l", ":load" ] ["FILE"] (FilenameArg loadCmd)
     "Load a module by filename."
-    ""
+    (unlines
+      [ "When FILE's path ends in directories that match the hierarchical"
+      , "module name (e.g., some/where/A/B/M.cry for module A::B::M),"
+      , "Cryptol temporarily prepends the containing directory to the"
+      , "module search path while loading, so imports resolve to sibling"
+      , "modules.  When the path does not match the module name, Cryptol"
+      , "prints a warning and leaves the search path unchanged; imports"
+      , "may then fail unless the search path already covers them (see"
+      , ":set path or the CRYPTOLPATH environment variable)."
+      ])
   , CommandDescr [ ":r", ":reload" ] [] (NoArg reloadCmd)
     "Reload the currently loaded module."
     ""

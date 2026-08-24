@@ -1,0 +1,5 @@
+module Y::X where
+
+import X as X
+
+m = X::m # "_from_Y"

@@ -1,0 +1,7 @@
+:l Y/X.cry
+m
+:l Y/HasParam.cry
+:l weird/M.cry
+n
+:l scripts/script.cry
+x

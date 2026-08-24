@@ -3,7 +3,7 @@ module Load (reload) where
 import Data.Set qualified as Set
 import Data.Map(Map)
 import Data.Map qualified as Map
-import Data.Maybe(fromMaybe,mapMaybe)
+import Data.Maybe(fromMaybe,mapMaybe,maybeToList)
 import MonadLib
 import Control.Concurrent.STM
 
@@ -12,6 +12,7 @@ import Cryptol.ModuleSystem
 import Cryptol.ModuleSystem.Env
 import Cryptol.ModuleSystem.Base qualified as Base
 import Cryptol.ModuleSystem.Monad
+import Cryptol.Utils.Ident (modNameIsNormal)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Logger
 import Cryptol.ModuleSystem.Fingerprint
@@ -135,9 +136,37 @@ loadPath mbisrc path =
                 case mb of
                   Just info -> fiFingerprint info /= fp || fiIncludeDeps info /= deps
                   _ -> True
-          status <- mconcat <$> mapM (loadParsed path fp deps weChanged mbisrc) pms
+          extras <- getPathExtras mbisrc path pms
+          status <- withExtraSearchPath (maybeToList extras) $
+                       mconcat <$> mapM (loadParsed path fp deps weChanged mbisrc) pms
           setLoadStatus path status
           pure status
+
+{- | Compute a search-path prefix based on the layout of a top-level file.
+This mirrors 'Base.loadModuleByPath': only apply the heuristic to files
+that are entry points, and only if the file's path
+matches the user-written module's hierarchical name. -}
+getPathExtras ::
+  Maybe ImportSource -> ModulePath -> [P.Module P.PName] ->
+  LoadM (Maybe FilePath)
+getPathExtras mbisrc path pms =
+  case (mbisrc, path) of
+    (Nothing, InFile fp) ->
+      let normNames = filter modNameIsNormal (map (thing . P.mName) pms) in
+      case normNames of
+        n : _ -> join <$> liftMaybe (Base.checkPathLayout fp n)
+        []    -> pure Nothing
+    _ -> pure Nothing
+
+{- | Run a 'LoadM' action with an extended search path.  We save the
+current path, prepend the extras, run the action, then restore. -}
+withExtraSearchPath :: [FilePath] -> LoadM a -> LoadM a
+withExtraSearchPath extras m =
+  do old <- doLift getSearchPath
+     doLift (setSearchPath (extras ++ old))
+     a <- m
+     doLift (setSearchPath old)
+     pure a
 
 
 
