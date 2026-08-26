@@ -1,6 +1,8 @@
 Loading module Cryptol
 0x2a
 foo : [8] -> [8]
+[]
+[0x02, 0x01]
 Showing a specific instance of polymorphic result:
   * Using 'Integer' for 1st type argument of '<interactive>::baz'
 42

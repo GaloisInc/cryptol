@@ -75,7 +75,7 @@ import qualified Cryptol.Parser.Unlit         as P
 import Cryptol.Parser.AST as P
 import Cryptol.Parser.NoPat (RemovePatterns(removePatterns))
 import qualified Cryptol.Parser.ExpandPropGuards as ExpandPropGuards
-  ( expandPropGuards, runExpandPropGuardsM )
+  ( expandPropGuards, expandTopDecl, runExpandPropGuardsM )
 import Cryptol.Parser.NoInclude (removeIncludesModule)
 import Cryptol.Parser.Position (HasLoc(..), Range, emptyRange)
 import qualified Cryptol.TypeCheck     as T
@@ -157,6 +157,14 @@ expandPropGuards a =
   case ExpandPropGuards.runExpandPropGuardsM $ ExpandPropGuards.expandPropGuards a of
     Left err -> expandPropGuardsError err
     Right a' -> pure a'
+
+-- | Run the expandPropGuards pass on a group of top-level declarations.
+expandPropGuardsDecls :: [P.TopDecl PName] -> ModuleM [P.TopDecl PName]
+expandPropGuardsDecls ds =
+  case ExpandPropGuards.runExpandPropGuardsM $
+         concat <$> mapM ExpandPropGuards.expandTopDecl ds of
+    Left err  -> expandPropGuardsError err
+    Right ds' -> pure ds'
 
 -- Parsing ---------------------------------------------------------------------
 
@@ -669,8 +677,10 @@ checkDecls ds = do
       decls  = mctxDecls  fe
       names  = mctxNames  fe
 
+  epgds <- expandPropGuardsDecls ds
+
   (declsEnv,rds) <- rename interactiveName names
-                  $ R.renameTopDecls ds
+                  $ R.renameTopDecls epgds
   prims <- getPrimMap
   let act  = TCAction { tcAction = T.tcDecls, tcLinter = declsLinter
                       , tcPrims = prims }
