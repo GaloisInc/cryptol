@@ -2320,7 +2320,7 @@ withValidModule mn tab kNo kYes =
       Nothing ->
         case M.lookupSignature mn env of
           Nothing ->
-           do rPutStrLn (tab ++ "Module " ++ show mn ++ " is not loaded")
+           do rPutStrLn (tab ++ "Module " ++ show (pp mn) ++ " is not loaded")
               kNo emptyCommandResult { crSuccess = False }
           Just{} ->
            do rPutStrLn (tab ++ "Skipping docstrings on interface module")
