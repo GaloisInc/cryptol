@@ -107,11 +107,14 @@ crySession replMode stopOnError =
 
   continueAfter success consumed lineNum status =
     case crSuccess status of
-      False | isBatch && stopOnError -> return (return status)
-      _ -> do goOn <- shouldContinue
-              return $ if goOn
-                then loop (crSuccess status && success) (lineNum + consumed)
-                else return status
+      False | isBatch && stopOnError -> pure (pure status)
+      _ ->
+        do
+          goOn <- shouldContinue
+          pure $
+            if goOn
+              then loop (crSuccess status && success) (lineNum + consumed)
+              else return status
 
 
 -- | The result of reading a chunk of input from the user.
