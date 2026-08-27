@@ -28,6 +28,13 @@
   intermediate Cryptol passes.
   ([#2000](https://github.com/GaloisInc/cryptol/issues/2000))
 
+* The REPL now supports multi-line definition blocks, delimited by `:{`
+  and `:}`.  Everything between the delimiters is
+  processed as a group of top-level declarations, without needing `\`
+  continuations or a leading `let`, which makes pasting definitions
+  easier.
+  ([#2105](https://github.com/GaloisInc/cryptol/issues/2105))
+
 * Support `prime` constraints in numeric constraint guards.
   ([#1658](https://github.com/GaloisInc/cryptol/issues/1658))
 
