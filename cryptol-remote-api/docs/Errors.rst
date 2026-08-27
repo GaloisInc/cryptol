@@ -156,7 +156,6 @@ Type errors (``20700``–``29999``)
 -  ``20720``: “No include errors”
    ``{ source: String, errors: [String] }``
 -  ``20730``: “Typechecking failed”
-   ``{ source: String, errors: [String] }``, or “Typechecker SMT solver timed
-   out” ``{ timeout: Number }``. Typechecking errors could be split into
-   separate errors in the future.
+   ``{ source: String, errors: [String] }`` (could be split in future
+   into many separate errors)
 -  ``29999``: “Other failure” ``{ error: String }``

@@ -22,7 +22,12 @@ import qualified Data.Vector as Vector
 
 import Cryptol.Parser.AST(ModName)
 import Cryptol.ModuleSystem (ModuleError(..), ModuleWarning(..))
+import Cryptol.ModuleSystem.Monad (ImportSource(FromModule))
 import Cryptol.ModuleSystem.Name as CM
+import Cryptol.Parser.Position (emptyRange)
+import Cryptol.TypeCheck.Error (Error(TCSolverTimeout))
+import Cryptol.TypeCheck.PP (emptyNameMap)
+import Cryptol.Utils.Ident (interactiveName)
 import Cryptol.Utils.PP (pretty, PP)
 
 import Data.Aeson hiding (Encoding, Value, decode)
@@ -215,10 +220,13 @@ cryptolParseErr expr err =
 
 tcSolverTimeout :: Int -> JSONRPCException
 tcSolverTimeout seconds =
-  makeJSONRPCException
-    20730
-    "Typechecker SMT solver timed out"
-    (Just (JSON.object ["timeout" .= seconds]))
+  -- Use the same error representation as a timeout caught during type-checking.
+  cryptolError
+    (TypeCheckingFailed
+      (FromModule interactiveName)
+      emptyNameMap
+      [(emptyRange, TCSolverTimeout seconds)])
+    []
 
 -- The standard way of presenting a type: a structured type, plus a
 -- human-readable string
