@@ -29,6 +29,7 @@ module Cryptol.REPL.Command (
   , emptyCommandResult
 
   , moduleCmd, loadCmd, loadPrelude, setOptionCmd
+  , evalDeclBlock
 
     -- Parsing
   , interactiveConfig
@@ -97,7 +98,8 @@ import qualified Cryptol.Eval.Reference as R
 import Cryptol.Testing.Random
 import qualified Cryptol.Testing.Random  as TestR
 import Cryptol.Parser
-    (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
+    (parseExprWith,parseReplWith,parseDeclsWith,ParseError()
+    ,Config(..),defaultConfig
     ,parseModName,parseHelpName,parseImpName)
 import           Cryptol.Parser.Position (replPosition,startOfLine,Range(..),HasLoc(..))
 import qualified Cryptol.TypeCheck.AST as T
@@ -401,6 +403,16 @@ commandList  =
     (ModNameArg (moduleInfoCmd False))
     "Show information about the dependencies of a module"
     ""
+
+  , CommandDescr [ ":{" ] [] (NoArg openDefBlockCmd)
+    "Begin a multi-line definition block."
+    (unlines [
+    "The following lines may declare functions in standard Cryptol notation",
+    "The block is terminated with `:}` on its own line." ])
+
+  , CommandDescr [ ":}" ] [] (NoArg closeDefBlockCmd)
+    "End a multi-line definition block started with `:{`."
+    "This command is only meaningful as the terminator of a `:{` block."
   ]
 
 genHelp :: [CommandDescr] -> [String]
@@ -473,6 +485,47 @@ evalCmd str lineNum mbBatch = do
       rPutStrLn ""
       rPrint (pp e)
       pure emptyCommandResult { crSuccess = False }
+
+
+{- | Reachable only if a @:{@ line is not intercepted by the input
+reader (e.g. @:help :{@ dispatch, or non-standard input paths).
+Explain the intended usage. -}
+openDefBlockCmd :: REPL CommandResult
+openDefBlockCmd =
+  do rPutStrLn "[error] `:{` must appear alone on its line; see `:help :{`."
+     pure emptyCommandResult { crSuccess = False }
+
+{- | Reachable when @:}@ appears outside of a @:{@ block.  Report the
+error and continue. -}
+closeDefBlockCmd :: REPL CommandResult
+closeDefBlockCmd =
+  do rPutStrLn "[error] `:}` outside of a `:{` block; see `:help :{`."
+     pure emptyCommandResult { crSuccess = False }
+
+
+{- | Process the body of a @:{@ ... @:}@ definition block.  The block
+consists of the lines strictly between the delimiters (which are not
+included).  The @startLine@ argument is the REPL/file line number of the
+first body line, so that parse errors carry the correct source position. -}
+evalDeclBlock :: Int -> [String] -> Maybe FilePath -> REPL CommandResult
+evalDeclBlock startLine ls mbBatch =
+  do let str = unlines ls
+         cfg = case mbBatch of
+                 Nothing -> interactiveConfig { cfgStart = startOfLine startLine }
+                 Just f  -> defaultConfig
+                              { cfgSource = f
+                              , cfgStart  = startOfLine startLine
+                              }
+     ds <- replParse (parseDeclsWith cfg . T.pack) str
+     case ds of
+       [] -> pure emptyCommandResult
+       _  -> do replEvalDecls ds
+                pure emptyCommandResult
+  `catch` \e -> do
+    rPutStrLn ""
+    rPrint (pp e)
+    pure emptyCommandResult { crSuccess = False }
+
 
 printCounterexample :: CounterExampleType -> Doc -> [Concrete.Value] -> REPL ()
 printCounterexample cexTy exprDoc vs =
@@ -2322,7 +2375,7 @@ withValidModule mn tab kNo kYes =
       Nothing ->
         case M.lookupSignature mn env of
           Nothing ->
-           do rPutStrLn (tab ++ "Module " ++ show mn ++ " is not loaded")
+           do rPutStrLn (tab ++ "Module " ++ show (pp mn) ++ " is not loaded")
               kNo emptyCommandResult { crSuccess = False }
           Just{} ->
            do rPutStrLn (tab ++ "Skipping docstrings on interface module")

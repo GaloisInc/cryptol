@@ -1,0 +1,22 @@
+:{
+foo : [8] -> [8]
+foo x = x + 1
+
+bar : [8]
+bar = foo 41
+:}
+bar
+:type foo
+:{
+guarded : {n} (fin n) => [n][8] -> [n][8]
+guarded xs | n == 0 => xs
+           | ()     => reverse xs
+:}
+guarded []
+guarded [1, 2]
+:{
+baz x = x * 2
+:}
+baz 21
+:{
+:}

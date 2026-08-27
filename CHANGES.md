@@ -28,6 +28,13 @@
   intermediate Cryptol passes.
   ([#2000](https://github.com/GaloisInc/cryptol/issues/2000))
 
+* The REPL now supports multi-line definition blocks, delimited by `:{`
+  and `:}`.  Everything between the delimiters is
+  processed as a group of top-level declarations, without needing `\`
+  continuations or a leading `let`, which makes pasting definitions
+  easier.
+  ([#2105](https://github.com/GaloisInc/cryptol/issues/2105))
+
 * Add a timeout for individual typechecker SMT queries, configurable with the
   `tcTimeout` REPL option. Timed-out solver processes are killed and replaced.
   ([#2117](https://github.com/GaloisInc/cryptol/issues/2117))
