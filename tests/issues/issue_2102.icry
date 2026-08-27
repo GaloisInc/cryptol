@@ -1,0 +1,3 @@
+:check-docstrings DoesntExist
+:print-docstrings DoesntExist
+:check-docstrings Doesnt::Exist
