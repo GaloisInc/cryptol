@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module issue_2117
+
+[error] at issue_2117.cry:1:8--4:40:
+  Typechecking timed out after 1 second.
+0x2a
+
+Typechecking timed out after 1 second.
+0x2a

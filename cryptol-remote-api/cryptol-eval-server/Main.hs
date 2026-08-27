@@ -44,7 +44,8 @@ import qualified Argo.Doc as Doc
 
 
 import CryptolServer
-    ( ServerState, moduleEnv, tcSolver, initialState, extendSearchPath, command, notification )
+    ( ServerState, moduleEnv, initialState, extendSearchPath,
+      getTCSolverForState, command, notification )
 import CryptolServer.Call ( call )
 import CryptolServer.Data.Expression ( Expression )
 import CryptolServer.Data.Type ( JSONSchema )
@@ -72,7 +73,7 @@ main = customMain initMod initMod initMod initMod versionParser description buil
     startingState (StartingFile file) reader =
       do paths <- getSearchPaths
          initSt <- extendSearchPath paths <$> initialState
-         let s    = view tcSolver initSt
+         s <- getTCSolverForState initSt
          let menv = view moduleEnv initSt
          let minp = ModuleInput {
                       minpCallStacks = False,

@@ -31,6 +31,7 @@ import           Data.List.NonEmpty(NonEmpty((:|)))
 import           Data.Semigroup(sconcat)
 import           Data.Maybe(mapMaybe,fromMaybe)
 import           Data.IORef
+import qualified Control.Exception as X
 
 import           GHC.Generics (Generic)
 import           Control.DeepSeq
@@ -156,30 +157,34 @@ runInferM info m0 =
                          , iSolveCounter  = counter
                          }
 
-     mb <- runExceptionT (runStateT rw (runReaderT ro m))
-     case mb of
-       Left errs -> inferFailed [] errs
-       Right (result, finalRW) ->
-         do let theSu    = iSubst finalRW
-                defSu    = defaultingSubst theSu
-                warns    = fmap' (fmap' (apSubst theSu)) (iWarnings finalRW)
+     mbTimeout <- X.try (runExceptionT (runStateT rw (runReaderT ro m)))
+     case mbTimeout of
+       Left (SMT.SolverTimeout seconds) ->
+         inferFailed [] [(inpRange info, TCSolverTimeout seconds)]
+       Right mb ->
+         case mb of
+           Left errs -> inferFailed [] errs
+           Right (result, finalRW) ->
+             do let theSu    = iSubst finalRW
+                    defSu    = defaultingSubst theSu
+                    warns    = fmap' (fmap' (apSubst theSu)) (iWarnings finalRW)
 
-            case iErrors finalRW of
-              [] ->
-                case iCts finalRW of
-                  cts
-                    | nullGoals cts -> inferOk warns
-                                         (iNameSeeds finalRW)
-                                         (iSupply finalRW)
-                                         (apSubst defSu result)
-                  cts ->
-                     inferFailed warns
-                       [ ( goalRange g
-                         , UnsolvedGoals [apSubst theSu g]
-                         ) | g <- fromGoals cts
-                       ]
+                case iErrors finalRW of
+                  [] ->
+                    case iCts finalRW of
+                      cts
+                        | nullGoals cts -> inferOk warns
+                                             (iNameSeeds finalRW)
+                                             (iSupply finalRW)
+                                             (apSubst defSu result)
+                      cts ->
+                         inferFailed warns
+                           [ ( goalRange g
+                             , UnsolvedGoals [apSubst theSu g]
+                             ) | g <- fromGoals cts
+                           ]
 
-              errs -> inferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
+                  errs -> inferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
   ppcfg = defaultPPCfg

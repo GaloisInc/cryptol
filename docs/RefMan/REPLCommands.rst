@@ -287,6 +287,16 @@ Commands
 
     The solver that will be used by the type checker
 
+``:set tcTimeout``
+    **Default value:** ``5``
+
+    **Valid values:** ``0``, any positive integer
+
+    Set the maximum number of seconds allowed for each typechecker SMT query.
+    A value of ``0`` disables the timeout. If a query times out, Cryptol
+    terminates the solver process and starts a fresh one when it is next
+    needed.
+
 ``:set tcDebug``
     **Default value:** ``0``
 
@@ -384,4 +394,3 @@ Commands
     **Valid values:** ``off``, ``on``, ``false``, ``true``
 
     Suppress output of ``:time`` command and only bind result to ``it``
-

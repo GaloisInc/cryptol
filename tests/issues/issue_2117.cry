@@ -1,0 +1,4 @@
+module issue_2117 where
+
+f : {n, k} (fin k, k >= 1, k % 2 == 0, 64 >= width (max 1 (n /^ k) - 1)) => [n /^ k * k]
+f = zero : [n / k * k + n % k /^ k * k]

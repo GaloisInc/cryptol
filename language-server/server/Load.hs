@@ -49,13 +49,13 @@ reload =
                 new         = Map.keysSet (Map.filter (== Loaded) status)
                 reindex ent = withLoadedEntity ent lmName `Set.member` new
             update_ \s ->
-                let env  = minpModuleEnv (cryState s)
+                let env  = cryEnv s
                     lm0  = meLoadedModules env
                     lm1  = removeLoadedModule dead lm0
                     env1 = env { meLoadedModules = lm1 }
                     ents = filter reindex (Map.elems (getLoadedEntities lm1))
                 in s { cryIndex = updateIndexes ents (cryIndex s),
-                       cryState = (cryState s) { minpModuleEnv = env1 }
+                       cryEnv = env1
                     }
             let changed = [ tv
                           | (InFile mo,Loaded) <- Map.toList (loadStatus loadS)

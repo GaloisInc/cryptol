@@ -6,6 +6,8 @@
 module CryptolServer (module CryptolServer) where
 
 import Control.Lens
+import Control.Concurrent.MVar
+import qualified Control.Exception as X
 import Control.Monad (unless)
 import Control.Monad.IO.Class
 import Control.Monad.Reader (ReaderT(ReaderT))
@@ -16,7 +18,8 @@ import Data.Text (Text)
 
 import Cryptol.Eval (EvalOpts(..))
 import Cryptol.IR.FreeVars (FreeVars)
-import Cryptol.ModuleSystem (ModuleCmd, ModuleEnv(..), ModuleInput(..))
+import Cryptol.ModuleSystem
+  (ModuleCmd, ModuleEnv(..), ModuleInput(..))
 import Cryptol.ModuleSystem.Env
   (getLoadedModules, loadedParamModDeps, lmFilePath, lmFileInfo, fiFingerprint,
    initialModuleEnv, ModulePath(..))
@@ -28,7 +31,8 @@ import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 
 import qualified Argo
 import qualified Argo.Doc as Doc
-import CryptolServer.Exceptions ( cryptolError, evalInParamMod )
+import CryptolServer.Exceptions
+  ( cryptolError, evalInParamMod, tcSolverTimeout )
 import CryptolServer.Options
     ( WithOptions(WithOptions), Options(Options, optEvalOpts) )
 
@@ -85,24 +89,62 @@ modifyModuleEnv :: (ModuleEnv -> ModuleEnv) -> CryptolCommand ()
 modifyModuleEnv f =
   CryptolCommand $ const $ Argo.getState >>= \s -> Argo.setState (set moduleEnv (f (view moduleEnv s)) s)
 
-getTCSolver :: CryptolCommand SMT.Solver
-getTCSolver = CryptolCommand $ const $ view tcSolver <$> Argo.getState
+getTCSolverRef :: CryptolCommand (MVar (Maybe SMT.Solver))
+getTCSolverRef =
+  CryptolCommand $ const $ view tcSolver <$> Argo.getState
 
 getTCSolverConfig :: CryptolCommand SMT.SolverConfig
 getTCSolverConfig = CryptolCommand $ const $ solverConfig <$> Argo.getState
+
+getTCSolver :: CryptolCommand SMT.Solver
+getTCSolver =
+  do ref <- getTCSolverRef
+     cfg <- getTCSolverConfig
+     liftIO (getTCSolverIO ref cfg)
+
+getTCSolverForState :: ServerState -> IO SMT.Solver
+getTCSolverForState s =
+  getTCSolverIO (view tcSolver s) (solverConfig s)
+
+getTCSolverIO ::
+  MVar (Maybe SMT.Solver) -> SMT.SolverConfig -> IO SMT.Solver
+getTCSolverIO ref cfg =
+  modifyMVar ref $ \mb ->
+    case mb of
+      Just solver ->
+        pure (mb, solver)
+      Nothing ->
+        do let onExit = modifyMVar_ ref (const (pure Nothing))
+           solver <- SMT.startSolver onExit cfg
+           pure (Just solver, solver)
+
+catchTCSolverTimeout :: IO a -> CryptolCommand a
+catchTCSolverTimeout action =
+  do result <- liftIO (X.try action)
+     case result of
+       Right a ->
+         pure a
+       Left (SMT.SolverTimeout seconds) ->
+         raise (tcSolverTimeout seconds)
+
+runTCSolver :: (SMT.Solver -> IO a) -> CryptolCommand a
+runTCSolver action =
+  do s <- getTCSolver
+     catchTCSolverTimeout (action s)
 
 liftModuleCmd :: ModuleCmd a -> CryptolCommand a
 liftModuleCmd cmd =
     do Options callStacks evOpts <- getOptions
        s <- CryptolCommand $ const Argo.getState
        reader <- CryptolCommand $ const Argo.getFileReader
+       solver <- getTCSolver
        let minp = ModuleInput
                   { minpCallStacks = callStacks
                   , minpSaveRenamed = False
                   , minpEvalOpts   = pure evOpts
                   , minpByteReader = reader
                   , minpModuleEnv  = view moduleEnv s
-                  , minpTCSolver   = view tcSolver s
+                  , minpTCSolver   = solver
                   }
        out <- liftIO (cmd minp)
        case out of
@@ -141,7 +183,7 @@ loadedPath = lens _loadedPath (\v n -> v { _loadedPath = n })
 data ServerState =
   ServerState { _loadedModule :: Maybe LoadedModule
               , _moduleEnv :: ModuleEnv
-              , _tcSolver :: SMT.Solver
+              , _tcSolver :: MVar (Maybe SMT.Solver)
               , solverConfig :: SMT.SolverConfig
               }
 
@@ -151,19 +193,16 @@ loadedModule = lens _loadedModule (\v n -> v { _loadedModule = n })
 moduleEnv :: Lens' ServerState ModuleEnv
 moduleEnv = lens _moduleEnv (\v n -> v { _moduleEnv = n })
 
-tcSolver :: Lens' ServerState SMT.Solver
+tcSolver :: Lens' ServerState (MVar (Maybe SMT.Solver))
 tcSolver = lens _tcSolver (\v n -> v { _tcSolver = n })
 
 
 initialState :: IO ServerState
 initialState =
   do modEnv <- initialModuleEnv
-     -- NOTE: the "pure ()" is a callback which is invoked if/when the solver
-     -- stops for some reason.  This is just a placeholder for now, and could
-     -- be replaced by something more useful.
      let sCfg = defaultSolverConfig (meSearchPath modEnv)
-     s <- SMT.startSolver (pure ()) sCfg
-     pure (ServerState Nothing modEnv s sCfg)
+     solverRef <- newMVar Nothing
+     pure (ServerState Nothing modEnv solverRef sCfg)
 
 extendSearchPath :: [FilePath] -> ServerState -> ServerState
 extendSearchPath paths =
@@ -172,9 +211,13 @@ extendSearchPath paths =
 
 resetTCSolver :: CryptolCommand ()
 resetTCSolver = do
-  s <- getTCSolver
-  sCfg <- getTCSolverConfig
-  liftIO $ SMT.resetSolver s sCfg
+  ref <- getTCSolverRef
+  solver <- liftIO $
+    modifyMVar ref $ \mb ->
+      pure (Nothing, mb)
+  case solver of
+    Nothing -> pure ()
+    Just s  -> liftIO (SMT.stopSolver s)
 
 instance FreshM CryptolCommand where
   liftSupply f = do

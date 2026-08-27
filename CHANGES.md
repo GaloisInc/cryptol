@@ -28,6 +28,10 @@
   intermediate Cryptol passes.
   ([#2000](https://github.com/GaloisInc/cryptol/issues/2000))
 
+* Add a timeout for individual typechecker SMT queries, configurable with the
+  `tcTimeout` REPL option. Timed-out solver processes are killed and replaced.
+  ([#2117](https://github.com/GaloisInc/cryptol/issues/2117))
+
 * Support `prime` constraints in numeric constraint guards.
   ([#1658](https://github.com/GaloisInc/cryptol/issues/1658))
 

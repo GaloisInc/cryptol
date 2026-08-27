@@ -10,6 +10,7 @@ module CryptolServer.Exceptions
   , proverError
   , cryptolParseErr
   , cryptolError
+  , tcSolverTimeout
   , moduleNotLoaded
   , configLoadError
   , noModule
@@ -211,6 +212,13 @@ cryptolParseErr expr err =
   makeJSONRPCException
     20000 "Cryptol parse error"
     (Just $ JSON.object ["input" .= expr, "error" .= show err])
+
+tcSolverTimeout :: Int -> JSONRPCException
+tcSolverTimeout seconds =
+  makeJSONRPCException
+    20730
+    "Typechecker SMT solver timed out"
+    (Just (JSON.object ["timeout" .= seconds]))
 
 -- The standard way of presenting a type: a structured type, plus a
 -- human-readable string
