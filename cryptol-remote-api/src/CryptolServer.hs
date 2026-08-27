@@ -184,6 +184,9 @@ data ServerState =
   ServerState { _loadedModule :: Maybe LoadedModule
               , _moduleEnv :: ModuleEnv
               , _tcSolver :: MVar (Maybe SMT.Solver)
+                -- ^ Holds the current typechecker solver, if one is running.
+                -- When `Nothing`, the next module command starts a fresh solver
+                -- and saves it here.
               , solverConfig :: SMT.SolverConfig
               }
 

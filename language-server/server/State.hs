@@ -35,8 +35,8 @@ data Config = Config {
   -- ^ A callback to use to send messages to the client
 
   cryTCSolver :: MVar (Maybe Solver),
-  -- ^ The current typechecker solver.  A solver exit clears this, and the
-  -- next module command starts a fresh solver.
+  -- ^ Holds the current typechecker solver, if one is running.  When `Nothing`,
+  -- the next module command starts a fresh solver and saves it here.
 
   crySearchPath :: [FilePath]
   -- ^ Search path for modules
