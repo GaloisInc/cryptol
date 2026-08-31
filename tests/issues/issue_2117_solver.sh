@@ -14,7 +14,13 @@ do
       then
         printf 'unsat\n'
       else
-        exec sleep 3600
+        # Delay long enough for Cryptol's timeout to fire, then return a bogus
+        # response so that the test fails rather than hanging if it does not.
+        # Redirect the child's handles so that it cannot keep the solver pipes
+        # open if the shell is killed.
+        sleep 30 >/dev/null 2>&1
+        printf '(error not-killed)\n'
+        exit 1
       fi
       ;;
     "(exit)")
