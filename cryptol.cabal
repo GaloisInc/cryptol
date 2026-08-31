@@ -85,7 +85,7 @@ library
                        -- 11.6+ do not work with the old z3 we have in
                        -- what4-solvers and use in CI.
                        sbv               >= 9.1 && < 11.1,
-                       simple-smt        >= 1.0,
+                       simple-smt        >= 1.0.1,
                        stm               >= 2.4,
                        strict,
                        text              >= 1.1,
