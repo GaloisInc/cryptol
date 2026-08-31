@@ -1127,6 +1127,7 @@ Given a literal integer, construct a value of a type that can represent that lit
 > literal :: Integer -> TValue -> E Value
 > literal i = go
 >   where
+>    go TVBit      = pure (VBit (i > 0))
 >    go TVInteger  = pure (VInteger i)
 >    go TVRational = pure (VRational (fromInteger i))
 >    go (TVFloat e p) = pure (VFloat (fpToBF e p (FP.bfFromInteger i)))

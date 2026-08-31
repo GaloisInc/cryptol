@@ -64,6 +64,11 @@
 
 ## Bug fixes
 
+* Fix a panic in the reference evaluator (`:eval`) when evaluating a
+  numeric literal at type `Bit`, e.g. `:eval 1 : Bool`. The reference
+  evaluator now agrees with the concrete evaluator, treating a nonzero
+  literal as `True` and zero as `False`.
+
 * Fix pretty printing of types in errors messages
   ([#2019](https://github.com/GaloisInc/cryptol/issues/2019))
 
