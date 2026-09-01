@@ -1,0 +1,8 @@
+// Numeric literals at type Bit should evaluate the same way in the
+// concrete evaluator and the reference evaluator.
+
+0 : Bit
+:eval 0 : Bit
+
+1 : Bit
+:eval 1 : Bit
