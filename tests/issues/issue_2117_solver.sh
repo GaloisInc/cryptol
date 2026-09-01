@@ -7,6 +7,14 @@ checks=0
 # is permanently stuck. Cryptol should terminate this process.
 while IFS= read -r command
 do
+  # Remove \r at the end of line, which might happen on Windows
+  # so that the commands below match properly.
+  case "$command" in
+    *"$carriage_return")
+      command=${command%"$carriage_return"}
+      ;;
+  esac
+
   case "$command" in
     "(check-sat)")
       checks=$((checks + 1))
