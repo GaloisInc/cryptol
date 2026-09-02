@@ -324,11 +324,7 @@ executable cryptol
                      , cryptol-repl-internal
                      , directory
                      , filepath
-  GHC-options:         -Wall -threaded -rtsopts -O2
-  if os(windows)
-     ghc-options: "-with-rtsopts=-N1 -A64m --io-manager=native"
-  else
-     ghc-options: "-with-rtsopts=-N1 -A64m"
+  GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m" -O2
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
 
