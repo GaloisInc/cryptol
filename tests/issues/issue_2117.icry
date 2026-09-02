@@ -1,8 +1,11 @@
-// The first check-sat is used while loading Cryptol; hang on the next one,
-// which is issued while checking issue_2117.
+// Hang on the check-sat issued while checking the declaration below.
+:! sh -c "rm -f issue_2117_solver_exited.marker"
 :set tcTimeout=1
-:set tcSolver=sh issue_2117_solver.sh 1
-:load issue_2117.cry
+:set tcSolver=sh issue_2117_solver.sh
+:{
+f : {n} (n >= 1) => [n]
+f = zero # (zero : [n - 1])
+:}
 
 // Confirm that the killed solver is replaced.
 :set tcSolver=z3 -smt2 -in
@@ -12,10 +15,15 @@ x
 
 // Also exercise the defaultReplExpr call outside of InferM.
 :set tcTimeout=1
-:set tcSolver=sh issue_2117_solver.sh 0
+:set tcSolver=sh issue_2117_solver.sh
 1
 
 // Confirm recovery from that timeout as well.
 :set tcSolver=z3 -smt2 -in
 :set tcTimeout=0
 x
+
+// The fake solver creates this marker if its own fallback stops the test from
+// hanging.  Print it so that the golden test fails instead of masking a bug in
+// Cryptol's solver termination.
+:! sh -c "test ! -e issue_2117_solver_exited.marker || { cat issue_2117_solver_exited.marker; rm -f issue_2117_solver_exited.marker; exit 1; }"

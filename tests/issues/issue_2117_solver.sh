@@ -1,43 +1,13 @@
 #!/usr/bin/env sh
 
-allowed_checks=${1:-0}
-checks=0
 carriage_return=$(printf '\r')
-watchdog_seconds=${ISSUE_2117_WATCHDOG_SECONDS:-30}
-solver_pid=$$
-watchdog_pid=
+marker_file=issue_2117_solver_exited.marker
 
-watchdog_expired()
+record_self_exit()
 {
-  printf '(error issue_2117-fake-solver-watchdog-expired)\n'
-  exit 2
+  printf 'ERROR: fake solver pid=%s exited on its own: %s\n' \
+    "$$" "$1" >> "$marker_file"
 }
-
-cleanup_watchdog()
-{
-  if [ -n "$watchdog_pid" ]
-  then
-    kill "$watchdog_pid" 2>/dev/null || :
-  fi
-}
-
-trap watchdog_expired USR1
-trap cleanup_watchdog EXIT
-
-# Ensure that this test cannot hang forever, even if the fake solver receives
-# an unexpected command or Cryptol gets stuck while shutting it down.  Redirect
-# every inherited handle so that the watchdog cannot itself keep the solver
-# pipes open after Cryptol kills the main shell process.
-(
-  sleep "$watchdog_seconds"
-  if kill -0 "$solver_pid" 2>/dev/null
-  then
-    kill -USR1 "$solver_pid" 2>/dev/null || :
-    sleep 1
-    kill -TERM "$solver_pid" 2>/dev/null || :
-  fi
-) </dev/null >/dev/null 2>&1 &
-watchdog_pid=$!
 
 # Respond normally until the requested check-sat, then simulate a solver that
 # is permanently stuck. Cryptol should terminate this process.
@@ -53,19 +23,12 @@ do
 
   case "$command" in
     "(check-sat)")
-      checks=$((checks + 1))
-      if [ "$checks" -le "$allowed_checks" ]
-      then
-        printf 'unsat\n'
-      else
-        # Delay long enough for Cryptol's timeout to fire, then return a bogus
-        # response so that the test fails rather than hanging if it does not.
-        # Redirect the child's handles so that it cannot keep the solver pipes
-        # open if the shell is killed.
-        sleep 30 >/dev/null 2>&1
-        printf '(error not-killed)\n'
-        exit 1
-      fi
+      # Delay long enough for Cryptol's timeout to fire, then return a bogus
+      # response so that the test fails rather than hanging if it does not.
+      sleep 30 >/dev/null 2>&1
+      record_self_exit "30-second check-sat fallback expired"
+      printf '(error not-killed)\n'
+      exit 1
       ;;
     "(exit)")
       exit 0

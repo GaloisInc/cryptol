@@ -1,7 +1,0 @@
-module issue_2117 where
-
-// It is important that checking this definition makes a call to the external
-// type-checking solver.  The test uses a fake solver that always hangs on this
-// call, so that the timeout behavior does not depend on a particular solver.
-f : {n} (n >= 1) => [n]
-f = zero # (zero : [n - 1])
