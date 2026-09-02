@@ -1,0 +1,99 @@
+/**
+ * @title       "Basic Abstract State Machines in Cryptol"
+ * @description "Core types and well-formedness properties for Basic ASMs"
+ * @copyright   "Galois, Free & Fair, Joseph Kiniry, 2025"
+ * @license     "Licensed under the Apache License, Version 2.0"
+ * @author      "Joe Kiniry"
+ * @version     "0.1.0"
+ */
+
+module ASM::BasicASM where
+
+/*
+ * Defines the abstract syntax and semantic constraints of Basic ASMs
+   per Section 2.2 of Börger and Stärk's Abstract State Machines.
+ */
+
+// @todo kiniry Turn these into module parameters?
+
+type IdentifierMaxLength  = 32
+type DomainMaxSize        = 64
+type LocationMaxArity     = 4
+type AbstractStateMaxSize = 16
+type MaxUpdatesPerRule    = 8
+type undef                = 1
+
+// == Core Type Definitions ==
+
+/**
+ * Symbolic identifiers for functions, locations, etc.
+ */
+type Identifier = [IdentifierMaxLength][8]  // symbolic name encoded as 8-bit ASCII
+
+/**
+ * Domain elements are symbolic constants or concrete values.
+ */
+type DomainValue = [DomainMaxSize] // assuming domain values fit within 64 bits
+
+/**
+ * A location is a pair of a function identifier and arguments.
+ */
+// Function name + up to 4 arguments (arity bound)
+type Location = (Identifier, [LocationMaxArity][DomainMaxSize])
+
+/**
+ * The state is a finite map from locations to values.
+ */
+type State = [AbstractStateMaxSize](Location, DomainValue)
+
+/**
+ * An update is a triple of (location, new value, 'undef' flag).
+ */
+type Update = (Location, DomainValue, Bit)
+
+/**
+ * A rule is modeled abstractly as a function from state to list of updates.
+ */
+type Updates = [MaxUpdatesPerRule]Update
+type Rule = State -> Updates
+
+// == ASM Theorems ==
+
+// == Well-Formedness Properties ==
+
+/**
+ * @invariant Locations in a single update set must be distinct.
+ */
+uniqueLocations : Updates -> Bit
+uniqueLocations = \u -> False
+
+/*
+uniqueLocations us = (i == j) || ((us@i).0 != ((us@j).0))
+  where
+     i = [0 .. 63]
+     j = [0 .. 63]
+*/
+
+/**
+ * @invariant No update in the set is undefined.
+ */
+noUndefUpdates : Updates -> Bit
+noUndefUpdates = \u -> False
+// noUndefUpdates us = all (\(_, _, b) -> b == 0) us
+
+/**
+ * A well-formed update set has unique locations and no undefined values.
+ */
+wellFormedUpdateSet : Updates -> Bit
+wellFormedUpdateSet us = uniqueLocations us /\ noUndefUpdates us
+
+/**
+ * A well-formed rule always returns a well-formed update set.
+ */
+wellFormedRule : Rule -> State -> Bit
+wellFormedRule r s = wellFormedUpdateSet (r s)
+
+/* Local Variables: */
+/* comment-start: "// " */
+/* comment-end: "" */
+/* End: */
