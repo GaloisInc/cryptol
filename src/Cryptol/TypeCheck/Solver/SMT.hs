@@ -45,11 +45,14 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Maybe(catMaybes,isJust)
 import           Data.List(partition)
+import           Data.Time.Clock(getCurrentTime)
+import           Control.Concurrent(myThreadId)
 import           Control.Exception
 import           Control.Monad(msum,zipWithM,void)
 import           Data.Char(isSpace)
 import           Text.Read(readMaybe)
-import           System.IO(IOMode(..), hClose, openFile)
+import           System.IO(IOMode(..), hClose, hFlush, hPutStrLn, openFile,
+                           stderr)
 import qualified System.IO.Strict as StrictIO
 import           System.FilePath((</>))
 import           System.Directory(doesFileExist)
@@ -77,6 +80,9 @@ data Solver = Solver
 
   , timeoutSeconds :: Int
     -- ^ Timeout for individual solver queries
+
+  , timeoutDebugEnabled :: Bool
+    -- ^ Temporary diagnostics for issue_2117.
   }
 
 newtype SolverTimeout = SolverTimeout Int
@@ -129,6 +135,8 @@ startSolver onExit sCfg =
             { solver = solver
             , logger = logger
             , timeoutSeconds = solverTimeout sCfg
+            , timeoutDebugEnabled =
+                "issue_2117_solver.sh" `elem` solverArgs sCfg
             }
       setupSolver sol sCfg
       return sol
@@ -143,7 +151,10 @@ startSolver onExit sCfg =
 
 -- | Kill the process running the solver
 killSolver :: Solver -> IO ()
-killSolver s = void $ SMT.forceStop (solver s)
+killSolver s =
+  do timeoutDebug s "entering SMT.forceStop"
+     void $ SMT.forceStop (solver s)
+     timeoutDebug s "SMT.forceStop returned"
 
 -- | Shut down a solver instance
 stopSolver :: Solver -> IO ()
@@ -162,14 +173,32 @@ check :: Solver -> IO SMT.Result
 check s
   | timeoutSeconds s <= 0 = SMT.check (solver s)
   | otherwise =
-      do mb <- Timeout.timeout
+      do timeoutDebug s "entering System.Timeout.timeout around SMT.check"
+         mb <- Timeout.timeout
                   (timeoutSeconds s * 1000000)
                   (SMT.check (solver s))
+         timeoutDebug s $
+           case mb of
+             Just _  -> "System.Timeout.timeout returned Just"
+             Nothing -> "System.Timeout.timeout returned Nothing"
          case mb of
            Just result -> pure result
            Nothing ->
-             do killSolver s
+             do timeoutDebug s "timeout expired; about to kill solver"
+                killSolver s
+                timeoutDebug s "solver killed; throwing SolverTimeout"
                 throwIO (SolverTimeout (timeoutSeconds s))
+
+timeoutDebug :: Solver -> String -> IO ()
+timeoutDebug s msg =
+  if timeoutDebugEnabled s
+    then do now <- getCurrentTime
+            tid <- myThreadId
+            hPutStrLn stderr
+              ("issue_2117 timeout debug [" ++ show now ++ "] [" ++
+               show tid ++ "] " ++ msg)
+            hFlush stderr
+    else pure ()
 
 -- | Load the definitions used for type checking.
 loadTcPrelude :: Solver -> [FilePath] {- ^ Search in this paths -} -> IO ()
