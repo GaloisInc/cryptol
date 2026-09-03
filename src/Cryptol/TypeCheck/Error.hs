@@ -224,6 +224,9 @@ data Error    = KindMismatch (Maybe TypeSource) Kind Kind
               | OverlappingPat (Maybe Ident) [Range]
                 -- ^ Overlapping patterns in a case
 
+              | TCSolverTimeout Int
+                -- ^ The typechecker SMT solver exceeded its timeout
+
               | TemporaryError Doc
                 -- ^ This is for errors that don't fit other cateogories.
                 -- We should not use it much, and is generally to be used
@@ -246,6 +249,7 @@ errorImportance :: Error -> Int
 errorImportance err =
   case err of
     BareTypeApp                                      -> 11 -- basically a parse error
+    TCSolverTimeout {}                               -> 11
     TemporaryError {}                                -> 11
     -- show these as usually means the user used something that doesn't work
 
@@ -381,6 +385,7 @@ instance TVars Error where
 
       InvalidConstraintGuard p -> InvalidConstraintGuard $! apSubst su p
 
+      TCSolverTimeout {} -> err
       TemporaryError {} -> err
 
 
@@ -435,6 +440,7 @@ instance FVS Error where
 
       InvalidConstraintGuard p -> fvs p
 
+      TCSolverTimeout {} -> Set.empty
       TemporaryError {} -> Set.empty
 
 instance PP Warning where
@@ -755,6 +761,10 @@ instance PP (WithNames Error) where
              , "Constraint guards support only numeric comparisons and `fin`."
              ]
 
+      TCSolverTimeout seconds ->
+        "Typechecking timed out after" <+> int seconds <+>
+        if seconds == 1 then "second." else "seconds."
+
       TemporaryError doc -> doc
     where
     bullets xs = vcat [ "•" <+> d | d <- xs ]
@@ -916,4 +926,3 @@ computeFreeVarNames cfg warns errs =
   numRoots   = [ "m", "n", "u", "v" ]
 
   variants roots = [ nameVariant n r | n <- [ 0 .. ], r <- roots ]
-

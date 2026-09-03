@@ -19,6 +19,7 @@ module Cryptol.TypeCheck.Solver.SMT
   , startSolver
   , stopSolver
   , killSolver
+  , SolverTimeout(..)
   , isNumeric
   , resetSolver
 
@@ -44,6 +45,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Maybe(catMaybes,isJust)
 import           Data.List(partition)
+import           Control.Concurrent(forkIO,killThread,threadDelay)
+import           Control.Concurrent.MVar(newEmptyMVar,putMVar,takeMVar)
 import           Control.Exception
 import           Control.Monad(msum,zipWithM,void)
 import           Data.Char(isSpace)
@@ -72,7 +75,15 @@ data Solver = Solver
 
   , logger    :: SMT.Logger
     -- ^ For debugging
+
+  , timeoutSeconds :: Int
+    -- ^ Timeout for individual solver queries
   }
+
+newtype SolverTimeout = SolverTimeout Int
+  deriving Show
+
+instance Exception SolverTimeout
 
 setupSolver :: Solver -> SolverConfig -> IO ()
 setupSolver s cfg = do
@@ -115,7 +126,11 @@ startSolver onExit sCfg =
                     , SMT.solverLogger =
                         maybe SMT.noSolverLogger SMT.smtSolverLogger smtDbg
                     }
-      let sol = Solver solver logger
+      let sol = Solver
+            { solver = solver
+            , logger = logger
+            , timeoutSeconds = solverTimeout sCfg
+            }
       setupSolver sol sCfg
       return sol
 
@@ -143,6 +158,28 @@ resetSolver s sCfg = do
 -- | Execute a computation with a fresh solver instance.
 withSolver :: IO () -> SolverConfig -> (Solver -> IO a) -> IO a
 withSolver onExit cfg = bracket (startSolver onExit cfg) stopSolver
+
+check :: Solver -> IO SMT.Result
+check s
+  | timeoutSeconds s <= 0 = SMT.check (solver s)
+  | otherwise =
+      do resultVar <- newEmptyMVar
+         _ <- forkIO $
+                do result <- try (SMT.check (solver s))
+                   putMVar resultVar (Just result)
+         timerThread <- forkIO $
+                          do threadDelay (timeoutSeconds s * 1000000)
+                             putMVar resultVar Nothing
+         result <- takeMVar resultVar
+         case result of
+           Nothing ->
+             do killSolver s
+                throwIO (SolverTimeout (timeoutSeconds s))
+           Just checkResult ->
+             do killThread timerThread
+                case checkResult of
+                   Left ex -> throwIO (ex :: SomeException)
+                   Right a -> pure a
 
 -- | Load the definitions used for type checking.
 loadTcPrelude :: Solver -> [FilePath] {- ^ Search in this paths -} -> IO ()
@@ -261,7 +298,7 @@ tryGetModel sol as ps =
   do push sol
      tvs <- Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] as
      mapM_ (assume sol tvs) ps
-     sat <- SMT.check (solver sol)
+     sat <- check sol
      su <- case sat of
              SMT.Sat ->
                case as of
@@ -351,7 +388,7 @@ prove sol tvs g =
   do let s = solver sol
      push sol
      SMT.assert s (SMT.fun "cryProve" [ toSMT tvs (goal g) ])
-     res <- SMT.check s
+     res <- check sol
      pop sol
      case res of
        SMT.Unsat -> return Nothing
@@ -364,7 +401,7 @@ unsolvable sol tvs ps =
   debugBlock sol "UNSOLVABLE" $
   do SMT.push (solver sol)
      mapM_ (assume sol tvs) ps
-     res <- SMT.check (solver sol)
+     res <- check sol
      SMT.pop (solver sol)
      case res of
        SMT.Unsat -> return True

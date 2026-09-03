@@ -44,8 +44,7 @@ evalExpression' e = do
   (_expr, ty, schema) <- liftModuleCmd (checkExpr e)
   validEvalContext ty
   validEvalContext schema
-  s <- getTCSolver
-  perhapsDef <- liftIO (defaultReplExpr s ty schema)
+  perhapsDef <- runTCSolver (\s -> defaultReplExpr s ty schema)
   case perhapsDef of
     Nothing ->
       raise (evalPolyErr schema)

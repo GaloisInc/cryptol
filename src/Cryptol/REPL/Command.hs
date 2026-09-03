@@ -431,7 +431,9 @@ genHelp cs = map cmdHelp cs
 runCommand :: Int -> Maybe FilePath -> Command -> REPL CommandResult
 runCommand lineNum mbBatch c = case c of
 
-  Command cmd -> cmd lineNum mbBatch `Cryptol.REPL.Monad.catch` handler
+  Command cmd ->
+    rethrowTCSolverTimeout (cmd lineNum mbBatch)
+      `Cryptol.REPL.Monad.catch` handler
     where
     handler re = do
       rPutStrLn ""
@@ -1674,7 +1676,7 @@ cdCmd f | null f = do rPutStrLn $ "[error] :cd requires a path argument"
 -- XXX this should probably do something a bit more specific.
 handleCtrlC :: a -> REPL a
 handleCtrlC a = do rPutStrLn "Ctrl-C"
-                   resetTCSolver
+                   killTCSolver
                    return a
 
 -- Utilities -------------------------------------------------------------------
