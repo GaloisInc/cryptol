@@ -1,0 +1,85 @@
+name: Build and test on platform
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      ghc-version:
+        required: true
+        type: string
+      cabal:
+        required: true
+        type: string
+      test-kind:
+        description: "Tests to run: none, test-lib, or full"
+        required: true
+        type: string
+      solver-pkg-version:
+        required: true
+        type: string
+      name:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      release:
+        required: true
+        type: string
+      event-tag:
+        required: true
+        type: string
+      retention-days:
+        required: true
+        type: number
+    secrets:
+      APPLE_P12_CERTIFICATE:
+        required: false
+      APPLE_P12_PASSWORD:
+        required: false
+      APPLE_P12_IDENTITY_NAME:
+        required: false
+      APPLE_P8_KEY_ID:
+        required: false
+      APPLE_P8_ISSUER_ID:
+        required: false
+      APPLE_P8_API_KEY:
+        required: false
+      SIGNING_PASSPHRASE:
+        required: false
+      SIGNING_KEY:
+        required: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/ci-build.yml
+    with:
+      os: ${{ inputs.os }}
+      ghc-version: ${{ inputs.ghc-version }}
+      cabal: ${{ inputs.cabal }}
+      test-kind: ${{ inputs.test-kind }}
+      solver-pkg-version: ${{ inputs.solver-pkg-version }}
+      name: ${{ inputs.name }}
+      version: ${{ inputs.version }}
+      release: ${{ inputs.release }}
+      event-tag: ${{ inputs.event-tag }}
+      retention-days: ${{ inputs.retention-days }}
+    secrets:
+      APPLE_P12_CERTIFICATE: ${{ secrets.APPLE_P12_CERTIFICATE }}
+      APPLE_P12_PASSWORD: ${{ secrets.APPLE_P12_PASSWORD }}
+      APPLE_P12_IDENTITY_NAME: ${{ secrets.APPLE_P12_IDENTITY_NAME }}
+      APPLE_P8_KEY_ID: ${{ secrets.APPLE_P8_KEY_ID }}
+      APPLE_P8_ISSUER_ID: ${{ secrets.APPLE_P8_ISSUER_ID }}
+      APPLE_P8_API_KEY: ${{ secrets.APPLE_P8_API_KEY }}
+      SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+      SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+
+  test:
+    if: inputs.test-kind == 'test-lib' || inputs.test-kind == 'full'
+    needs: [build]
+    uses: ./.github/workflows/ci-test.yml
+    with:
+      os: ${{ inputs.os }}
+      test-kind: ${{ inputs.test-kind }}
