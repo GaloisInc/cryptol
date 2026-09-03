@@ -118,15 +118,15 @@ doModuleCmd' doLog m k =
             do
               putMVar (cryLog refs) (LSP.runLspT senv . doLog)
               s <- readMVar (stateRef refs)
-              (a,ws) <- m (cryState s)
+              inp <- getModuleInput refs s
+              (a,ws) <- m inp
+              _ <- takeMVar (cryLog refs)
               case a of
                 Left err -> pure (ws, Left err)
                 Right (res,newEnv) ->
                   do
-                    _ <- takeMVar (cryLog refs)
                     modifyMVar_ (stateRef refs) \s1 ->
-                      pure s1 { cryState =
-                                  (cryState s) { minpModuleEnv = newEnv } }
+                      pure s1 { cryEnv = newEnv }
                     pure (ws, Right res)
         LSP.runLspT senv (k warns res)
     pure ()
@@ -156,4 +156,3 @@ doModuleCmd doLog m k =
               Right a -> ([], Just a)
       sendDiagnostics ws err
       k res
-

@@ -34,6 +34,7 @@ module Cryptol.REPL.Monad (
     -- ** Errors
   , REPLException(..)
   , rethrowEvalError
+  , rethrowTCSolverTimeout
 
     -- ** Environment
   , getFocusedEnv
@@ -42,6 +43,7 @@ module Cryptol.REPL.Monad (
   , getCallStacks
   , getTCSolver
   , resetTCSolver
+  , killTCSolver
   , uniqify, freshName
   , whenDebug
   , getEvalOptsAction
@@ -371,6 +373,7 @@ data REPLException
   | SBVException SBVException
   | SBVPortfolioException SBVPortfolioException
   | W4Exception W4Exception
+  | TCSolverTimedOut Int
     deriving (Show,Typeable)
 
 instance X.Exception REPLException
@@ -406,6 +409,9 @@ instance PP REPLException where
     SBVException e       -> text "SBV exception:" $$ text (show e)
     SBVPortfolioException e -> text "SBV exception:" $$ text (show e)
     W4Exception e        -> text "What4 exception:" $$ text (show e)
+    TCSolverTimedOut seconds ->
+      "Typechecking timed out after" <+> int seconds <+>
+      if seconds == 1 then "second." else "seconds."
 
 -- | Raise an exception.
 raise :: REPLException -> REPL a
@@ -440,6 +446,12 @@ rethrowEvalError m =
 
   rethrowUnsupported :: Unsupported -> IO a
   rethrowUnsupported exn = X.throwIO (Unsupported exn)
+
+rethrowTCSolverTimeout :: REPL a -> REPL a
+rethrowTCSolverTimeout m =
+  REPL $ \ref ->
+    unREPL m ref `X.catch` \(SMT.SolverTimeout seconds) ->
+      unREPL (raise (TCSolverTimedOut seconds)) ref
 
 
 -- Primitives ------------------------------------------------------------------
@@ -491,6 +503,15 @@ resetTCSolver =
        Nothing -> return ()
        Just s  ->
          do io (SMT.stopSolver s)
+            modifyRW_ (\rw -> rw{ eTCSolver = Nothing })
+
+killTCSolver :: REPL ()
+killTCSolver =
+  do mtc <- eTCSolver <$> getRW
+     case mtc of
+       Nothing -> return ()
+       Just s  ->
+         do io (SMT.killSolver s)
             modifyRW_ (\rw -> rw{ eTCSolver = Nothing })
 
 -- Get the setting we should use for displaying values.
@@ -1056,6 +1077,17 @@ userOptions  = mkOptionMap $
                                   resetTCSolver
           _                 -> return ()
 
+  , OptionDescr "tcTimeout" ["tc-timeout"] (EnvNum 5)
+    (checkTimeout "tc-timeout")
+    "Specify timeout in seconds for typechecker SMT queries." $
+    \case EnvNum n -> do changed <- modifyRW (\rw -> ( rw{ eTCConfig = (eTCConfig rw)
+                                                                        { T.solverTimeout = n
+                                                                        }}
+                                                      , n /= T.solverTimeout (eTCConfig rw)
+                                                      ))
+                         when changed resetTCSolver
+          _        -> return ()
+
   , OptionDescr "tcDebug" ["tc-debug"] (EnvNum 0)
     noCheck
     (unlines
@@ -1103,7 +1135,8 @@ userOptions  = mkOptionMap $
   , simpleOpt "proverStats" ["prover-stats"] (EnvBool True) noCheck
     "Enable prover timing statistics."
 
-  , simpleOpt "proverTimeout" ["prover-timeout"] (EnvNum 0) checkTimeout
+  , simpleOpt "proverTimeout" ["prover-timeout"] (EnvNum 0)
+      (checkTimeout "prover-timeout")
     "Specify timeout in seconds for online prover processes."
 
   , simpleOpt "proverValidate" ["prover-validate"] (EnvBool False) noCheck
@@ -1209,13 +1242,13 @@ parseFieldOrder "canonical" = Just CanonicalOrder
 parseFieldOrder "display" = Just DisplayOrder
 parseFieldOrder _ = Nothing
 
-checkTimeout :: Checker
-checkTimeout val =
+checkTimeout :: String -> Checker
+checkTimeout option val =
   case val of
     EnvNum n
       | n < 0 -> noWarns (Just "timeout should be non-negative")
       | otherwise -> noWarns Nothing
-    _ -> noWarns (Just "Failed to parse `prover-timeout`")
+    _ -> noWarns (Just ("Failed to parse `" ++ option ++ "`"))
 
 checkFieldOrder :: Checker
 checkFieldOrder val =

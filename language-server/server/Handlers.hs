@@ -13,7 +13,6 @@ import qualified Language.LSP.Protocol.Lens as LSP
 
 import Cryptol.Utils.PP(pp,int)
 import Cryptol.ModuleSystem.Env
-import Cryptol.ModuleSystem.Monad
 
 import Monad
 import State
@@ -53,10 +52,8 @@ onConfigChange :: Config -> M ()
 onConfigChange cfg =
   do
     update_ \s -> 
-      let inp   = cryState s
-          me    = minpModuleEnv inp
-          meNew = me { meSearchPath = crySearchPath cfg }
-      in s { cryState = inp { minpModuleEnv = meNew } }
+      let meNew = (cryEnv s) { meSearchPath = crySearchPath cfg }
+      in s { cryEnv = meNew }
     reload
   
 onDocumentOpen :: LSP.DidOpenTextDocumentParams -> M ()

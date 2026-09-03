@@ -46,6 +46,7 @@ data SolverConfig = SolverConfig
   { solverPath    :: FilePath   -- ^ The SMT solver to invoke
   , solverArgs    :: [String]   -- ^ Additional arguments to pass to the solver
   , solverVerbose :: Int        -- ^ How verbose to be when type-checking
+  , solverTimeout :: Int        -- ^ Timeout for solver queries, in seconds
   , solverPreludePath :: [FilePath]
     -- ^ Look for the solver prelude in these locations.
   , solverSmtFile :: Maybe FilePath
@@ -63,6 +64,7 @@ defaultSolverConfig searchPath =
   { solverPath = "z3"
   , solverArgs = [ "-smt2", "-in" ]
   , solverVerbose = 0
+  , solverTimeout = 5
   , solverPreludePath = searchPath
   , solverSmtFile = Nothing
   }

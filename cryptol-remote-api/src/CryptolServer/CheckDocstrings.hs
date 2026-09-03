@@ -12,7 +12,7 @@ module CryptolServer.CheckDocstrings
   where
 
 import qualified Argo.Doc as Doc
-import Control.Monad.IO.Class (MonadIO(liftIO))
+import qualified Control.Exception as X
 import Data.Aeson ((.=),(.:),FromJSON, ToJSON)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson as JSON
@@ -54,9 +54,8 @@ checkDocstringsAPI (CheckDocstringsParams cache) = do
       if T.isParametrizedModule (M.lmdModule (M.lmData m)) then
         pure (CheckDocstringsResult [] cache) -- can't be checked directly
       else do
-        solver <- getTCSolver
         cfg <- getTCSolverConfig
-        liftIO $
+        catchTCSolverTimeout $
          do rng <- TF.newTFGen
             rwRef <- newIORef REPL.RW
               { REPL.eLoadedMod        = Nothing
@@ -70,7 +69,7 @@ checkDocstringsAPI (CheckDocstringsParams cache) = do
               , REPL.eUpdateTitle      = return ()
               , REPL.eProverConfig     = Left SBV.defaultProver
               , REPL.eTCConfig         = cfg
-              , REPL.eTCSolver         = Just solver
+              , REPL.eTCSolver         = Nothing
               , REPL.eTCSolverRestarts = 0
               , REPL.eRandomGen        = rng
               , REPL.eDocAnnotStyle    = NoAnnot
@@ -81,7 +80,8 @@ checkDocstringsAPI (CheckDocstringsParams cache) = do
                        results = rs,
                        cacheId = cid
                      }
-            REPL.unREPL work rwRef
+                cleanup = REPL.unREPL REPL.resetTCSolver rwRef
+            REPL.unREPL work rwRef `X.finally` cleanup
 
 data CheckDocstringsResult = CheckDocstringsResult {
   results :: [DocstringResult],

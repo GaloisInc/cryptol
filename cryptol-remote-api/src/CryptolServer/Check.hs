@@ -34,9 +34,9 @@ import Cryptol.TypeCheck.Solve (defaultReplExpr)
 
 
 import CryptolServer
-    ( getTCSolver,
-      getModuleEnv,
+    ( getModuleEnv,
       liftModuleCmd,
+      runTCSolver,
       validEvalContext,
       CryptolMethod(raise),
       CryptolCommand )
@@ -59,8 +59,7 @@ check (CheckParams jsonExpr cMode) =
      (_expr, ty, schema) <- liftModuleCmd (CM.checkExpr e)
      validEvalContext ty
      validEvalContext schema
-     s <- getTCSolver
-     perhapsDef <- liftIO (defaultReplExpr s ty schema)
+     perhapsDef <- runTCSolver (\s -> defaultReplExpr s ty schema)
      case perhapsDef of
        Nothing -> raise (evalPolyErr schema)
        Just (tys, checked) -> do

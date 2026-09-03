@@ -59,8 +59,7 @@ proveSat (ProveSatParams queryType (ProverName proverName) jsonExpr hConsing) = 
   validEvalContext ty
   validEvalContext schema
   decls <- deDecls . meDynEnv <$> getModuleEnv
-  s <- getTCSolver
-  perhapsDef <- liftIO (defaultReplExpr s ty schema)
+  perhapsDef <- runTCSolver (\s -> defaultReplExpr s ty schema)
   case perhapsDef of
     Nothing -> raise (evalPolyErr schema)
     Just (_tys, checked) -> do
