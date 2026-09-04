@@ -863,6 +863,77 @@ mkIndexedExpr (ps, ixs) body
   | null ps = mkGenerate (reverse ixs) body
   | otherwise = EFun emptyFunDesc (reverse ps) (mkGenerate (reverse ixs) body)
 
+-- | Construct a record field by decomposing its expression-shaped left-hand
+-- side into a field path, parameters, and indices.  Parsing the left-hand side
+-- as an expression lets the parser postpone deciding whether it is
+--
+--     { f x | ... }       -- the head of a record update
+--     { f x @ i = ... }   -- the left-hand side of a record field
+--
+-- until it sees the delimiter.
+mkRecField ::
+  Expr PName ->
+  UpdHow ->
+  Expr PName ->
+  ParseM (UpdField PName)
+mkRecField lhs how body =
+  do let (app, ixs0) = splitFieldIndices lhs
+         (path, ps0) = splitFieldApp app
+     sels <- exprToFieldPath path
+     ps <- traverse exprAtomToIPat ps0
+     ixs <- traverse exprAtomToIPat ixs0
+     pure (UpdField how sels
+             (mkIndexedExpr (reverse ps, reverse ixs) body))
+
+-- | Split a left-associated chain of uses of the infix-at operator.  The parser
+-- represents operators as located 'EInfix' nodes until fixity resolution.
+splitFieldIndices :: Expr PName -> (Expr PName, [Expr PName])
+splitFieldIndices = go Nothing []
+  where
+  go mbLoc ixs expr =
+    case expr of
+      ELocated e r -> go (Just r) ixs e
+      EInfix lhs op _ rhs
+        | UnQual "@" <- thing op ->
+          go mbLoc (rhs : ixs) lhs
+      _ -> (at mbLoc expr, ixs)
+
+-- | Split a left-associated expression application into its head and
+-- arguments.
+splitFieldApp :: Expr PName -> (Expr PName, [Expr PName])
+splitFieldApp = go Nothing []
+  where
+  go mbLoc args expr =
+    case expr of
+      ELocated e r -> go (Just r) args e
+      EApp f x     -> go mbLoc (x : args) f
+      _            -> (at mbLoc expr, args)
+
+-- | Convert an expression atom back to the irrefutable pattern with the same
+-- concrete syntax.
+exprAtomToIPat :: Expr PName -> ParseM (Pattern PName)
+exprAtomToIPat = go emptyRange
+  where
+  go :: Range -> Expr PName -> ParseM (Pattern PName)
+  go loc expr =
+    case expr of
+      ELocated e r -> PLocated <$> go r e <*> pure r
+      EParens e -> go loc e
+
+      EVar n
+        | UnQual "_" <- n -> pure PWild
+        | otherwise -> pure (mkPVar (Located loc n))
+
+      ETuple es -> PTuple <$> traverse (go loc) es
+      ERecord fs -> PRecord <$> traverseRecordMap cvt fs
+        where cvt _ (r,e) = (,) r <$> go r e
+      EList es -> PList <$> traverse (go loc) es
+      ETyped e t -> (`PTyped` t) <$> go loc e
+      EInfix e1 op _ e2
+        | UnQual "#" <- thing op -> PSplit <$> go loc e1 <*> go loc e2
+
+      _ -> errorMessage loc ["Invalid parameter in record field."]
+
 mkGenerate :: [Pattern PName] -> Expr PName -> Expr PName
 mkGenerate pats body =
   foldr (\pat e -> EGenerate (EFun emptyFunDesc [pat] e)) body pats
@@ -1717,5 +1788,3 @@ desugarFunctorInst iname functor inst kind =
               , mDocTop  = Nothing
               }
      pure (iname, ms ++ [mo])
-
-

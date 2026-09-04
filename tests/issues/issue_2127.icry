@@ -1,0 +1,7 @@
+:{
+mkRecord : [8] -> { x : [8][8], y : [8] }
+mkRecord x = { x @i = x + i, y = x + 1 }
+
+updated = { mkRecord 10 | y -> y + 20 }
+:}
+updated

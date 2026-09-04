@@ -674,7 +674,7 @@ tuple_exprs                    :: { [Expr PName] }
 
 
 rec_expr :: { Either (Expr PName) [Named (Expr PName)] }
-  : aexpr '|' field_exprs         { Left (EUpd (recExprWildcardCase $1) (reverse $3)) }
+  : expr '|' field_exprs          { Left (EUpd (recExprWildcardCase $1) (reverse $3)) }
   | field_exprs                   {% Right `fmap` mapM ufToNamed $1 }
 
 field_exprs                    :: { [UpdField PName] }
@@ -682,11 +682,7 @@ field_exprs                    :: { [UpdField PName] }
   | field_exprs ',' field_expr    { $3 : $1 }
 
 field_expr                     :: { UpdField PName }
-  : field_path opt_iapats_indices field_how expr
-                                  { UpdField $3 $1 (mkIndexedExpr $2 $4) }
-
-field_path                     :: { [Located Selector] }
-  : aexpr                         {% exprToFieldPath $1 }
+  : simpleExpr field_how expr     {% mkRecField $1 $2 $3 }
 
 field_how                      :: { UpdHow }
   : '='                           { UpdSet }
@@ -801,12 +797,6 @@ indices1                :: { [Pattern PName] }
 iapats_indices          :: { ([Pattern PName], [Pattern PName]) }
   : iapats indices         { ($1, $2) }
   | '@' indices1           { ([], $2) }
-
-opt_iapats_indices      :: { ([Pattern PName], [Pattern PName]) }
-  : {- empty -}            { ([],[]) }
-  | iapats_indices         { $1 }
-
-
 
 --------------------------------------------------------------------------------
 

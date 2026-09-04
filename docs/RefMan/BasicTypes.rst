@@ -38,6 +38,18 @@ Ordering on tuples and records is defined lexicographically. Tuple
 components are compared in the order they appear, whereas record
 fields are compared in alphabetical order of field names.
 
+It is OK to use function and sequence notation (see `Sequences`_) when defining
+records fields, similar to how it works at the top-level.  For example, here's
+a record with three fields:
+
+.. code-block:: cryptol
+
+  { f x     = x + 0x01,   // a function
+    xs @ i  = i + 0x02,   // a sequence
+    z       = 0x03        // a byte
+  }
+Note that *pattern bindings* are not allowed when defining record fields,
+so things like ``{ (x,y) = e1, (x: [5]) = e2 }`` will be rejected.
 
 
 Accessing Fields
@@ -129,6 +141,15 @@ notation:
   { n | pt.x = 10 }       == { pt = { x = 10, y = 20 }, size = 100 }
   { n | pt.x -> x + 10 }  == { pt = { x = 25, y = 20 }, size = 100 }
 
+Similarly to record construction, the field updates may use function or
+sequence notation, for example:
+
+.. code-block:: cryptol
+
+  r = { foo x = x + 0x01 } // a record with a function field
+
+  { r | foo x -> foo x + 2 } // a record with a function field:
+  // given `x`, evaluate using the OLD `foo`, then add 2
 
 Sequences
 ---------
