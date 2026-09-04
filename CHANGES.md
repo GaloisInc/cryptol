@@ -2,6 +2,10 @@
 
 ## Language changes
 
+* Allow arbitrary expressions in the head of a record update, previously
+  we were restricted to atomic expressions.
+  ([#2127](https://github.com/GaloisInc/cryptol/issues/2127))
+
 * Primitives `arrayCopy`, `arraySet`, and `arrayRangeEqual` from the
   built-in `Array` module now have types with `fin` constraints.
   ([#2037](https://github.com/GaloisInc/cryptol/issues/2037))
