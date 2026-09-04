@@ -1,0 +1,281 @@
+name: Build on platform
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      ghc-version:
+        required: true
+        type: string
+      cabal:
+        required: true
+        type: string
+      test-kind:
+        description: "Tests to run: none, test-lib, or full"
+        required: true
+        type: string
+      solver-pkg-version:
+        required: true
+        type: string
+      name:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      release:
+        required: true
+        type: string
+      event-tag:
+        required: true
+        type: string
+      retention-days:
+        required: true
+        type: number
+    secrets:
+      APPLE_P12_CERTIFICATE:
+        required: false
+      APPLE_P12_PASSWORD:
+        required: false
+      APPLE_P12_IDENTITY_NAME:
+        required: false
+      APPLE_P8_KEY_ID:
+        required: false
+      APPLE_P8_ISSUER_ID:
+        required: false
+      APPLE_P8_API_KEY:
+        required: false
+      SIGNING_PASSPHRASE:
+        required: false
+      SIGNING_KEY:
+        required: false
+
+env:
+  # The CACHE_VERSION can be updated to force the use of a new cache if
+  # the current cache contents become corrupted/invalid.  This can
+  # sometimes happen when (for example) the OS version is changed but
+  # older .so files are cached, which can have various effects
+  # (e.g. cabal complains it can't find a valid version of the "happy"
+  # tool).
+  CACHE_VERSION: 1
+
+jobs:
+  build:
+    runs-on: ${{ inputs.os }}
+    env:
+      SOLVER_PKG_VERSION: ${{ inputs.solver-pkg-version }}
+      VERSION: ${{ inputs.version }}
+      RELEASE: ${{ inputs.release }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      # On macOS, import the signing certificate, which we will use later to
+      # sign the binaries after they have been built.
+      # Do not run this step in forks, as this requires repo-specific secrets.
+      - name: Import signing certificate (macOS)
+        uses: apple-actions/import-codesign-certs@v3
+        if: runner.os == 'macOS' &&
+            github.event.pull_request.head.repo.fork == false &&
+            github.repository_owner == 'GaloisInc' &&
+            github.actor != 'dependabot[bot]'
+        with:
+          p12-file-base64: ${{ secrets.APPLE_P12_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_P12_PASSWORD }}
+
+      - uses: haskell-actions/setup@v2
+        id: setup-haskell
+        with:
+          ghc-version: ${{ inputs.ghc-version }}
+          cabal-version: ${{ inputs.cabal }}
+
+      - name: Post-GHC installation fixups on Windows
+        shell: bash
+        if: runner.os == 'Windows'
+        run: |
+          # A workaround for https://github.com/Mistuke/CabalChoco/issues/5
+          cabal user-config update -a "extra-include-dirs: \"\""
+          cabal user-config update -a "extra-lib-dirs: \"\""
+
+      - uses: actions/cache/restore@v4
+        name: Restore cache store cache
+        with:
+          path: |
+            ${{ steps.setup-haskell.outputs.cabal-store }}
+            dist-newstyle
+          key: ${{ env.CACHE_VERSION }}-cabal-${{ inputs.os }}-${{ inputs.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', inputs.ghc-version)) }}-${{ github.sha }}
+          restore-keys: |
+            ${{ env.CACHE_VERSION }}-cabal-${{ inputs.os }}-${{ inputs.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', inputs.ghc-version)) }}-
+
+      - name: Download what4-solvers
+        uses: GaloisInc/what4-solvers@v1
+        with:
+          dest: bin
+          release: ${{ env.SOLVER_PKG_VERSION }}
+
+      - shell: bash
+        name: Add what4-solvers to GITHUB_PATH
+        run: echo "$PWD/bin" >> $GITHUB_PATH
+
+      - shell: bash
+        run: .github/ci.sh build
+
+      - shell: bash
+        name: Extract Cryptol executables to dist/bin/
+        run: .github/ci.sh setup_dist_bins
+
+      # On macOS, code sign the binaries to verify that Galois is the author.
+      # Do not run this step in forks, as this requires repo-specific secrets.
+      - name: Sign binaries (macOS)
+        if: runner.os == 'macOS' &&
+            github.event.pull_request.head.repo.fork == false &&
+            github.repository_owner == 'GaloisInc' &&
+            github.actor != 'dependabot[bot]'
+        env:
+          IDENTITY_NAME: ${{ secrets.APPLE_P12_IDENTITY_NAME }}
+        run: |
+          codesign \
+            --force \
+            --options runtime \
+            --sign "$IDENTITY_NAME" \
+            dist/bin/*
+
+      # On macOS, notarize the binaries so that users can run them without
+      # needing to whitelist them. Note that Apple's documentation suggests
+      # that you shouldn't notarize more than 75 times in one day
+      # (https://developer.apple.com/documentation/security/customizing-the-notarization-workflow#Avoid-long-notarization-response-times-and-size-limits),
+      # so as a precaution, we only perform this step for scheduled events,
+      # workflow dispatches, or releases (and not in pull requests).
+      - name: Notarize binaries (macOS)
+        if: runner.os == 'macOS' &&
+            (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || inputs.release == 'true' || inputs.event-tag == 'true') &&
+            github.repository_owner == 'GaloisInc' &&
+            github.actor != 'dependabot[bot]'
+        env:
+          KEY_ID: ${{ secrets.APPLE_P8_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPLE_P8_ISSUER_ID }}
+          API_KEY: ${{ secrets.APPLE_P8_API_KEY }}
+        run: |
+          zip binaries.zip dist/bin/*
+          echo "$API_KEY" > "AuthKey_$KEY_ID.p8"
+          xcrun notarytool submit binaries.zip \
+            --key "AuthKey_$KEY_ID.p8" \
+            --key-id "$KEY_ID" \
+            --issuer "$ISSUER_ID" \
+            --wait
+
+      - shell: bash
+        name: Extract Cryptol API test suite executable to bin/
+        run: .github/ci.sh extract_exe "test:cryptol-api-tests" "bin"
+
+      - shell: bash
+        run: .github/ci.sh check_docs
+        if: runner.os != 'Windows'
+      - shell: bash
+        run: .github/ci.sh check_rpc_docs
+        if: runner.os != 'Windows'
+
+      - shell: bash
+        name: Install test runner
+        run: cabal v2-install --install-method=copy --installdir="./bin" test-lib
+
+      - shell: bash
+        run: .github/ci.sh bundle_files
+
+      - if: runner.os == 'Windows'
+        run: .github/wix.ps1
+
+      # Do not run this on forks. It isn't sufficient to check the pull
+      # request info because we might also be on master in a fork. It
+      # seems that you can't stop scheduled jobs from also running in
+      # forks. See https://github.com/orgs/community/discussions/16109.
+      - if: runner.os == 'Windows' &&
+            github.event.pull_request.head.repo.fork == false &&
+            github.repository_owner == 'GaloisInc' &&
+            github.actor != 'dependabot[bot]'
+        shell: bash
+        env:
+          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: .github/ci.sh sign cryptol.msi
+
+      - shell: bash
+        run: |
+          NAME="${{ inputs.name }}-${{ inputs.os }}-${{ runner.arch }}"
+          echo "NAME=$NAME" >> $GITHUB_ENV
+          .github/ci.sh zip_dist $NAME
+        env:
+          OS_TAG: ${{ inputs.os }}
+          ARCH_TAG: ${{ runner.arch }}
+
+      - shell: bash
+        run: |
+          NAME="${{ inputs.name }}-${{ inputs.os }}-${{ runner.arch }}"
+          echo "NAME=$NAME" >> $GITHUB_ENV
+          .github/ci.sh zip_dist_with_solvers $NAME
+        env:
+          OS_TAG: ${{ inputs.os }}
+          ARCH_TAG: ${{ runner.arch }}
+
+      # Do not run this on forks. It isn't sufficient to check the pull
+      # request info because we might also be on master in a fork. It
+      # seems that you can't stop scheduled jobs from also running in
+      # forks. See https://github.com/orgs/community/discussions/16109.
+      - if: github.event.pull_request.head.repo.fork == false &&
+            github.repository_owner == 'GaloisInc' &&
+            github.actor != 'dependabot[bot]'
+        shell: bash
+        env:
+          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          .github/ci.sh sign ${NAME}.tar.gz
+          .github/ci.sh sign ${NAME}-with-solvers.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }} (GHC ${{ inputs.ghc-version }})
+          path: "${{ env.NAME }}.tar.gz*"
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }}-with-solvers (GHC ${{ inputs.ghc-version }})
+          path: "${{ env.NAME }}-with-solvers.tar.gz*"
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}
+
+      - if: inputs.test-kind != 'none'
+        uses: actions/upload-artifact@v4
+        with:
+          path: dist/bin
+          name: ${{ inputs.os }}-dist-bin
+
+      - if: inputs.test-kind != 'none'
+        uses: actions/upload-artifact@v4
+        with:
+          path: bin
+          name: ${{ inputs.os }}-bin
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: Windows MSI installer (GHC ${{ inputs.ghc-version }})
+          path: "cryptol.msi*"
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}
+
+      - uses: actions/cache/save@v4
+        name: Save cache store cache
+        if: always()
+        with:
+          path: |
+            ${{ steps.setup-haskell.outputs.cabal-store }}
+            dist-newstyle
+          key: ${{ env.CACHE_VERSION }}-cabal-${{ inputs.os }}-${{ inputs.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', inputs.ghc-version)) }}-${{ github.sha }}
+            ${{ env.CACHE_VERSION }}-cabal-${{ inputs.os }}-${{ inputs.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', inputs.ghc-version)) }}-
