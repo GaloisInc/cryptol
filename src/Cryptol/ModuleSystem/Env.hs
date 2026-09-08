@@ -11,7 +11,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
@@ -331,14 +330,14 @@ findEnv me loaded n iface m
   | otherwise = asum (fmap (findEnv me loaded n iface) (Map.elems (T.mFunctors m)))
 
 modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
-modContextOf (ImpNested name) me =
+modContextOf (ImpNested nm) me =
   do -- find the top module:
-    mname <- nameTopModuleMaybe name
+    mname <- nameTopModuleMaybe nm
     lm <- lookupModule mname me
     let loadedDecls = map (ifDefines . lmInterface)
                     $ getLoadedModules (meLoadedModules me)
         loaded = mconcat (ifDefines (lmInterface lm) : loadedDecls)
-    findEnv me loaded name (lmInterface lm) (lmModule lm)
+    findEnv me loaded nm (lmInterface lm) (lmModule lm)
 
   -- TODO: support focusing inside a submodule signature to support browsing?
 modContextOf (ImpTop mname) me =

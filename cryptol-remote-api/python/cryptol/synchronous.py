@@ -392,6 +392,15 @@ class CryptolSyncConnection:
         else:
             raise ValueError("Result of `names()` is not a list: " + str(res))
 
+    def name_location(self, name: str, *, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolNameLocation]:
+        """Return the definition locations of all entities with the given name
+        that are currently in scope."""
+        res = self.connection.name_location(name, timeout=timeout).result()
+        if isinstance(res, list):
+            return [ cryptoltypes.to_cryptol_name_location(entry) for entry in res ]
+        else:
+            raise ValueError("Result of `name_location()` is not a list: " + str(res))
+
     def parameter_names(self, *, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolNameInfo]:
         """Discover the list of module parameter names currently in scope in the current context.
         The result is a subset of the list returned by `names`."""

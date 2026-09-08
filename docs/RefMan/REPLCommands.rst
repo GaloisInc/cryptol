@@ -85,6 +85,18 @@ Commands
     may fail to resolve unless the search path already covers them (see
     ``:set path`` or the ``CRYPTOLPATH`` environment variable).
 
+``:location NAME``
+    Display the location of each definition named ``NAME`` that is visible in
+    the current scope. Since the same name may identify entities in different
+    namespaces, the command may display more than one location.
+
+    Locations have the form ``NAMESPACE:LOCATION:LINE:COLUMN``. The namespace
+    is ``value``, ``type``, or ``submodule``. File locations are quoted and
+    shown relative to the first matching entry in the Cryptol search path when
+    possible, and as absolute paths otherwise. Definitions in builtin modules
+    use ``module NAME`` as their location, while definitions entered directly
+    in the REPL use ``interactive``.
+
 ``:m [MODULE]``, ``:module [MODULE]``
     Load a module by its name.
 

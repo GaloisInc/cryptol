@@ -236,6 +236,11 @@ def names(*, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolNameInf
     """Discover the list of term names currently in scope in the current context."""
     return __get_designated_connection().names(timeout=timeout)
 
+def name_location(name: str, *, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolNameLocation]:
+    """Return the definition locations of all entities with the given name
+    that are currently in scope."""
+    return __get_designated_connection().name_location(name, timeout=timeout)
+
 def parameter_names(*, timeout:Optional[float] = None) -> List[cryptoltypes.CryptolNameInfo]:
     """Discover the list of module parameter names currently in scope in the current context.
     The result is a subset of the list returned by `names`."""
@@ -278,5 +283,4 @@ def logging(on : bool, *, dest : TextIO = sys.stderr) -> None:
 def file_deps(m : str, isFile:bool, timeout:Optional[float] = None) -> Any:
     """Get information about a module or a file."""
     return __get_designated_connection().file_deps(m,isFile,timeout=timeout)
-
 

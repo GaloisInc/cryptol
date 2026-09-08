@@ -11,7 +11,7 @@
 
 module Cryptol.ModuleSystem (
     -- * Module System
-    ModuleEnv(..), initialModuleEnv
+    ModuleEnv(..), initialModuleEnv, makeRelativeToSearchPath
   , DynamicEnv(..)
   , ModuleError(..), ModuleWarning(..)
   , ModuleCmd, ModuleRes
@@ -42,7 +42,12 @@ module Cryptol.ModuleSystem (
   , getModuleDependencies
   ) where
 
+import qualified Control.Exception as X
 import Data.Map (Map)
+import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
+import System.Directory (canonicalizePath, makeAbsolute)
+import System.FilePath
+  ( isAbsolute, makeRelative, normalise, splitDirectories )
 
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.ModuleSystem.Env
@@ -64,6 +69,29 @@ import qualified Cryptol.Utils.Ident as M
 type ModuleCmd a = ModuleInput IO -> IO (ModuleRes a)
 
 type ModuleRes a = (Either ModuleError (a,ModuleEnv), [ModuleWarning])
+
+-- | Make an absolute filename relative to the first matching entry in the
+-- module search path. If the file is outside the search path, leave it
+-- absolute.
+makeRelativeToSearchPath :: ModuleEnv -> FilePath -> IO FilePath
+makeRelativeToSearchPath me file =
+  do roots <- mapM canonicalSearchRoot (meSearchPath me)
+     pure (fromMaybe file' (listToMaybe (mapMaybe relativeTo roots)))
+  where
+  file' = normalise file
+
+  canonicalSearchRoot path =
+    X.catch (canonicalizePath path) fallback
+    where
+    fallback :: X.IOException -> IO FilePath
+    fallback _ = makeAbsolute path
+
+  relativeTo root =
+    let relative = normalise (makeRelative root file')
+    in case splitDirectories relative of
+         ".." : _ -> Nothing
+         _ | isAbsolute relative -> Nothing
+           | otherwise -> Just relative
 
 getPrimMap :: ModuleCmd PrimMap
 getPrimMap me = runModuleM me Base.getPrimMap
