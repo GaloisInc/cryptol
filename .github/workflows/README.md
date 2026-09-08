@@ -29,8 +29,6 @@ the version, release status, event type, artifact name, and retention period.
 It then invokes `ci-platform.yml` for each platform matrix entry and invokes
 `ci-images.yml` when Docker images should be built.
 
-This workflow has no caller-supplied parameters.
-
 ### `docs.yml`
 
 Builds the Cryptol documentation on pull requests, selected branches and tags,
@@ -38,14 +36,10 @@ and manual dispatches. It also assembles and deploys the versioned GitHub Pages
 site when running in the main repository. Its two jobs are independent and may
 run in parallel.
 
-This workflow has no caller-supplied parameters.
-
 ### `book.yml`
 
 Runs on pull requests and checks that the checked-in "Programming Cryptol" PDF
 was updated.  We only do this if its source files changed.
-
-This workflow has no caller-supplied parameters.
 
 ## Reusable CI workflows
 
@@ -86,18 +80,8 @@ Builds Cryptol on one platform, performs platform-specific signing and
 packaging, and uploads distributions. When tests are requested, it additionally
 uploads the executables and solver binaries consumed by `ci-test.yml`.
 
-Its inputs are the same as those for `ci-platform.yml`.
-
-Optional secrets:
-
-- `APPLE_P12_CERTIFICATE`
-- `APPLE_P12_PASSWORD`
-- `APPLE_P12_IDENTITY_NAME`
-- `APPLE_P8_KEY_ID`
-- `APPLE_P8_ISSUER_ID`
-- `APPLE_P8_API_KEY`
-- `SIGNING_PASSPHRASE`
-- `SIGNING_KEY`
+Its inputs are the same as those for `ci-platform.yml`.  Note that the workflow
+also uses some secretes to sign binaries if needed.
 
 ### `ci-test.yml`
 
