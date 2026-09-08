@@ -2,6 +2,10 @@
 
 ## next
 
+## 3.6.0 -- 2026-09-08
+
+* Python 3.9, which is EOL, is no longer supported.
+
 ## 3.5.0 -- 2026-01-27
 
 * Python 3.8, which is EOL, is no longer supported.

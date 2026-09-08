@@ -2,6 +2,8 @@
 
 ## next
 
+## 3.6.0 -- 2026-09-08
+
 * The minimum version of Python has been bumped to 3.10 to accomodate
   a security advisory about urllib3.
   The fixed urllib3 does not support 3.9.

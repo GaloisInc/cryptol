@@ -1,5 +1,7 @@
 # next
 
+# 3.6.0 -- 2026-09-08
+
 ## Language changes
 
 * Allow arbitrary expressions in the head of a record update, previously
