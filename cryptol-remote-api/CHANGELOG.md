@@ -1,5 +1,7 @@
 # Revision history for `cryptol-remote-api` and `cryptol-eval-server`
 
+## next
+
 ## 3.6.0 -- 2026-09-08
 
 * The minimum version of Python has been bumped to 3.10 to accomodate
