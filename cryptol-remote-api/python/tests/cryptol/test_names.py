@@ -49,7 +49,7 @@ class TestNames(unittest.TestCase):
 
         source = str(names_path)
         self.assertEqual(
-            [{'namespace': 'value', 'location': source, 'line': 9, 'column': 1}],
+            [{'namespace': 'value', 'location': source, 'line': 10, 'column': 1}],
             name_location('enc'))
         self.assertEqual(
             [{'namespace': 'type', 'location': source, 'line': 23, 'column': 6}],
