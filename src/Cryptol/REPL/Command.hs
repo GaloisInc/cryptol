@@ -170,6 +170,7 @@ import qualified Data.SBV.Internals as SBV (showTDiff)
 import Data.Foldable (foldl')
 import qualified Cryptol.Project.Cache as Proj
 import Cryptol.Project.Monad (LoadProjectMode)
+import Cryptol.Utils.Ident (allNamespaces)
 
 
 
@@ -258,10 +259,10 @@ nbCommandList  =
     (unlines
       [ "Locations have the form NAMESPACE:LOCATION:LINE:COLUMN"
       , "  * NAMESAPCE is one of `value`, `type`, or `module`."
-      , "  * File names are relative to the Cryptol search path when possible,"
-      , "    and absolute otherwise."
-      , "  * Definitions in builtin modules are shown as `module NAME`."
-      , "  * Definitions from the REPL use `interactive`."
+      , "  * LOCATION may be a file name in quotes, relative to the Cryptol"
+      , "    search path when possible, and absolute otherwise."
+      , "  * LOCATION may be `module NAME` for definitions in built-in modules."
+      , "  * LOCATION may be `interactive` for REPL definitions."
       ])
   , CommandDescr [ ":version"] [] (NoArg versionCmd)
     "Display the version of this Cryptol executable"
@@ -1603,12 +1604,8 @@ locationCmd input
       Just pname ->
         do fe <- getFocusedEnv
            let names = nub
-                     $ concatMap (\ns -> M.lookupListNS ns pname (M.mctxNames fe))
-                                 [ M.NSValue
-                                 , M.NSConstructor
-                                 , M.NSType
-                                 , M.NSModule
-                                 ]
+                         [ x | ns <- allNamespaces,
+                               x <- M.lookupListNS ns pname (M.mctxNames fe) ]
            case names of
              [] ->
                do rPrint $ "Undefined name:" <+> pp pname
@@ -1621,7 +1618,7 @@ locationCmd input
 
 formatLocation :: M.ModuleEnv -> M.Name -> REPL String
 formatLocation menv name =
-  do prefix <-
+  do location <-
        case M.lookupTCEntity (M.nameTopModule name) menv of
          Just lm ->
            case M.lmFilePath lm of
@@ -1630,7 +1627,7 @@ formatLocation menv name =
              M.InMem {} -> pure ("module " ++ pretty (M.lmName lm))
          Nothing -> pure "interactive"
      pure
-       (namespace ++ ":" ++ prefix ++ ":" ++
+       (namespace ++ ":" ++ location ++ ":" ++
         show (Pos.line (from loc)) ++ ":" ++ show (Pos.col (from loc)))
   where
   loc = M.nameLoc name
