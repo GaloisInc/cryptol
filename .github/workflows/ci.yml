@@ -10,23 +10,6 @@ on:
     - cron: "0 10 * * *" # 10am UTC -> 2/3am PST
   workflow_dispatch:
 
-env:
-  # The solver package snapshot date. If you update this, make sure to also
-  # update it in the following locations:
-  #
-  # - Dockerfile
-  # - cryptol-remote-api/Dockerfile
-  # - README.md
-  # - dev/dev_setup.sh
-  SOLVER_PKG_VERSION: "snapshot-20260622"
-  # The CACHE_VERSION can be updated to force the use of a new cache if
-  # the current cache contents become corrupted/invalid.  This can
-  # sometimes happen when (for example) the OS version is changed but
-  # older .so files are cached, which can have various effects
-  # (e.g. cabal complains it can't find a valid version of the "happy"
-  # tool).
-  CACHE_VERSION: 1
-
 jobs:
   config:
     runs-on: ubuntu-24.04
@@ -62,413 +45,68 @@ jobs:
           .github/ci.sh output release $RELEASE
           .github/ci.sh output retention-days $($RELEASE && echo 90 || echo 5)
 
-  build:
-    runs-on: ${{ matrix.os }}
+  platform:
     needs: [config]
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04]
-        ghc-version: ["9.6.7", "9.8.4", "9.12.2"]
-        cabal: [ '3.14.1.0' ]
-        run-tests: [true]
         include:
-          # We include one job from an older Ubuntu LTS release to increase our
-          # coverage of possible Linux configurations. Since we already run the
-          # tests with the newest LTS release, we won't bother testing this one.
+          # Run the full test suite on the primary Linux configuration.
+          - os: ubuntu-24.04
+            ghc-version: 9.8.4
+            test-kind: full
+          # Build with the other supported GHC versions, but do not repeat tests.
+          - os: ubuntu-24.04
+            ghc-version: 9.6.7
+            test-kind: none
+          - os: ubuntu-24.04
+            ghc-version: 9.12.2
+            test-kind: none
+          # Keep coverage of an older Ubuntu LTS release.
           - os: ubuntu-22.04
             ghc-version: 9.8.4
-            run-tests: false
-          # Windows and macOS CI runners are more expensive than Linux runners,
-          # so we only build one particular GHC version to test them on. We
-          # include both an x86-64 macOS runner (macos-15-intel) as well as an
-          # AArch64 macOS runner (macos-15).
+            test-kind: none
+          # Test the supported Windows and AArch64 macOS builds.
           - os: windows-2022
             ghc-version: 9.8.4
-            run-tests: true
-          - os: macos-15-intel
-            ghc-version: 9.8.4
-            run-tests: true
+            test-kind: test-lib
           - os: macos-15
             ghc-version: 9.8.4
-            run-tests: true
-    outputs:
-      test-lib-json: ${{ steps.test-lib.outputs.targets-json }}
-    env:
-      VERSION: ${{ needs.config.outputs.version }}
-      RELEASE: ${{ needs.config.outputs.release }}
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: true
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      # On macOS, import the signing certificate, which we will use later to
-      # sign the binaries after they have been built.
-      # Do not run this step in forks, as this requires repo-specific secrets.
-      - name: Import signing certificate (macOS)
-        uses: apple-actions/import-codesign-certs@v3
-        if: runner.os == 'macOS' &&
-            github.event.pull_request.head.repo.fork == false &&
-            github.repository_owner == 'GaloisInc' &&
-            github.actor != 'dependabot[bot]'
-        with:
-          p12-file-base64: ${{ secrets.APPLE_P12_CERTIFICATE }}
-          p12-password: ${{ secrets.APPLE_P12_PASSWORD }}
-
-      - uses: actions/setup-python@v6
-        with:
-          # Ensure pyproject.toml and python/mypy.ini are kept in sync with the Python version here.
-          python-version: '3.12'
-
-      - uses: abatilo/actions-poetry@v3
-        with:
-          poetry-version: 1.4.2
-
-      - uses: haskell-actions/setup@v2
-        id: setup-haskell
-        with:
-          ghc-version: ${{ matrix.ghc-version }}
-          cabal-version: ${{ matrix.cabal }}
-
-      - name: Post-GHC installation fixups on Windows
-        shell: bash
-        if: runner.os == 'Windows'
-        run: |
-          # A workaround for https://github.com/Mistuke/CabalChoco/issues/5
-          cabal user-config update -a "extra-include-dirs: \"\""
-          cabal user-config update -a "extra-lib-dirs: \"\""
-
-      - uses: actions/cache/restore@v4
-        name: Restore cache store cache
-        with:
-          path: |
-            ${{ steps.setup-haskell.outputs.cabal-store }}
-            dist-newstyle
-          key: ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
-          restore-keys: |
-            ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
-
-      - name: Download what4-solvers
-        uses: GaloisInc/what4-solvers@v1
-        with:
-          dest: bin
-          release: ${{ env.SOLVER_PKG_VERSION }}
-
-      - shell: bash
-        name: Add what4-solvers to GITHUB_PATH
-        run: echo "$PWD/bin" >> $GITHUB_PATH
-
-      - shell: bash
-        env:
-          RELEASE: ${{ needs.config.outputs.release }}
-        run: .github/ci.sh build
-
-      - shell: bash
-        name: Extract Cryptol executables to dist/bin/
-        run: .github/ci.sh setup_dist_bins
-
-      # On macOS, code sign the binaries to verify that Galois is the author.
-      # Do not run this step in forks, as this requires repo-specific secrets.
-      - name: Sign binaries (macOS)
-        if: runner.os == 'macOS' &&
-            github.event.pull_request.head.repo.fork == false &&
-            github.repository_owner == 'GaloisInc' &&
-            github.actor != 'dependabot[bot]'
-        env:
-          IDENTITY_NAME: ${{ secrets.APPLE_P12_IDENTITY_NAME }}
-        run: |
-          codesign \
-            --force \
-            --options runtime \
-            --sign "$IDENTITY_NAME" \
-            dist/bin/*
-
-      # On macOS, notarize the binaries so that users can run them without
-      # needing to whitelist them. Note that Apple's documentation suggests
-      # that you shouldn't notarize more than 75 times in one day
-      # (https://developer.apple.com/documentation/security/customizing-the-notarization-workflow#Avoid-long-notarization-response-times-and-size-limits),
-      # so as a precaution, we only perform this step for scheduled events,
-      # workflow dispatches, or releases (and not in pull requests).
-      - name: Notarize binaries (macOS)
-        if: runner.os == 'macOS' &&
-            (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.config.outputs.release == 'true' || needs.config.outputs.event-tag == 'true') &&
-            github.repository_owner == 'GaloisInc' &&
-            github.actor != 'dependabot[bot]'
-        env:
-          KEY_ID: ${{ secrets.APPLE_P8_KEY_ID }}
-          ISSUER_ID: ${{ secrets.APPLE_P8_ISSUER_ID }}
-          API_KEY: ${{ secrets.APPLE_P8_API_KEY }}
-        run: |
-          zip binaries.zip dist/bin/*
-          echo "$API_KEY" > "AuthKey_$KEY_ID.p8"
-          xcrun notarytool submit binaries.zip \
-            --key "AuthKey_$KEY_ID.p8" \
-            --key-id "$KEY_ID" \
-            --issuer "$ISSUER_ID" \
-            --wait
-
-      - shell: bash
-        name: Extract Cryptol API test suite executable to bin/
-        run: .github/ci.sh extract_exe "test:cryptol-api-tests" "bin"
-
-      - shell: bash
-        run: .github/ci.sh check_docs
-        if: runner.os != 'Windows'
-      - shell: bash
-        run: .github/ci.sh check_rpc_docs
-        if: runner.os != 'Windows'
-
-      - shell: bash
-        name: Partition test-lib tests
-        id: test-lib
-        run: |
-          set -x
-          cabal v2-install --install-method=copy --installdir="./bin" test-lib
-          cmd="cat \$1.stdout"
-          if ${{ runner.os == 'Windows' }}; then
-              cmd="cat \$1.stdout.mingw32 2>/dev/null || $cmd"
-          elif ${{ runner.os == 'macOS' }}; then
-              cmd="cat \$1.stdout.darwin 2>/dev/null || $cmd"
-          fi
-          ./bin/test-runner --ext=.icry --env-ext=.env -r ./output --exe=$(which bash) -F -c -F "$cmd" -F -- ./tests
-          TARGETS_JSON=$(echo -n "$(ls -1 ./output/tests)" | jq -Rsc 'split("\n")')
-          echo "::set-output name=targets-json::$TARGETS_JSON"
-
-      - shell: bash
-        run: .github/ci.sh bundle_files
-
-      - if: runner.os == 'Windows'
-        run: .github/wix.ps1
-
-      # Do not run this on forks. It isn't sufficient to check the pull
-      # request info because we might also be on master in a fork. It
-      # seems that you can't stop scheduled jobs from also running in
-      # forks. See https://github.com/orgs/community/discussions/16109.
-      - if: runner.os == 'Windows' &&
-            github.event.pull_request.head.repo.fork == false &&
-            github.repository_owner == 'GaloisInc' &&
-            github.actor != 'dependabot[bot]'
-        shell: bash
-        env:
-          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-        run: .github/ci.sh sign cryptol.msi
-
-      - shell: bash
-        run: |
-          NAME="${{ needs.config.outputs.name }}-${{ matrix.os }}-${{ runner.arch }}"
-          echo "NAME=$NAME" >> $GITHUB_ENV
-          .github/ci.sh zip_dist $NAME
-        env:
-          OS_TAG: ${{ matrix.os }}
-          ARCH_TAG: ${{ runner.arch }}
-
-      - shell: bash
-        run: |
-          NAME="${{ needs.config.outputs.name }}-${{ matrix.os }}-${{ runner.arch }}"
-          echo "NAME=$NAME" >> $GITHUB_ENV
-          .github/ci.sh zip_dist_with_solvers $NAME
-        env:
-          OS_TAG: ${{ matrix.os }}
-          ARCH_TAG: ${{ runner.arch }}
-
-      # Do not run this on forks. It isn't sufficient to check the pull
-      # request info because we might also be on master in a fork. It
-      # seems that you can't stop scheduled jobs from also running in
-      # forks. See https://github.com/orgs/community/discussions/16109.
-      - if: github.event.pull_request.head.repo.fork == false &&
-            github.repository_owner == 'GaloisInc' &&
-            github.actor != 'dependabot[bot]'
-        shell: bash
-        env:
-          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-        run: |
-          .github/ci.sh sign ${NAME}.tar.gz
-          .github/ci.sh sign ${NAME}-with-solvers.tar.gz
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.NAME }} (GHC ${{ matrix.ghc-version }})
-          path: "${{ env.NAME }}.tar.gz*"
-          if-no-files-found: error
-          retention-days: ${{ needs.config.outputs.retention-days }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.NAME }}-with-solvers (GHC ${{ matrix.ghc-version }})
-          path: "${{ env.NAME }}-with-solvers.tar.gz*"
-          if-no-files-found: error
-          retention-days: ${{ needs.config.outputs.retention-days }}
-
-      - if: matrix.ghc-version == '9.8.4' && matrix.run-tests
-        uses: actions/upload-artifact@v4
-        with:
-          path: dist/bin
-          name: ${{ matrix.os }}-dist-bin
-
-      - if: matrix.ghc-version == '9.8.4' && matrix.run-tests
-        uses: actions/upload-artifact@v4
-        with:
-          path: bin
-          name: ${{ matrix.os }}-bin
-
-      - uses: actions/upload-artifact@v4
-        if: runner.os == 'Windows'
-        with:
-          name: Windows MSI installer (GHC ${{ matrix.ghc-version }})
-          path: "cryptol.msi*"
-          if-no-files-found: error
-          retention-days: ${{ needs.config.outputs.retention-days }}
-
-      - uses: actions/cache/save@v4
-        name: Save cache store cache
-        if: always()
-        with:
-          path: |
-            ${{ steps.setup-haskell.outputs.cabal-store }}
-            dist-newstyle
-          key: ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-${{ github.sha }}
-            ${{ env.CACHE_VERSION }}-cabal-${{ matrix.os }}-${{ matrix.ghc-version }}-${{ hashFiles(format('cabal.GHC-{0}.config', matrix.ghc-version)) }}-
-
-  test:
-    runs-on: ${{ matrix.os }}
-    needs: [build]
-    strategy:
-      fail-fast: false
-      matrix:
-        suite: [test-lib]
-        target: ${{ fromJson(needs.build.outputs.test-lib-json) }}
-        os: [ubuntu-24.04, macos-15, windows-2022]
-        continue-on-error: [false]
-        include:
-          - suite: api-tests
-            target: ''
-            os: ubuntu-24.04
-            continue-on-error: false
-          - suite: rpc
-            target: ''
-            os: ubuntu-24.04
-            continue-on-error: false
-          #- suite: rpc
-          #  target: ''
-          #  os: macos-15-intel
-          #  continue-on-error: false
-          #- suite: rpc
-          #  target: ''
-          #  os: windows-2022
-          #  continue-on-error: true  # TODO: get Python client to work on Windows
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: true
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      # Homebrew installs packages in different directories depending on which
-      # macOS architecture you are using:
+            test-kind: test-lib
+          # Also produce an x86-64 macOS distribution.
+          - os: macos-15-intel
+            ghc-version: 9.8.4
+            test-kind: none
+    uses: ./.github/workflows/ci-platform.yml
+    with:
+      os: ${{ matrix.os }}
+      ghc-version: ${{ matrix.ghc-version }}
+      cabal: 3.14.1.0
+      test-kind: ${{ matrix.test-kind }}
+      # The solver package snapshot date. If you update this, make sure to also
+      # update it in the following locations:
       #
-      # * /usr/local (X64)
-      # * /opt/homebrew (ARM64)
-      #
-      # Clang automatically searches in /usr/local without any additional setup,
-      # but it doesn't know about /opt/homebrew. As such, we have to teach Clang
-      # to do so by setting the appropriate environment variables.
-      #
-      # This step is important for the FFI unit tests, which rely on a
-      # Homebrew-provided version of gmp.
-      - name: Teach Clang about Homebrew paths (macOS ARM64)
-        run: |
-          echo "CPATH=/opt/homebrew/include" >> $GITHUB_ENV
-          echo "LIBRARY_PATH=/opt/homebrew/lib" >> $GITHUB_ENV
-        if: matrix.suite == 'test-lib' && runner.os == 'macOS' && runner.arch == 'ARM64'
-
-      - name: Install dependencies (Windows)
-        uses: msys2/setup-msys2@v2
-        with:
-          update: true
-          # NB: Use CLANG64 here, not MINGW64. GHC 9.4 and later bundle a
-          # Clang-based C toolchain on Windows, and the FFI-related tests work
-          # best when the DLLs are compiled with Clang as well.
-          msystem: CLANG64
-          # These are needed for the ffi tests on Windows
-          install: |
-            diffutils
-            make
-            mingw-w64-clang-x86_64-gcc
-            mingw-w64-clang-x86_64-gmp
-        if: matrix.suite == 'test-lib' && runner.os == 'Windows'
-
-      - if: matrix.suite == 'rpc'
-        uses: actions/setup-python@v6
-        with:
-          # Ensure cryptol-remote-api/python/{pyproject.toml,mypy.ini} are kept in sync with the Python version here.
-          python-version: '3.12'
-
-      - if: matrix.suite == 'rpc'
-        uses: abatilo/actions-poetry@v3
-        with:
-          poetry-version: 1.4.2
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: "${{ matrix.os }}-dist-bin"
-          path: dist/bin
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: "${{ matrix.os }}-bin"
-          path: bin
-
-      - shell: bash
-        run: |
-          set -x
-          chmod +x dist/bin/cryptol
-          chmod +x dist/bin/cryptol-remote-api
-          chmod +x dist/bin/cryptol-eval-server
-          chmod +x bin/*
-          .github/ci.sh deps bin/abc*
-          .github/ci.sh deps bin/cvc4*
-          .github/ci.sh deps bin/cvc5*
-          .github/ci.sh deps bin/yices-smt2*
-          .github/ci.sh deps bin/z3*
-
-      - if: matrix.suite == 'test-lib' && runner.os != 'Windows'
-        shell: bash
-        continue-on-error: ${{ matrix.continue-on-error }}
-        name: test-lib ${{ matrix.target }}
-        run: |
-          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
-          if ${{ matrix.target != 'ffi' }} || dist/bin/cryptol -v | grep -q 'FFI enabled'; then
-            ./bin/test-runner --ext=.icry --env-ext=.env -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
-          fi
-
-      - if: matrix.suite == 'test-lib' && runner.os == 'Windows'
-        shell: msys2 {0}
-        continue-on-error: ${{ matrix.continue-on-error }}
-        name: test-lib ${{ matrix.target }}
-        run: |
-          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
-          if ${{ matrix.target != 'ffi' }} || dist/bin/cryptol -v | grep -q 'FFI enabled'; then
-            ./bin/test-runner --ext=.icry --env-ext=.env -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
-          fi
-
-      - if: matrix.suite == 'rpc'
-        shell: bash
-        continue-on-error: ${{ matrix.continue-on-error }}
-        run: |
-          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
-          cryptol-remote-api/run_rpc_tests.sh
-
-      - if: matrix.suite == 'api-tests'
-        shell: bash
-        continue-on-error: ${{ matrix.continue-on-error }}
-        run: |
-          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
-          ./bin/cryptol-api-tests
+      # - Dockerfile
+      # - cryptol-remote-api/Dockerfile
+      # - README.md
+      # - dev/dev_setup.sh
+      solver-pkg-version: snapshot-20260622
+      name: ${{ needs.config.outputs.name }}
+      version: ${{ needs.config.outputs.version }}
+      release: ${{ needs.config.outputs.release }}
+      event-tag: ${{ needs.config.outputs.event-tag }}
+      retention-days: ${{ fromJSON(needs.config.outputs.retention-days) }}
+    secrets:
+      APPLE_P12_CERTIFICATE: ${{ secrets.APPLE_P12_CERTIFICATE }}
+      APPLE_P12_PASSWORD: ${{ secrets.APPLE_P12_PASSWORD }}
+      APPLE_P12_IDENTITY_NAME: ${{ secrets.APPLE_P12_IDENTITY_NAME }}
+      APPLE_P8_KEY_ID: ${{ secrets.APPLE_P8_KEY_ID }}
+      APPLE_P8_ISSUER_ID: ${{ secrets.APPLE_P8_ISSUER_ID }}
+      APPLE_P8_API_KEY: ${{ secrets.APPLE_P8_API_KEY }}
+      SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+      SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
 
   build-push-image:
-    runs-on: ubuntu-24.04
     needs: [config]
     # Do not run this on forks. It seems that you can't stop scheduled
     # jobs from also running in forks. See
@@ -476,134 +114,8 @@ jobs:
     if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.config.outputs.release == 'true') &&
         github.repository_owner == 'GaloisInc' &&
         github.actor != 'dependabot[bot]'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - build-args: ''
-            file: Dockerfile
-            image: ghcr.io/galoisinc/cryptol
-            cache: ghcr.io/galoisinc/cache-cryptol
-          - file: cryptol-remote-api/Dockerfile
-            image: ghcr.io/galoisinc/cryptol-remote-api
-            cache: ghcr.io/galoisinc/cache-cryptol-remote-api
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Generate cryptol.buildinfo.json
-        shell: bash
-        run: .github/ci.sh generate_buildinfo "${{ github.sha }}" "${{ github.ref_name }}"
-
-      - uses: rlespinasse/github-slug-action@v5
-
-      - id: common-tag
-        run: echo "::set-output name=common-tag::${{ steps.prefix.outputs.prefix }}$GITHUB_REF_SLUG"
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: crazy-max/ghaction-docker-meta@v1
-        name: Labels
-        id: labels
-        with:
-          images: ${{ matrix.image }}
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@v6
-        with:
-          tags: ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
-          labels: ${{ steps.labels.outputs.labels }}
-          load: true
-          push: false
-          file: ${{ matrix.file }}
-          build-args: ${{ matrix.build-args }}
-          cache-from: |
-            type=registry,ref=${{ matrix.cache }}:cache-${{ steps.prefix.outputs.prefix }}master
-            type=registry,ref=${{ matrix.cache }}:cache-${{ steps.common-tag.outputs.common-tag }}
-
-      - name: Cache image build
-        uses: docker/build-push-action@v6
-        continue-on-error: true  # Tolerate cache upload failures - this should be handled better
-        with:
-          tags: ${{ matrix.cache }}:${{ steps.common-tag.outputs.common-tag }}
-          labels: ${{ steps.labels.outputs.labels }}
-          push: true
-          file: ${{ matrix.file }}
-          build-args: ${{ matrix.build-args }}
-          cache-to: type=registry,ref=${{ matrix.cache }}:cache-${{ steps.common-tag.outputs.common-tag }},mode=max
-
-      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        uses: actions/setup-python@v6
-        with:
-          # Ensure cryptol-remote-api/python/{pyproject.toml,mypy.ini} are kept in sync with the Python version here.
-          python-version: '3.12'
-
-      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        uses: abatilo/actions-poetry@v3
-        with:
-          poetry-version: 1.4.2
-
-      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        name: Test cryptol-remote-api
-        run: ./cryptol-remote-api/test_docker.sh http ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
-
-      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        name: Test cryptol-remote-api (TLS)
-        run: ./cryptol-remote-api/test_docker.sh https ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
-
-      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        uses: docker/build-push-action@v6
-        name: Build test-cryptol-remote-api
-        with:
-          tags: test-cryptol-remote-api:latest
-          load: true
-          push: false
-          file: cryptol-remote-api/test.Dockerfile
-
-      - if: matrix.image == 'ghcr.io/galoisinc/cryptol-remote-api'
-        name: Test cryptol-remote-api helm chart
-        run: |
-          set -x
-          kind create cluster --wait 10m
-          kind load docker-image ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }}
-          kind load docker-image test-cryptol-remote-api:latest
-          helm install --wait cra-http ./helm/cryptol-remote-api \
-            --set image.repository=${{ matrix.image }} \
-            --set image.tag=${{ steps.common-tag.outputs.common-tag }} \
-            --set image.pullPolicy=Never \
-            --set server.connType=http
-          helm install --wait cra-socket ./helm/cryptol-remote-api \
-            --set image.repository=${{ matrix.image }} \
-            --set image.tag=${{ steps.common-tag.outputs.common-tag }} \
-            --set image.pullPolicy=Never \
-            --set server.connType=socket
-          kubectl run --rm --attach test-http \
-            --image=test-cryptol-remote-api:latest \
-            --image-pull-policy=Never \
-            --restart=Never \
-            -- http cra-http-cryptol-remote-api 8080
-          kubectl run --rm --attach test-socket \
-            --image=test-cryptol-remote-api:latest \
-            --image-pull-policy=Never \
-            --restart=Never \
-            -- socket cra-socket-cryptol-remote-api 8080
-
-      - if: needs.config.outputs.event-schedule == 'true'
-        name: ${{ matrix.image }}:nightly
-        run: |
-          docker tag ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }} ${{ matrix.image }}:nightly
-          docker push ${{ matrix.image }}:nightly
-
-      - if: needs.config.outputs.release == 'true'
-        name: ${{ matrix.image }}:${{ needs.config.outputs.version }}
-        run: |
-          docker tag ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }} ${{ matrix.image }}:${{ needs.config.outputs.version }}
-          docker push ${{ matrix.image }}:${{ needs.config.outputs.version }}
-          docker tag ${{ matrix.image }}:${{ steps.common-tag.outputs.common-tag }} ${{ matrix.image }}:latest
-          docker push ${{ matrix.image }}:latest
+    uses: ./.github/workflows/ci-images.yml
+    with:
+      version: ${{ needs.config.outputs.version }}
+      release: ${{ needs.config.outputs.release }}
+      event-schedule: ${{ needs.config.outputs.event-schedule }}

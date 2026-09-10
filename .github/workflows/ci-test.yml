@@ -1,0 +1,157 @@
+name: Test on platform
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      test-kind:
+        description: "Tests to run: test-lib or full"
+        required: true
+        type: string
+
+jobs:
+  discover-tests:
+    runs-on: ${{ inputs.os }}
+    outputs:
+      test-matrix: ${{ steps.discover.outputs.test-matrix }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Discover test groups
+        id: discover
+        shell: bash
+        run: |
+          set -x
+          TARGETS_JSON=$(echo -n "$(find ./tests -mindepth 2 -type f -name '*.icry' |
+            sed 's|^\./tests/||; s|/.*||' |
+            sort -u)" | jq -Rsc 'split("\n")')
+          TEST_MATRIX=$(jq -nc \
+            --argjson targets "$TARGETS_JSON" \
+            --arg kind "${{ inputs.test-kind }}" \
+            '{include:
+                ([$targets[] |
+                    {"suite": "test-lib", "target": ., "continue-on-error": false}]
+                 + if $kind == "full" then
+                     [{"suite": "api-tests", "target": "", "continue-on-error": false},
+                      {"suite": "rpc", "target": "", "continue-on-error": false}]
+                   else []
+                   end)}')
+          echo "test-matrix=$TEST_MATRIX" >> "$GITHUB_OUTPUT"
+
+  test:
+    runs-on: ${{ inputs.os }}
+    needs: [discover-tests]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-tests.outputs.test-matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      # Homebrew installs packages in different directories depending on which
+      # macOS architecture you are using:
+      #
+      # * /usr/local (X64)
+      # * /opt/homebrew (ARM64)
+      #
+      # Clang automatically searches in /usr/local without any additional setup,
+      # but it doesn't know about /opt/homebrew. As such, we have to teach Clang
+      # to do so by setting the appropriate environment variables.
+      #
+      # This step is important for the FFI unit tests, which rely on a
+      # Homebrew-provided version of gmp.
+      - name: Teach Clang about Homebrew paths (macOS ARM64)
+        run: |
+          echo "CPATH=/opt/homebrew/include" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=/opt/homebrew/lib" >> $GITHUB_ENV
+        if: matrix.suite == 'test-lib' && runner.os == 'macOS' && runner.arch == 'ARM64'
+
+      - name: Install dependencies (Windows)
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          # NB: Use CLANG64 here, not MINGW64. GHC 9.4 and later bundle a
+          # Clang-based C toolchain on Windows, and the FFI-related tests work
+          # best when the DLLs are compiled with Clang as well.
+          msystem: CLANG64
+          # These are needed for the ffi tests on Windows
+          install: |
+            diffutils
+            make
+            mingw-w64-clang-x86_64-gcc
+            mingw-w64-clang-x86_64-gmp
+        if: matrix.suite == 'test-lib' && runner.os == 'Windows'
+
+      - if: matrix.suite == 'rpc'
+        uses: actions/setup-python@v6
+        with:
+          # Ensure cryptol-remote-api/python/{pyproject.toml,mypy.ini} are kept in sync with the Python version here.
+          python-version: '3.12'
+
+      - if: matrix.suite == 'rpc'
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: 1.4.2
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: "${{ inputs.os }}-dist-bin"
+          path: dist/bin
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: "${{ inputs.os }}-bin"
+          path: bin
+
+      - shell: bash
+        run: |
+          set -x
+          chmod +x dist/bin/cryptol
+          chmod +x dist/bin/cryptol-remote-api
+          chmod +x dist/bin/cryptol-eval-server
+          chmod +x bin/*
+          .github/ci.sh deps bin/abc*
+          .github/ci.sh deps bin/cvc4*
+          .github/ci.sh deps bin/cvc5*
+          .github/ci.sh deps bin/yices-smt2*
+          .github/ci.sh deps bin/z3*
+
+      - if: matrix.suite == 'test-lib' && runner.os != 'Windows'
+        shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        name: test-lib ${{ matrix.target }}
+        run: |
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          if ${{ matrix.target != 'ffi' }} || dist/bin/cryptol -v | grep -q 'FFI enabled'; then
+            ./bin/test-runner --ext=.icry --env-ext=.env -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+          fi
+
+      - if: matrix.suite == 'test-lib' && runner.os == 'Windows'
+        shell: msys2 {0}
+        continue-on-error: ${{ matrix.continue-on-error }}
+        name: test-lib ${{ matrix.target }}
+        run: |
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          if ${{ matrix.target != 'ffi' }} || dist/bin/cryptol -v | grep -q 'FFI enabled'; then
+            ./bin/test-runner --ext=.icry --env-ext=.env -F -b --exe=dist/bin/cryptol ./tests/${{ matrix.target }}
+          fi
+
+      - if: matrix.suite == 'rpc'
+        shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        run: |
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          cryptol-remote-api/run_rpc_tests.sh
+
+      - if: matrix.suite == 'api-tests'
+        shell: bash
+        continue-on-error: ${{ matrix.continue-on-error }}
+        run: |
+          export PATH=$PWD/bin:$PWD/dist/bin:$PATH
+          ./bin/cryptol-api-tests
