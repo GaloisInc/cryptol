@@ -747,6 +747,45 @@ Return fields
   
 
 
+name location (command)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Return the definition locations of all entities with the given name that are in scope.
+
+Parameter fields
+++++++++++++++++
+
+
+``name``
+  The name whose definition locations should be returned.
+  
+  
+
+Return fields
++++++++++++++
+
+
+``namespace``
+  The namespace of the definition: value, type, or module.
+  
+  
+
+``location``
+  A filename relative to the Cryptol search path when possible (and absolute otherwise), ``module M`` for a builtin module, or ``interactive`` for a definition introduced through the API.
+  
+  
+
+``line``
+  The one-based line number of the definition.
+  
+  
+
+``column``
+  The one-based column number of the definition.
+  
+  
+
+
 visible modules (command)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

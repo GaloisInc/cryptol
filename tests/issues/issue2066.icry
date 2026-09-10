@@ -1,0 +1,6 @@
+:location reverse
+:location Integer
+let replValue = 1
+:location replValue
+:load ./issue2066.cry
+:location fileValue

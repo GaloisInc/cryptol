@@ -425,6 +425,16 @@ class CryptolConnection:
         self.most_recent_result = CryptolNames(self, timeout)
         return self.most_recent_result
 
+    def name_location(self, name: str, *, timeout:Optional[float] = None) -> argo.Command:
+        """Return the definition locations of all entities with the given name
+        that are currently in scope.
+
+        :param name: The Cryptol name to locate.
+        :param timeout: Optional timeout for this request (in seconds)."""
+        timeout = timeout if timeout is not None else self.timeout
+        self.most_recent_result = CryptolNameLocation(self, name, timeout)
+        return self.most_recent_result
+
     def parameter_names(self, *, timeout:Optional[float] = None) -> argo.Command:
         """Discover the list of module parameter names currently in scope in the current context.
         The result is a subset of the list returned by `names`.

@@ -293,6 +293,17 @@ class CryptolNames(argo.Command):
     def process_result(self, res : Any) -> Any:
         return res
 
+class CryptolNameLocation(argo.Command):
+    def __init__(self, connection : HasProtocolState, name : str, timeout: Optional[float]) -> None:
+        super(CryptolNameLocation, self).__init__(
+            'name location',
+            {'name': name},
+            connection,
+            timeout=timeout)
+
+    def process_result(self, res : Any) -> Any:
+        return res
+
 class CryptolParameterNames(CryptolNames):
     def process_result(self, res : Any) -> Any:
         res = super(CryptolParameterNames, self).process_result(res)

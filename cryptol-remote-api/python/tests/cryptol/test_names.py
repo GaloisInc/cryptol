@@ -10,7 +10,8 @@ def filter_names(names, *, module, fields_to_exclude):
 class TestNames(unittest.TestCase):
     def test_names(self):
         connect(verify=False)
-        load_file(str(Path('tests','cryptol','test-files', 'Names.cry')))
+        names_path = Path('tests','cryptol','test-files', 'Names.cry')
+        load_file(str(names_path))
 
         # names()
 
@@ -43,6 +44,19 @@ class TestNames(unittest.TestCase):
         params_to_check = filter_names(parameter_names(), module="Names", fields_to_exclude=["type", "type string"])
 
         self.assertCountEqual(expected_params, params_to_check)
+
+        # name_location()
+
+        source = str(names_path)
+        self.assertEqual(
+            [{'namespace': 'value', 'location': source, 'line': 10, 'column': 1}],
+            name_location('enc'))
+        self.assertEqual(
+            [{'namespace': 'type', 'location': source, 'line': 23, 'column': 6}],
+            name_location('b'))
+        self.assertEqual(
+            [{'namespace': 'module', 'location': source, 'line': 31, 'column': 11}],
+            name_location('M'))
 
 if __name__ == "__main__":
     unittest.main()

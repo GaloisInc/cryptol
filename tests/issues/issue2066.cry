@@ -1,0 +1,3 @@
+module issue2066 where
+
+fileValue = 0

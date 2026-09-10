@@ -36,7 +36,8 @@ import CryptolServer.Interrupt
 import CryptolServer.LoadModule
     ( loadFile, loadFileDescr, loadModule, loadModuleDescr )
 import CryptolServer.LoadProject ( loadProjectDescr, loadProject )
-import CryptolServer.Names ( visibleNames, visibleNamesDescr )
+import CryptolServer.Names
+    ( visibleNames, visibleNamesDescr, nameLocation, nameLocationDescr )
 import CryptolServer.Modules ( visibleModules, visibleModulesDescr )
 import CryptolServer.Sat ( proveSat, proveSatDescr )
 import CryptolServer.TypeCheck ( checkType, checkTypeDescr )
@@ -161,6 +162,10 @@ cryptolMethods =
      "visible names"
      visibleNamesDescr
      visibleNames
+  , command
+     "name location"
+     nameLocationDescr
+     nameLocation
   , command
      "visible modules"
      visibleModulesDescr

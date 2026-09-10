@@ -101,7 +101,9 @@ import Cryptol.Parser
     (parseExprWith,parseReplWith,parseDeclsWith,ParseError()
     ,Config(..),defaultConfig
     ,parseModName,parseHelpName,parseImpName)
-import           Cryptol.Parser.Position (replPosition,startOfLine,Range(..),HasLoc(..))
+import           Cryptol.Parser.Position
+                   (replPosition,startOfLine,Range(..),HasLoc(..))
+import qualified Cryptol.Parser.Position as Pos
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Docstrings as T
 import qualified Cryptol.TypeCheck.Error as T
@@ -168,6 +170,7 @@ import qualified Data.SBV.Internals as SBV (showTDiff)
 import Data.Foldable (foldl')
 import qualified Cryptol.Project.Cache as Proj
 import Cryptol.Project.Monad (LoadProjectMode)
+import Cryptol.Utils.Ident (allNamespaces)
 
 
 
@@ -251,6 +254,16 @@ nbCommandList  =
        , "With an argument M, shows information about the names exported from M"
        ]
     )
+  , CommandDescr [ ":location" ] ["NAME"] (HelpArg locationCmd)
+    "Display the location where a name is defined."
+    (unlines
+      [ "Locations have the form NAMESPACE:LOCATION:LINE:COLUMN"
+      , "  * NAMESAPCE is one of `value`, `type`, or `module`."
+      , "  * LOCATION may be a file name in quotes, relative to the Cryptol"
+      , "    search path when possible, and absolute otherwise."
+      , "  * LOCATION may be `module NAME` for definitions in built-in modules."
+      , "  * LOCATION may be `interactive` for REPL definitions."
+      ])
   , CommandDescr [ ":version"] [] (NoArg versionCmd)
     "Display the version of this Cryptol executable"
     ""
@@ -1578,6 +1591,53 @@ browseCmd input
             rPrint (browseModContext BrowseExported fe)
             pure emptyCommandResult
 
+locationCmd :: String -> REPL CommandResult
+locationCmd input
+  | null input =
+    do rPutStrLn "ERROR: Command `:location` needs a NAME argument."
+       pure emptyCommandResult { crSuccess = False }
+  | otherwise =
+    case parseHelpName input of
+      Nothing ->
+        do rPutStrLn ("Unable to parse name: " ++ input)
+           pure emptyCommandResult { crSuccess = False }
+      Just pname ->
+        do fe <- getFocusedEnv
+           let names = nub
+                         [ x | ns <- allNamespaces,
+                               x <- M.lookupListNS ns pname (M.mctxNames fe) ]
+           case names of
+             [] ->
+               do rPrint $ "Undefined name:" <+> pp pname
+                  pure emptyCommandResult { crSuccess = False }
+             _ ->
+               do menv <- getModuleEnv
+                  locations <- mapM (formatLocation menv) names
+                  mapM_ rPutStrLn (nub locations)
+                  pure emptyCommandResult
+
+formatLocation :: M.ModuleEnv -> M.Name -> REPL String
+formatLocation menv name =
+  do location <-
+       case M.lookupTCEntity (M.nameTopModule name) menv of
+         Just lm ->
+           case M.lmFilePath lm of
+             M.InFile {} ->
+               show <$> io (M.makeRelativeToSearchPath menv (M.lmModuleId lm))
+             M.InMem {} -> pure ("module " ++ pretty (M.lmName lm))
+         Nothing -> pure "interactive"
+     pure
+       (namespace ++ ":" ++ location ++ ":" ++
+        show (Pos.line (from loc)) ++ ":" ++ show (Pos.col (from loc)))
+  where
+  loc = M.nameLoc name
+
+  namespace =
+    case M.nameNamespace name of
+      M.NSValue       -> "value"
+      M.NSConstructor -> "value"
+      M.NSType        -> "type"
+      M.NSModule      -> "submodule"
 
 setOptionCmd :: String -> REPL CommandResult
 setOptionCmd str

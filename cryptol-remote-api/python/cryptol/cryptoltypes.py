@@ -533,6 +533,24 @@ def to_cryptol_name_info(d : Any) -> CryptolNameInfo:
     else:
         raise ValueError("Cryptol name info is malformed: " + str(d))
 
+# -----------------------------------------------------------
+# Cryptol Name Location
+# -----------------------------------------------------------
+
+CryptolNameLocation = TypedDict("CryptolNameLocation",
+    { "namespace": typing_extensions.Literal["value", "type", "module"]
+    , "location": str
+    , "line": int
+    , "column": int
+    })
+
+def to_cryptol_name_location(d : Any) -> CryptolNameLocation:
+    req_keys = {"namespace": str, "location": str, "line": int, "column": int}
+    if check_dict(d, req_keys) and d["namespace"] in ["value", "type", "module"]:
+        return cast(CryptolNameLocation, d)
+    else:
+        raise ValueError("Cryptol name location is malformed: " + str(d))
+
 
 # -----------------------------------------------------------
 # Cryptol Module Info
@@ -558,4 +576,3 @@ def to_cryptol_module_info(d : Any) -> CryptolModuleInfo:
         return cast(CryptolNoModuleInfo, d)
     else:
         raise ValueError("Cryptol module info is malformed: " + str(d))
-

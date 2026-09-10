@@ -33,6 +33,7 @@ main = defaultMain $
         , (":type", ":type ")
         , (":type ", ":type ")
         , (":type rev", ":type reverse")
+        , (":location rev", ":location reverse")
         ]
     ]
 

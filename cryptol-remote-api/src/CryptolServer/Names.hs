@@ -8,29 +8,40 @@
 module CryptolServer.Names
   ( visibleNames
   , visibleNamesDescr
+  , nameLocation
+  , nameLocationDescr
   ) where
 
 import qualified Argo.Doc as Doc
+import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as JSON
-import Data.Aeson ((.=))
+import Data.Aeson ((.=), (.:))
+import Data.List (nub)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Text (unpack)
 import Data.Typeable (Proxy(..), typeRep)
 import Data.Maybe (fromMaybe, mapMaybe, isJust)
 
+import Cryptol.Parser (parseHelpName)
 import Cryptol.Parser.Name (PName(..))
 import Cryptol.Parser.AST (Pragma)
-import Cryptol.ModuleSystem.Env (ModContext(..), ModuleEnv(..), DynamicEnv(..)
-                                , focusedEnv, modContextParamNames)
+import Cryptol.Parser.Position (Range(..), col, line)
+import Cryptol.ModuleSystem (makeRelativeToSearchPath)
+import Cryptol.ModuleSystem.Env
+  ( ModContext(..), ModuleEnv(..), DynamicEnv(..), ModulePath(..)
+  , focusedEnv, modContextParamNames, lookupTCEntity
+  , lmFilePath, lmModuleId, lmName
+  )
 import Cryptol.ModuleSystem.Interface (IfaceDecl(..), IfaceDecls(..))
 import Cryptol.ModuleSystem.Name (Name)
-import qualified Cryptol.ModuleSystem.Name as N (nameInfo,NameInfo(..))
+import qualified Cryptol.ModuleSystem.Name as N
+  ( nameInfo, NameInfo(..), nameLoc, nameNamespace, nameTopModule )
 import Cryptol.ModuleSystem.NamingEnv
                   (NamingEnv, namespaceMap, lookupListNS, shadowing)
 import Cryptol.TypeCheck.Type (Schema(..), ModVParam(..), mpnFuns)
 import Cryptol.Utils.Fixity(Fixity(..), defaultFixity)
-import Cryptol.Utils.PP (pp)
+import Cryptol.Utils.PP (pp, pretty)
 import Cryptol.Utils.Ident(Namespace(..),ogModule)
 
 import CryptolServer
@@ -87,6 +98,92 @@ visibleNames _ =
      let inScope = Map.keys (namespaceMap NSValue $ dyNames `shadowing` fNames)
          params = mpnFuns (modContextParamNames fparams)
      return $ concatMap (getInfo fNames params (ifDecls fDecls)) inScope
+
+newtype NameLocationParams = NameLocationParams PName
+
+instance JSON.FromJSON NameLocationParams where
+  parseJSON =
+    JSON.withObject "params for \"name location\"" $ \o -> do
+      txt <- o .: "name"
+      case parseHelpName txt of
+        Nothing -> fail "Invalid Cryptol name"
+        Just name -> pure (NameLocationParams name)
+
+instance Doc.DescribedMethod NameLocationParams [NameLocation] where
+  parameterFieldDescription =
+    [ ("name", Doc.Paragraph [Doc.Text "The name whose definition locations should be returned."]) ]
+
+  resultFieldDescription =
+    [ ("namespace",
+      Doc.Paragraph [Doc.Text "The namespace of the definition: value, type, or module."])
+    , ("location",
+      Doc.Paragraph
+        [ Doc.Text "A filename relative to the Cryptol search path when possible "
+        , Doc.Text "(and absolute otherwise), "
+        , Doc.Literal "module M"
+        , Doc.Text " for a builtin module, or "
+        , Doc.Literal "interactive"
+        , Doc.Text " for a definition introduced through the API."
+        ])
+    , ("line", Doc.Paragraph [Doc.Text "The one-based line number of the definition."])
+    , ("column", Doc.Paragraph [Doc.Text "The one-based column number of the definition."])
+    ]
+
+nameLocationDescr :: Doc.Block
+nameLocationDescr =
+  Doc.Paragraph
+    [ Doc.Text "Return the definition locations of all entities with the given name that are in scope." ]
+
+nameLocation :: NameLocationParams -> CryptolCommand [NameLocation]
+nameLocation (NameLocationParams pname) =
+  do me <- getModuleEnv
+     let names =
+           nub
+             $ concatMap
+                 (\ns -> lookupListNS ns pname (mctxNames (focusedEnv me)))
+                 [NSValue, NSConstructor, NSType, NSModule]
+     mapM (formatNameLocation me) names
+
+data NameLocation =
+  NameLocation
+    { locationNamespace :: String
+    , locationSource :: String
+    , locationLine :: Int
+    , locationColumn :: Int
+    }
+
+instance JSON.ToJSON NameLocation where
+  toJSON NameLocation {..} =
+    JSON.object
+      [ "namespace" .= locationNamespace
+      , "location" .= locationSource
+      , "line" .= locationLine
+      , "column" .= locationColumn
+      ]
+
+formatNameLocation :: ModuleEnv -> Name -> CryptolCommand NameLocation
+formatNameLocation me name =
+  do source <-
+       case lookupTCEntity (N.nameTopModule name) me of
+         Just lm ->
+           case lmFilePath lm of
+             InFile {} -> liftIO (makeRelativeToSearchPath me (lmModuleId lm))
+             InMem {}  -> pure ("module " ++ pretty (lmName lm))
+         Nothing -> pure "interactive"
+     pure
+       NameLocation
+         { locationNamespace =
+             case N.nameNamespace name of
+               NSValue       -> "value"
+               NSConstructor -> "value"
+               NSType        -> "type"
+               NSModule      -> "module"
+         , locationSource = source
+         , locationLine = line (from loc)
+         , locationColumn = col (from loc)
+         }
+  where
+  loc = N.nameLoc name
 
 getInfo :: NamingEnv -> Map Name ModVParam -> Map Name IfaceDecl -> PName -> [NameInfo]
 getInfo rnEnv params decls n' =

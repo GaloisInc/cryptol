@@ -53,7 +53,8 @@ import CryptolServer.EvalExpr (evalExpressionDescr, evalExpression)
 import CryptolServer.ExtendSearchPath (extSearchPath, extSearchPathDescr)
 import CryptolServer.FocusedModule (focusedModuleDescr, focusedModule)
 import CryptolServer.FocusModule (focusModule, focusModuleDescr)
-import CryptolServer.Names ( visibleNamesDescr, visibleNames )
+import CryptolServer.Names
+    ( visibleNamesDescr, visibleNames, nameLocationDescr, nameLocation )
 import CryptolServer.Modules ( visibleModulesDescr, visibleModules )
 import CryptolServer.TypeCheck ( checkType )
 import CryptolServer.Sat ( proveSatDescr, proveSat )
@@ -192,6 +193,10 @@ cryptolEvalMethods =
      "visible names"
      visibleNamesDescr
      visibleNames
+  , command
+     "name location"
+     nameLocationDescr
+     nameLocation
   , command
      "visible modules"
      visibleModulesDescr
