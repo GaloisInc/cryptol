@@ -1,0 +1,246 @@
+/**
+ * @title       "Shallow Embedding of Basic ASMs in Cryptol"
+ * @description "Executable variant of Basic ASM semantics using native Cryptol records."
+ * @author      "Joe Kiniry"
+ * @copyright   "Galois, Free & Fair, Joseph Kiniry, 2025"
+ * @license     "Licensed under the Apache License, Version 2.0"
+ * @version     "0.1.0"
+ */
+
+module BasicASMShallow where
+parameter
+  type MaxStateNameLength : #
+  type constraint (fin MaxStateNameLength
+                 , 1 <= MaxStateNameLength
+                 , MaxStateNameLength <= 16)
+  type MaxLabelNameLength : #
+  type constraint (fin MaxLabelNameLength
+                 , 1 <= MaxLabelNameLength
+                 , MaxLabelNameLength <= 16)
+  type MaxStates          : #
+  type constraint (fin MaxStates
+                 , 1 <= MaxStates)
+  type MaxTransitions     : #
+  type constraint (fin MaxTransitions
+                 , 1 <= MaxTransitions)
+  type MaxActions         : #
+  type constraint (fin MaxActions
+                 , 1 <= MaxActions)
+
+// @todo kiniry Make this into an interface module when I understand
+// how to parameterize that module over the State type.
+
+/*
+ * This module defines a shallowly embedded version of Basic ASMs,
+ * where locations, updates, and state transitions are represented
+ * directly as Cryptol values and functions.
+ */
+
+// == Core Type Definitions ==
+
+/**
+ * The abstract states of a system are denoted by a record.
+ */
+type State = {
+}
+
+/**
+ * A predicate on an abstract state that denotes as set of isomorphic
+ * states that are meant to be treated as one abstract state.
+ *
+ * @see ASMState
+ */
+type StatePredicate = State -> Bool
+
+/**
+ * The abstract state names a state space and denotes it with a predicate.
+ *
+ * @param name is the name of this abstract state.
+ * @param predicate is the predicate on the abstract state that denotes
+ * which abstract states are in the ASM state labeled "name".
+ * @param error a flag indicating if this abstract state is meant to model
+ * an erroneous/abnormal state.
+ */
+type ASMState = {
+  name      : String MaxStateNameLength,
+  predicate : StatePredicate,
+  error     : Bool
+}
+
+/**
+ * Updates on state have optional parameters, modeled as a tuple, that
+ * are used to perform the update.
+ */
+type UpdateParameters = ()
+
+/**
+ * Updating a state is performed by a function that has optional
+ * parameters denoting information about what must be updated.
+ */
+type Update = (State, UpdateParameters) -> State
+
+/**
+ * Each update is only applicable to a state if its guard holds.
+ */
+type Guard = State -> Bool
+
+/**
+ * Action performed during transitions have optional parameters,
+ * modeled as a tuple, that are used to perform the action.
+ */
+type ActionParameters = ()
+
+/**
+ * When transitioning to a new abstract state, the ASM can also model
+ * that some I/O *action* must be performed, with some optional
+ * parameters.  Example I/O actions are message sends and receives, or
+ * calls to external blackbox operations like obtaining a random
+ * value.
+ */
+type Action = (State, ActionParameters) -> ()
+
+/**
+ * A list of actions to perform.
+ */
+type Actions = [MaxActions]Action
+
+/**
+ * Transitions of an ASM are labeled arrows between ASM states with
+ * guarded updates.
+ *
+ * @param label the name of the transition.
+ * @param from the abstract state at the start/tail of the transition.
+ * @param to the abstract state at the end/head of the transition.
+ * @param error a flag indicating if this transition is meant to model
+ * erroneous/abnormal behavior.
+ * @guard the guard on taking the transition.
+ * @update the update to perform when taking the transition if the
+ * guard holds in order to update the abstract state.
+ */
+type Transition = {
+  label   : String MaxLabelNameLength,
+  from    : ASMState,
+  to      : ASMState,
+  error   : Bool,
+  guard   : Guard,
+  update  : Update,
+  actions : Actions
+}
+
+/**
+ * An Abstract State Machine (ASM), a collection of abstract states
+ * and transitions that fulfill all well-formedness conditions stated
+ * below.
+ *
+ * @param name the name of this ASM.
+ * @param states the abstract states of the ASM.
+ * @param transitions the transitions of the ASM.
+ */
+type ASM = {
+  name        : String MaxStateNameLength,
+  states      : [MaxStates]ASMState,
+  transitions : [MaxTransitions]Transition
+}
+
+/**
+ * Are these two abstract states equal?
+ */
+asmStateEq : (ASMState, ASMState) -> Bool
+asmStateEq (a, a') = True // a.error == a'.error
+
+/**
+ * Are these two sequences of abstract states equal?
+ */
+asmStatesEq : ([MaxStates]ASMState, [MaxStates]ASMState) -> Bool
+asmStatesEq (a, a') = True // a.error == a'.error
+
+/**
+ * When are two ASMs in a refinement relation, a |= c, where
+ * `a` is shorthand for "abstract" and `c` is shorthand for
+ * "concrete".
+ *
+ * @param a the abstract ASM.
+ * @param c the concrete ASM.
+ * @return a |= c
+ */
+refines : (ASM, ASM) -> Bool
+refines (a, c) = True
+
+(|=) : (ASM, ASM) -> Bool
+(|=) (a, c) = refines(a, c)
+
+/**
+ * Performs a single transition of a state machine.
+ */
+transition : ASM -> ASM
+transition a = a
+
+/**
+ * Performs transitions on a state machine until a predicate on the
+ * machine holds.
+ */
+transitionUntil : (ASM, (ASM -> Bool)) -> ASM
+transitionUntil (a, p) =
+   if ~ (p a) then
+     transitionUntil ((transition a), p)
+   else a
+
+/**
+ * Performs transitions on a state machine until the state machine no
+ * longer makes progress.
+ */
+transitionUntilFixpoint : ASM -> ASM
+transitionUntilFixpoint a =
+  if (asmStatesEq ((a.states), ((transition a).states))) then a
+  else transitionUntilFixpoint (transition a)
+
+// == Helper Functions ==
+
+// transitionsFromState : (ASM, ASMState) -> [MaxTransitions]Transition
+// transitionsFromState (a, s) = []
+
+// transitionsIntoState : (ASM, ASMState) -> [MaxTransitions]Transition
+// transitionsIntoState (a, s) = []
+
+// guardsOfTransitions : [MaxTransitions]Transition -> [MaxTransitions]Guard
+// guardsOfTransitions ts = []
+
+// == ASM Theorems ==
+
+// == Well-Formedness Properties ==
+
+/**
+ * The guards on all transitions from an abstract state are complete.
+ *
+ * ```
+ * :prove guardsComplete
+ * ```
+ */
+guardsComplete : ASMState -> Bool
+property guardsComplete a = False
+
+/**
+ * The guards of all transitions on all states are complete.
+ *
+ * ```
+ * :prove allGuardsComplete
+ * ```
+ */
+allGuardsComplete : ASM -> Bool
+property allGuardsComplete a = False
+
+/**
+ * The set of predicates defining all abstract states in a machine are
+ * complete.
+ *
+ * ```
+ * :prove statePredicatesComplete
+ * ```
+ */
+statePredicatesComplete: ASM -> Bool
+statePredicatesComplete a = False
+
+/* Local Variables: */
+/* comment-start: "// " */
+/* comment-end: "" */
+/* End: */
