@@ -1,5 +1,11 @@
 # next
 
+## Bug fixes
+
+* What4-based provers no longer throw spurious runtime errors when evaluating
+  the `fpToRational` function from `Float.cry`.
+  ([#2021](https://github.com/GaloisInc/cryptol/issues/2021))
+
 # 3.6.0 -- 2026-09-08
 
 ## Language changes

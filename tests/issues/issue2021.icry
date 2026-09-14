@@ -1,0 +1,5 @@
+:m Float
+fpToRational (0 : Float32) == (ratio 0 1)
+:eval fpToRational (0 : Float32) == (ratio 0 1)
+:set prover=w4-z3
+:prove fpToRational (0 : Float32) == (ratio 0 1)
