@@ -356,12 +356,34 @@ freshBV sym w hi =
        Nothing -> pure ()
      pure x
 
+-- | The @Maybe Integer@ arguments are optional lower and upper bounds, both
+-- inclusive.
+freshBoundedInt ::
+  W4.IsSymExprBuilder sym =>
+  What4 sym ->
+  Maybe Integer ->
+  Maybe Integer ->
+  IO (W4.SymInteger sym)
+freshBoundedInt sym lo hi =
+  do x <- W4.freshConstant (w4 sym) W4.emptySymbol W4.BaseIntegerRepr
+     case lo of
+       Just l -> do
+         sl <- W4.intLit (w4 sym) l
+         addDefEqn sym =<< W4.intLe (w4 sym) sl x
+       Nothing -> pure ()
+     case hi of
+       Just h -> do
+         sh <- W4.intLit (w4 sym) h
+         addDefEqn sym =<< W4.intLe (w4 sym) x sh
+       Nothing -> pure ()
+     return x
+
 what4FreshFns :: W4.IsSymExprBuilder sym => What4 sym -> FreshVarFns (What4 sym)
 what4FreshFns sym =
   FreshVarFns
   { freshBitVar     = W4.freshConstant (w4 sym) W4.emptySymbol W4.BaseBoolRepr
   , freshWordVar    = freshBV sym
-  , freshIntegerVar = W4.freshBoundedInt (w4 sym) W4.emptySymbol
+  , freshIntegerVar = freshBoundedInt sym
   , freshFloatVar   = W4.fpFresh (w4 sym)
   }
 
