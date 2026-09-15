@@ -32,8 +32,9 @@ poetry install
 export CRYPTOL_SERVER_URL="$PROTO://localhost:8080/"
 
 echo "Running cryptol-remote-api tests with remote server at $CRYPTOL_SERVER_URL..."
-# Disable a test case that is fragile in Docker (#1823)
+# Disable project-related test cases that are fragile in Docker (#1823)
 sed -i '/def test_project(self):/i\ \ \ \ @unittest.skip("Test is fragile in Docker (#1823)")' tests/cryptol/test_project.py
+sed -i '/def test_project_nested_module_hierarchy(self):/i\ \ \ \ @unittest.skip("Test is fragile in Docker (#1823)")' tests/cryptol/test_project_nested_module_hierarchy.py
 poetry run python -m unittest discover --verbose tests/cryptol
 if [ $? -ne 0 ]; then
     NUM_FAILS=$(($NUM_FAILS+1))

@@ -1,0 +1,9 @@
+module A::B where
+
+/**
+ * ```
+ * :check \x -> f x == x
+ * ```
+ */
+f : [8] -> [8]
+f x = x
