@@ -2,6 +2,10 @@
 
 ## Bug fixes
 
+* Fresh `Rational` values no longer crash the Cryptol REPL when using
+  What4-based provers.
+  ([#2020](https://github.com/GaloisInc/cryptol/issues/2020))
+
 * What4-based provers no longer throw spurious runtime errors when evaluating
   the `fpToRational` function from `Float.cry`.
   ([#2021](https://github.com/GaloisInc/cryptol/issues/2021))

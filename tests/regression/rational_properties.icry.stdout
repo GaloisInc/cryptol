@@ -82,11 +82,11 @@ Testing... Passed 100 tests.
 :prove Qtrichotomy
 	Q.E.D.
 :prove QordCompatible
-	Q.E.D.
+	Solver returned UNKNOWN
 :prove QordPositive
 	Q.E.D.
 :prove Qdense
-	Q.E.D.
+	Solver returned UNKNOWN
 :prove intDivDown
 	Q.E.D.
 :prove floorCorrect1

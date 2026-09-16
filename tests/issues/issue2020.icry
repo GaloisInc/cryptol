@@ -1,0 +1,5 @@
+:set show-examples=off
+:set prover=sbv-z3
+:sat \(x : Rational) -> x == 0
+:set prover=w4-z3
+:sat \(x : Rational) -> x == 0
