@@ -1,5 +1,11 @@
 # next
 
+## Administrative changes
+
+* CVC4 solver support has been removed. CVC4 has been deprecated and unmaintained
+  for years, and the CVC5 developers recommend migrating to CVC5.
+  ([#1806](https://github.com/GaloisInc/cryptol/issues/1806))
+
 ## Bug fixes
 
 * Fresh `Rational` values no longer crash the Cryptol REPL when using

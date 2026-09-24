@@ -1,4 +1,4 @@
-:set prover=w4-cvc4
+:set prover=w4-cvc5
 :set prover-stats=no
 :l poly.cry
 
