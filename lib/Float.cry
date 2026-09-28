@@ -312,7 +312,7 @@ primitive
   fpFromBV : {n,e,p} (fin n, n >= 1, ValidFloat e p) =>
     RoundingMode -> [n] -> Float e p
 
-/** Convert an signed bitvector to a floating point value using the given
+/** Convert a signed bitvector to a floating point value using the given
   * rounding mode.
   *
   * 'fpFromSBV' should not be confused with 'fpFromBits', which reinterprets
