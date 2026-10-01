@@ -338,7 +338,7 @@ freshVar fns tp =
         FStruct fs -> VarRecord <$> traverse (freshVar fns) fs
         FEnum conTs ->
           do let maxCon = toInteger (Vector.length conTs - 1)
-             tag <- freshWordVar fns (enumTagWidth conTs) (Just maxCon)
+             tag <- freshWordVar fns (enumTagWidth (Vector.length conTs)) (Just maxCon)
              cons <- traverse (traverse (freshVar fns)) conTs
              pure (VarEnum tag cons)
 

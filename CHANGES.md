@@ -16,6 +16,10 @@
   the `fpToRational` function from `Float.cry`.
   ([#2021](https://github.com/GaloisInc/cryptol/issues/2021))
 
+* Enum values reconstructed by `case` expressions now use the correct tag
+  width, avoiding runtime errors during equality checking.
+  ([#2143](https://github.com/GaloisInc/cryptol/issues/2143))
+
 # 3.6.0 -- 2026-09-08
 
 ## Language changes
