@@ -53,7 +53,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector(ppSelector)
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat(Nat'(..),nMul,widthInteger)
+import Cryptol.TypeCheck.Solver.InfNat(Nat'(..),nMul)
 import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -384,7 +384,7 @@ evalEnumCon ::
   Int ->
   SEval sym (Vector (SEval sym (GenValue sym)) -> GenValue sym)
 evalEnumCon sym i conIdx numCons =
-  do tag <- wordLit sym (widthInteger (toInteger numCons)) (toInteger conIdx)
+  do tag <- wordLit sym (enumTagWidth numCons) (toInteger conIdx)
      pure (VEnum tag . IntMap.singleton conIdx . ConInfo i)
 
 

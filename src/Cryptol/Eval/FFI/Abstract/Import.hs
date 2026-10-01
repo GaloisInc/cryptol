@@ -127,7 +127,7 @@ haveTag n fs0 =
 
               mkV :: [Value] -> Value
               mkV vs = pure (VEnum
-                              (BV (enumTagWidth opts) (toInteger n))
+                              (BV (enumTagWidth (Vector.length opts)) (toInteger n))
                               (IntMap.singleton n
                                   ci { conFields = Vector.fromList vs }))
 

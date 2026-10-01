@@ -1,0 +1,3 @@
+:load issue2143.cry
+:check caseIdentity
+:prove caseIdentity

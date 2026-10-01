@@ -648,7 +648,7 @@ parseValue (FTNominal _ _ nv) cvs =
     FStruct r -> parseValue (FTRecord r) cvs
     FEnum cons ->
       fromMaybe (panic "Cryptol.Symbolic.parseValue" ["no enum"]) $
-      do let tagWidth = enumTagWidth cons
+      do let tagWidth = enumTagWidth (Vector.length cons)
          (tag, cvs') <-
            SBV.genParse (SBV.KBounded False (fromInteger @Int tagWidth)) cvs
          let doCon input con =

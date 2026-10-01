@@ -1,0 +1,12 @@
+enum Value = Empty | Payload Bit
+    deriving (Eq)
+
+identityViaCase : Value -> Value
+identityViaCase value =
+    case value of
+        Empty -> Empty
+        Payload bit -> Payload bit
+
+caseIdentity : Value -> Bit
+property caseIdentity value =
+    identityViaCase value == value

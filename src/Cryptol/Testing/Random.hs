@@ -520,7 +520,7 @@ typeValues ty =
           | (tag,con) <- zip [0..] (Vector.toList cons)
           , vs        <- mapM typeValues (conFields con)
           , let con' = con { conFields = pure <$> vs }
-          , let tag' = BV (enumTagWidth cons) (toInteger tag)
+          , let tag' = BV (enumTagWidth (Vector.length cons)) (toInteger tag)
           ]
         TVAbstract -> []
 
