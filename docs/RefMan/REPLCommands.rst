@@ -139,6 +139,16 @@ Commands
     ``CRYPTOL_SAW`` are passed first, followed by the ``sawFlags`` option,
     ``FILE``, and any arguments provided after ``FILE``.
 
+    Relative filenames in docstrings are resolved relative to the directory
+    containing the Cryptol source file. Relative filenames in interactive and
+    batch commands are resolved relative to Cryptol's current working
+    directory. If the file is not found there, Cryptol searches the directories
+    in ``SAW_IMPORT_PATH``. Absolute filenames are used directly.
+
+    The resolved SAW filename is passed as an absolute path. Its directory is
+    prepended to ``SAW_IMPORT_PATH`` for the SAW process, while the process
+    retains Cryptol's current working directory.
+
     On success, Cryptol reports that SAW completed successfully. On failure,
     Cryptol displays SAW's standard output and standard error. Elapsed time is
     reported in either case.

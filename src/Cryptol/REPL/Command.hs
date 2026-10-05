@@ -145,16 +145,20 @@ import Data.List (intercalate, nub, isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
 import Data.Foldable (traverse_)
 import Data.Time.Clock (diffUTCTime, getCurrentTime)
-import System.Environment (lookupEnv)
+import System.Environment (getEnvironment, lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process
   ( shell, createProcess, waitForProcess
   , proc, readCreateProcessWithExitCode
   )
-import qualified System.Process as Process(runCommand)
-import System.FilePath((</>), (-<.>), isPathSeparator)
+import qualified System.Process as Process
+import System.FilePath
+  ( (</>), (-<.>), isAbsolute, isPathSeparator, searchPathSeparator
+  , splitSearchPath, takeDirectory
+  )
 import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist
-                       ,getTemporaryDirectory,setPermissions,removeFile
+                       ,getCurrentDirectory,getTemporaryDirectory,makeAbsolute
+                       ,setPermissions,removeFile
                        ,emptyPermissions,setOwnerReadable,doesFileExist)
 import System.IO
          (Handle,hFlush,stdout,openTempFile,hClose,openFile
@@ -182,7 +186,10 @@ import Cryptol.Utils.Ident (allNamespaces)
 
 -- | Commands.
 data Command
-  = Command (Int -> Maybe FilePath -> REPL CommandResult) -- ^ Successfully parsed command
+  = Command
+      (Int -> Maybe FilePath -> Maybe FilePath -> REPL CommandResult)
+      -- ^ Successfully parsed command. Arguments are the line number,
+      -- @.icry@ file (if in batch mode), and @.cry@ file (if in docstring).
   | Ambiguous String [String] -- ^ Ambiguous command, list of conflicting
                               --   commands
   | Unknown String            -- ^ The unknown command
@@ -212,7 +219,8 @@ data CommandBody
   | ExprTypeArg (String   -> REPL CommandResult)
   | ModNameArg  (String   -> REPL CommandResult)
   | FilenameArg (FilePath -> REPL CommandResult)
-  | FilenameArgsArg (FilePath -> [String] -> REPL CommandResult)
+  | FilenameArgsArg
+      (Maybe FilePath -> FilePath -> [String] -> REPL CommandResult)
   | OptionArg   (String   -> REPL CommandResult)
   | ShellArg    (String   -> REPL CommandResult)
   | HelpArg     (String   -> REPL CommandResult)
@@ -351,7 +359,10 @@ nbCommandList  =
      [ "The path to SAW is determined from the environment variable"
      , "CRYPTOL_SAW. The user option sawFlags contains flags that will be"
      , "added to all calls to SAW. Arguments after FILE are passed to SAW"
-     , "after the filename."
+     , "after the filename. In a docstring, relative filenames are resolved"
+     , "relative to the containing Cryptol file; otherwise they are resolved"
+     , "relative to the current working directory. SAW_IMPORT_PATH is searched"
+     , "if the file is not found there."
      ])
   ]
 
@@ -446,12 +457,13 @@ genHelp cs = map cmdHelp cs
 
 -- Command Evaluation ----------------------------------------------------------
 
--- | Run a command.
+-- | Run a command entered in the interactive REPL or read from a batch file.
+-- Commands in docstrings are run separately by 'checkBlock'.
 runCommand :: Int -> Maybe FilePath -> Command -> REPL CommandResult
 runCommand lineNum mbBatch c = case c of
 
   Command cmd ->
-    rethrowTCSolverTimeout (cmd lineNum mbBatch)
+    rethrowTCSolverTimeout (cmd lineNum mbBatch Nothing)
       `Cryptol.REPL.Monad.catch` handler
     where
     handler re = do
@@ -2124,27 +2136,27 @@ parseCommand findCmd line = do
   let args' = sanitizeEnd args
   case findCmd cmd of
     [c] -> case cBody c of
-      ExprArg     body -> Just (Command \l fp -> (body args' (l,cmdLen+1) fp))
-      DeclsArg    body -> Just (Command \_ _ -> (body args'))
-      ExprTypeArg body -> Just (Command \_ _ -> (body args'))
-      ModNameArg  body -> Just (Command \_ _ -> (body args'))
-      FilenameArg body -> Just (Command \_ _ -> (body =<< expandHome args'))
+      ExprArg     body -> Just (Command \l fp _ -> (body args' (l,cmdLen+1) fp))
+      DeclsArg    body -> Just (Command \_ _ _ -> (body args'))
+      ExprTypeArg body -> Just (Command \_ _ _ -> (body args'))
+      ModNameArg  body -> Just (Command \_ _ _ -> (body args'))
+      FilenameArg body -> Just (Command \_ _ _ -> (body =<< expandHome args'))
       FilenameArgsArg body ->
            do (_,fp,more) <- extractFilePath args'
-              Just (Command \_ _ -> do hm <- expandHome fp
-                                       body hm (lexFlags more))
-      OptionArg   body -> Just (Command \_ _ -> (body args'))
-      ShellArg    body -> Just (Command \_ _ -> (body args'))
-      HelpArg     body -> Just (Command \_ _ -> (body args'))
-      NoArg       body -> Just (Command \_ _ -> body)
+              Just (Command \_ _ docSource -> do hm <- expandHome fp
+                                                 body docSource hm (lexFlags more))
+      OptionArg   body -> Just (Command \_ _ _ -> (body args'))
+      ShellArg    body -> Just (Command \_ _ _ -> (body args'))
+      HelpArg     body -> Just (Command \_ _ _ -> (body args'))
+      NoArg       body -> Just (Command \_ _ _ -> body)
       FileExprArg body ->
            do (fpLen,fp,expr) <- extractFilePath args'
-              Just (Command \l fp' -> do let col = cmdLen + fpLen + 1
-                                         hm <- expandHome fp
-                                         body hm expr (l,col) fp')
+              Just (Command \l fp' _ -> do let col = cmdLen + fpLen + 1
+                                           hm <- expandHome fp
+                                           body hm expr (l,col) fp')
     [] -> case uncons cmd of
       Just (':',_) -> Just (Unknown cmd)
-      Just _       -> Just (Command (evalCmd line))
+      Just _       -> Just (Command \l fp _ -> evalCmd line l fp)
       _            -> Nothing
 
     cs -> Just (Ambiguous cmd (concatMap cNames cs))
@@ -2230,9 +2242,10 @@ printLine line
 --
 -- Execution of the commands is run in an isolated REPL environment.
 checkBlock ::
+  Maybe FilePath {- ^ containing Cryptol source file -} ->
   [T.Text] {- ^ lines of the code block -} ->
   REPL [SubcommandResult]
-checkBlock = isolated . go . continuedLines
+checkBlock docSource = isolated . go . continuedLines
   where
     go [] = pure []
     go (line:block)
@@ -2252,7 +2265,9 @@ checkBlock = isolated . go . continuedLines
             Just Ambiguous{} -> doErr "Ambiguous command"
             Just Unknown{} -> doErr "Unknown command"
             Just (Command cmd) -> do
-              (logtxt, eresult) <- captureLog (Cryptol.REPL.Monad.try (cmd 0 Nothing))
+              (logtxt, eresult) <-
+                captureLog
+                  (Cryptol.REPL.Monad.try (cmd 0 Nothing docSource))
               case eresult of
                 Left e -> do
                   let result = SubcommandResult
@@ -2267,7 +2282,7 @@ checkBlock = isolated . go . continuedLines
                         , srLog = logtxt
                         , srResult = result
                         }
-                  subresults <- checkBlock block
+                  subresults <- checkBlock docSource block
                   pure (subresult : subresults)
 
 -- | Combine lines ending in a backslash with the next line.
@@ -2330,8 +2345,8 @@ data DocstringResult = DocstringResult
   }
 
 -- | Check all the code blocks in a given docstring.
-checkDocItem :: T.DocItem -> REPL DocstringResult
-checkDocItem item =
+checkDocItem :: Maybe FilePath -> T.DocItem -> REPL DocstringResult
+checkDocItem docSource item =
  do rPrint ("  Docstrings on" <+> pp (T.docFor item))
     xs <- case traverse T.extractCodeBlocks (T.docText item) of
             [] -> pure [] -- optimization
@@ -2339,7 +2354,7 @@ checkDocItem item =
               Ex.bracket
                 (liftModuleCmd (`M.runModuleM` (M.getFocusedModule <* M.setFocusedModule (T.docModContext item))))
                 (\mb -> liftModuleCmd (`M.runModuleM` M.setMaybeFocusedModule mb))
-                (\_ -> traverse checkBlock (concat bs))
+                (\_ -> traverse (checkBlock docSource) (concat bs))
     pure DocstringResult
       { drName = T.docFor item
       , drFences = xs
@@ -2366,9 +2381,13 @@ printDocStrings m = do
 checkDocStrings :: M.LoadedModule -> Maybe Proj.CacheId -> REPL ([DocstringResult], Proj.CacheId)
 checkDocStrings m expectCache = do
   let dat = M.lmdModule (M.lmData m)
+      docSource =
+        case M.lmFilePath m of
+          M.InFile fp -> Just fp
+          M.InMem {} -> Nothing
   rPrint ("Checking module" <+> pp (T.mName dat))
   let ds = T.gatherModuleDocstrings (M.ifaceNameToModuleMap (M.lmInterface m)) dat
-  results <- traverse checkDocItem ds
+  results <- traverse (checkDocItem docSource) ds
   cid <- updateDocstringCache m results expectCache
   pure (results,cid)
 
@@ -2585,13 +2604,14 @@ getSAW = do
 -- * the file can be found
 -- * SAW processes the file successfully
 sawCmd ::
+  Maybe FilePath {- ^ Containing Cryptol source file for a docstring -} ->
   FilePath {- ^ SAW filename -} ->
   [String] {- ^ Additional SAW arguments -} ->
   REPL CommandResult
-sawCmd input extraArgs = do
-    present <- io $ doesFileExist input
-    if present
-      then
+sawCmd docSource input extraArgs = do
+    resolvedInput <- resolveSAWFile docSource input
+    case resolvedInput of
+      Just sawFile ->
         do
           (cmd, args) <- getSAW
           flags <- getKnownUser "sawFlags"
@@ -2602,11 +2622,23 @@ sawCmd input extraArgs = do
                 pure emptyCommandResult { crSuccess = False }
             else
               do
+                processEnv <- io getEnvironment
+                let sawDir = takeDirectory sawFile
+                    oldImportPath =
+                      maybe [] splitSearchPath
+                        (lookup "SAW_IMPORT_PATH" processEnv)
+                    newImportPath =
+                      intercalate [searchPathSeparator] (sawDir : oldImportPath)
+                    sawEnv =
+                      ("SAW_IMPORT_PATH", newImportPath) :
+                      filter ((/= "SAW_IMPORT_PATH") . fst) processEnv
+                    sawProcess =
+                      (proc cmd
+                        (args ++ lexFlags flags ++ [sawFile] ++ extraArgs))
+                        { Process.env = Just sawEnv }
                 start <- io getCurrentTime
                 (exitCode, out, err) <-
-                  io $ readCreateProcessWithExitCode
-                         (proc cmd
-                           (args ++ lexFlags flags ++ [input] ++ extraArgs)) ""
+                  io $ readCreateProcessWithExitCode sawProcess ""
                 end <- io getCurrentTime
                 seeStats <- getUserShowProverStats
                 let elapsed = diffUTCTime end start
@@ -2625,10 +2657,35 @@ sawCmd input extraArgs = do
                   rPutStrLn $
                     "(Total Elapsed Time: " ++ SBV.showTDiff elapsed ++ ")"
                 pure emptyCommandResult { crSuccess = exitCode == ExitSuccess }
-      else
+      Nothing ->
         do
           rPutStrLn $ "File `" ++ input ++ "' does not exist."
           pure emptyCommandResult { crSuccess = False }
+
+resolveSAWFile :: Maybe FilePath -> FilePath -> REPL (Maybe FilePath)
+resolveSAWFile docSource input
+  | isAbsolute input = findFile [input]
+  | otherwise =
+      do
+        cwd <- io getCurrentDirectory
+        importPath <- io (lookupEnv "SAW_IMPORT_PATH")
+        let base = maybe cwd takeDirectory docSource
+            candidates =
+              (base </> input) :
+              [ dir </> input
+              | dir <- maybe [] splitSearchPath importPath
+              ]
+        findFile candidates
+  where
+  findFile candidates =
+    case candidates of
+      [] -> pure Nothing
+      candidate : more ->
+        do
+          present <- io (doesFileExist candidate)
+          if present
+            then Just <$> io (makeAbsolute candidate)
+            else findFile more
 
 ppInvalidStatus :: Proj.InvalidStatus -> Doc
 ppInvalidStatus = \case

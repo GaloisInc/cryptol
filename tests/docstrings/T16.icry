@@ -1,0 +1,3 @@
+:set proverStats=off
+:load T16/T16.cry
+:check-docstrings
