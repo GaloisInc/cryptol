@@ -1180,7 +1180,7 @@ userOptions  = mkOptionMap $
   , simpleOpt "timeQuiet" ["time-quiet"] (EnvBool False) noCheck
     "Suppress output of :time command and only bind result to `it`."
 
-  , simpleOpt "sawFlags" ["saw-flags"] (EnvString "-v 0") noCheck
+  , simpleOpt "sawFlags" ["saw-flags"] (EnvString "") noCheck
     "Flags for all calls to SAW."
   ] ++ debugDumpOpts
 

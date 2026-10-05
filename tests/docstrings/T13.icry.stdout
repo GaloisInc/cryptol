@@ -4,4 +4,6 @@ Loading module I
 Checking module I
   Docstrings on I
     :saw T13.saw
+      SAW completed successfully.
+      (Total Elapsed Time: 0.005s)
 Successes: 1, No fences: 0, Failures: 0

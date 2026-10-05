@@ -144,9 +144,13 @@ import Data.Function (on)
 import Data.List (intercalate, nub, isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
 import Data.Foldable (traverse_)
+import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
-import System.Process (shell,createProcess,waitForProcess,spawnProcess)
+import System.Process
+  ( shell, createProcess, waitForProcess
+  , proc, readCreateProcessWithExitCode
+  )
 import qualified System.Process as Process(runCommand)
 import System.FilePath((</>), (-<.>), isPathSeparator)
 import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist
@@ -2579,19 +2583,42 @@ sawCmd ::
   REPL CommandResult
 sawCmd input = do
     present <- io $ doesFileExist input
-    if present then do
-      (cmd, args) <- getSAW
-      flags <- getKnownUser "sawFlags"
-      if cmd == "" then do
-          rPutStrLn $ "SAW `" ++ cmd ++ "' was empty."
+    if present
+      then
+        do
+          (cmd, args) <- getSAW
+          flags <- getKnownUser "sawFlags"
+          if cmd == ""
+            then
+              do
+                rPutStrLn $ "SAW `" ++ cmd ++ "' was empty."
+                pure emptyCommandResult { crSuccess = False }
+            else
+              do
+                start <- io getCurrentTime
+                (exitCode, out, err) <-
+                  io $ readCreateProcessWithExitCode
+                         (proc cmd (args ++ lexFlags flags ++ [input])) ""
+                end <- io getCurrentTime
+                let elapsed = diffUTCTime end start
+                    output = out ++ err
+                if exitCode == ExitSuccess
+                  then
+                    do
+                      rPutStrLn "SAW completed successfully."
+                  else
+                    do
+                      rPutStrLn "SAW exited with an error."
+                      rPutStr output
+                      unless (null output || last output == '\n') $
+                        rPutStrLn ""
+                rPutStrLn $
+                  "(Total Elapsed Time: " ++ SBV.showTDiff elapsed ++ ")"
+                pure emptyCommandResult { crSuccess = exitCode == ExitSuccess }
+      else
+        do
+          rPutStrLn $ "File `" ++ input ++ "' does not exist."
           pure emptyCommandResult { crSuccess = False }
-      else do
-        hdl <- io $ spawnProcess cmd (args ++ lexFlags flags ++ [input])
-        exitCode <- io $ waitForProcess hdl
-        pure emptyCommandResult { crSuccess = exitCode == ExitSuccess }
-    else do
-      rPutStrLn $ "File `" ++ input ++ "' does not exist."
-      pure emptyCommandResult { crSuccess = False }
 
 ppInvalidStatus :: Proj.InvalidStatus -> Doc
 ppInvalidStatus = \case

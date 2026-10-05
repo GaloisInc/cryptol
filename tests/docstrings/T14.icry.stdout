@@ -4,4 +4,7 @@ Loading module I
 Checking module I
   Docstrings on I
     :saw T14.saw
+      SAW exited with an error.
+      SAW failed to process T14.saw
+      (Total Elapsed Time: 0.005s)
 Successes: 0, No fences: 0, Failures: 1
