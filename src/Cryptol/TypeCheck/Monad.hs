@@ -921,7 +921,11 @@ existVar :: Name -> Kind -> InferM Type
 existVar x k =
   do scopes <- iExistTVars <$> IM get
      case msum (map (Map.lookup x) scopes) of
-       Just ty -> return ty
+       Just ty
+         | kindOf ty == k -> return ty
+         | otherwise ->
+           do recordError (KindMismatch Nothing k (kindOf ty))
+              newType TypeErrorPlaceHolder k
        Nothing ->
          case scopes of
            [] ->
