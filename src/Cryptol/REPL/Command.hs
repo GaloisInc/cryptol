@@ -212,6 +212,7 @@ data CommandBody
   | ExprTypeArg (String   -> REPL CommandResult)
   | ModNameArg  (String   -> REPL CommandResult)
   | FilenameArg (FilePath -> REPL CommandResult)
+  | FilenameArgsArg (FilePath -> [String] -> REPL CommandResult)
   | OptionArg   (String   -> REPL CommandResult)
   | ShellArg    (String   -> REPL CommandResult)
   | HelpArg     (String   -> REPL CommandResult)
@@ -344,12 +345,13 @@ nbCommandList  =
   , CommandDescr [ ":print-docstrings" ] [] (ModNameArg printDocStringsCmd)
       "Print the REPL code blocks in the module's docstring comments"
       ""
-  , CommandDescr [ ":saw" ] [] (FilenameArg sawCmd)
+  , CommandDescr [ ":saw" ] ["FILE", "[ARG ...]"] (FilenameArgsArg sawCmd)
     "Load a given SAW file."
     (unlines
      [ "The path to SAW is determined from the environment variable"
      , "CRYPTOL_SAW. The user option sawFlags contains flags that will be"
-     , "added to all calls to SAW."
+     , "added to all calls to SAW. Arguments after FILE are passed to SAW"
+     , "after the filename."
      ])
   ]
 
@@ -2127,6 +2129,10 @@ parseCommand findCmd line = do
       ExprTypeArg body -> Just (Command \_ _ -> (body args'))
       ModNameArg  body -> Just (Command \_ _ -> (body args'))
       FilenameArg body -> Just (Command \_ _ -> (body =<< expandHome args'))
+      FilenameArgsArg body ->
+           do (_,fp,more) <- extractFilePath args'
+              Just (Command \_ _ -> do hm <- expandHome fp
+                                       body hm (lexFlags more))
       OptionArg   body -> Just (Command \_ _ -> (body args'))
       ShellArg    body -> Just (Command \_ _ -> (body args'))
       HelpArg     body -> Just (Command \_ _ -> (body args'))
@@ -2580,8 +2586,9 @@ getSAW = do
 -- * SAW processes the file successfully
 sawCmd ::
   FilePath {- ^ SAW filename -} ->
+  [String] {- ^ Additional SAW arguments -} ->
   REPL CommandResult
-sawCmd input = do
+sawCmd input extraArgs = do
     present <- io $ doesFileExist input
     if present
       then
@@ -2598,7 +2605,8 @@ sawCmd input = do
                 start <- io getCurrentTime
                 (exitCode, out, err) <-
                   io $ readCreateProcessWithExitCode
-                         (proc cmd (args ++ lexFlags flags ++ [input])) ""
+                         (proc cmd
+                           (args ++ lexFlags flags ++ [input] ++ extraArgs)) ""
                 end <- io getCurrentTime
                 let elapsed = diffUTCTime end start
                     output = out ++ err

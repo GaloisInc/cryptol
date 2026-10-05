@@ -1,8 +1,7 @@
 /** docstrings can use the :saw repl command
  *
  * ```repl
- * :saw T13.saw
+ * :saw T13.saw 1 "two words" 3
  * ```
  */
 module I where
-

@@ -1,6 +1,10 @@
 #!/usr/bin/env sh
 
-if [ "$1" = "T13.saw" ] ; then
+if [ "$#" = 4 ] &&
+   [ "$1" = "T13.saw" ] &&
+   [ "$2" = "1" ] &&
+   [ "$3" = "two words" ] &&
+   [ "$4" = "3" ] ; then
     echo "This successful output should be hidden"
     exit 0
 fi

@@ -363,6 +363,7 @@ cmdArgument ct cursor@(l,_) = case ct of
   ExprTypeArg _ -> (completeExpr +++ completeType) cursor
   ModNameArg _  -> completeModName cursor
   FilenameArg _ -> completeFilename cursor
+  FilenameArgsArg _ -> completeFilename cursor
   ShellArg _    -> completeFilename cursor
   OptionArg _   -> completeOption cursor
   HelpArg     _ -> completeHelp cursor
