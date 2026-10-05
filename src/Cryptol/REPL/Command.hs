@@ -2608,6 +2608,7 @@ sawCmd input extraArgs = do
                          (proc cmd
                            (args ++ lexFlags flags ++ [input] ++ extraArgs)) ""
                 end <- io getCurrentTime
+                seeStats <- getUserShowProverStats
                 let elapsed = diffUTCTime end start
                     output = out ++ err
                 if exitCode == ExitSuccess
@@ -2620,8 +2621,9 @@ sawCmd input extraArgs = do
                       rPutStr output
                       unless (null output || last output == '\n') $
                         rPutStrLn ""
-                rPutStrLn $
-                  "(Total Elapsed Time: " ++ SBV.showTDiff elapsed ++ ")"
+                when seeStats $
+                  rPutStrLn $
+                    "(Total Elapsed Time: " ++ SBV.showTDiff elapsed ++ ")"
                 pure emptyCommandResult { crSuccess = exitCode == ExitSuccess }
       else
         do

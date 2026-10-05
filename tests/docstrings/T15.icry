@@ -1,2 +1,3 @@
+:set proverStats=off
 :m T15
 :check-docstrings

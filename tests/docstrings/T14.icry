@@ -1,2 +1,3 @@
+:set proverStats=off
 :load T14.cry
 :check-docstrings
