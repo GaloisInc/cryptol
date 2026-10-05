@@ -20,6 +20,10 @@
   width, avoiding runtime errors during equality checking.
   ([#2143](https://github.com/GaloisInc/cryptol/issues/2143))
 
+* The kind checker now rejects implicitly scoped type variables that are used
+  at inconsistent kinds.
+  ([#2149](https://github.com/GaloisInc/cryptol/issues/2149))
+
 # 3.6.0 -- 2026-09-08
 
 ## Language changes

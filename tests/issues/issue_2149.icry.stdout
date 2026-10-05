@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at issue_2149.cry:1:4--1:5
+    Unused name: x
+
+[error] at issue_2149.cry:1:21--1:24:
+  Incorrect type form.
+    Expected: a numeric type
+    Inferred: a value type
