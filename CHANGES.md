@@ -6,6 +6,19 @@
   for years, and the CVC5 developers recommend migrating to CVC5.
   ([#1806](https://github.com/GaloisInc/cryptol/issues/1806))
 
+## REPL changes
+
+* The `:saw` command now reports SAW output on failure and, when
+  `proverStats` is enabled, elapsed time.
+  ([#1974](https://github.com/GaloisInc/cryptol/issues/1974))
+
+* The `:saw` command now supports passing additional arguments to SAW scripts.
+  ([#1975](https://github.com/GaloisInc/cryptol/issues/1975))
+
+* Relative filenames passed to `:saw` now support source-relative docstring
+  lookup and fallback through `SAW_IMPORT_PATH`.
+  ([#1976](https://github.com/GaloisInc/cryptol/issues/1976))
+
 ## Bug fixes
 
 * Fresh `Rational` values no longer crash the Cryptol REPL when using
