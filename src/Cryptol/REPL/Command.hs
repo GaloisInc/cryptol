@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module Cryptol.REPL.Command (
     -- * Commands
-    Command(..), CommandDescr(..), CommandBody(..), CommandResult(..)
+    Command(..), CommandOrigin(..), CommandDescr(..), CommandBody(..), CommandResult(..)
   , parseCommand
   , runCommand
   , splitCommand
@@ -153,8 +153,7 @@ import System.Process
   )
 import qualified System.Process as Process
 import System.FilePath
-  ( (</>), (-<.>), isAbsolute, isPathSeparator, searchPathSeparator
-  , splitSearchPath, takeDirectory
+  ( (</>), (-<.>), isAbsolute, isPathSeparator, takeDirectory
   )
 import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist
                        ,getCurrentDirectory,getTemporaryDirectory,makeAbsolute
@@ -184,12 +183,25 @@ import Cryptol.Utils.Ident (allNamespaces)
 
 -- Commands --------------------------------------------------------------------
 
+-- | Where a command came from.
+data CommandOrigin
+  = FromRepl
+  | FromBatch FilePath
+  | FromCodeBlockIn (Maybe FilePath)
+    -- ^ This may be `Nothing` for built-in modules.
+
+commandInputFile :: CommandOrigin -> Maybe FilePath
+commandInputFile origin =
+  case origin of
+    FromBatch fp -> Just fp
+    _ -> Nothing
+
 -- | Commands.
 data Command
   = Command
-      (Int -> Maybe FilePath -> Maybe FilePath -> REPL CommandResult)
-      -- ^ Successfully parsed command. Arguments are the line number,
-      -- @.icry@ file (if in batch mode), and @.cry@ file (if in docstring).
+      (Int -> CommandOrigin -> REPL CommandResult)
+      -- ^ Successfully parsed command. Arguments are the line number and
+      -- where the command came from.
   | Ambiguous String [String] -- ^ Ambiguous command, list of conflicting
                               --   commands
   | Unknown String            -- ^ The unknown command
@@ -213,14 +225,14 @@ instance Ord CommandDescr where
   compare = compare `on` cNames
 
 data CommandBody
-  = ExprArg     (String   -> (Int,Int) -> Maybe FilePath -> REPL CommandResult)
-  | FileExprArg (FilePath -> String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult)
+  = ExprArg     (String   -> (Int,Int) -> CommandOrigin -> REPL CommandResult)
+  | FileExprArg (FilePath -> String -> (Int,Int) -> CommandOrigin -> REPL CommandResult)
   | DeclsArg    (String   -> REPL CommandResult)
   | ExprTypeArg (String   -> REPL CommandResult)
   | ModNameArg  (String   -> REPL CommandResult)
   | FilenameArg (FilePath -> REPL CommandResult)
   | FilenameArgsArg
-      (Maybe FilePath -> FilePath -> [String] -> REPL CommandResult)
+      (CommandOrigin -> FilePath -> [String] -> REPL CommandResult)
   | OptionArg   (String   -> REPL CommandResult)
   | ShellArg    (String   -> REPL CommandResult)
   | HelpArg     (String   -> REPL CommandResult)
@@ -459,11 +471,11 @@ genHelp cs = map cmdHelp cs
 
 -- | Run a command entered in the interactive REPL or read from a batch file.
 -- Commands in docstrings are run separately by 'checkBlock'.
-runCommand :: Int -> Maybe FilePath -> Command -> REPL CommandResult
-runCommand lineNum mbBatch c = case c of
+runCommand :: Int -> CommandOrigin -> Command -> REPL CommandResult
+runCommand lineNum origin c = case c of
 
   Command cmd ->
-    rethrowTCSolverTimeout (cmd lineNum mbBatch Nothing)
+    rethrowTCSolverTimeout (cmd lineNum origin)
       `Cryptol.REPL.Monad.catch` handler
     where
     handler re = do
@@ -471,19 +483,26 @@ runCommand lineNum mbBatch c = case c of
       rPrint (pp re)
       return emptyCommandResult { crSuccess = False }
 
-  Unknown cmd -> do
-    rPutStrLn ("Unknown command: " ++ cmd)
-    return emptyCommandResult { crSuccess = False }
+  Unknown cmd -> reportUnknownCommand cmd
 
-  Ambiguous cmd cmds -> do
-    rPutStrLn (cmd ++ " is ambiguous, it could mean one of:")
-    rPutStrLn ("\t" ++ intercalate ", " cmds)
-    return emptyCommandResult { crSuccess = False }
+  Ambiguous cmd cmds -> reportAmbiguousCommand cmd cmds
 
 
-evalCmd :: String -> Int -> Maybe FilePath -> REPL CommandResult
-evalCmd str lineNum mbBatch = do
-  ri <- replParseInput str lineNum mbBatch
+reportUnknownCommand :: String -> REPL CommandResult
+reportUnknownCommand cmd = do
+  rPutStrLn ("Unknown command: " ++ cmd)
+  return emptyCommandResult { crSuccess = False }
+
+reportAmbiguousCommand :: String -> [String] -> REPL CommandResult
+reportAmbiguousCommand cmd cmds = do
+  rPutStrLn (cmd ++ " is ambiguous, it could mean one of:")
+  rPutStrLn ("\t" ++ intercalate ", " cmds)
+  return emptyCommandResult { crSuccess = False }
+
+
+evalCmd :: String -> Int -> CommandOrigin -> REPL CommandResult
+evalCmd str lineNum origin = do
+  ri <- replParseInput str lineNum (commandInputFile origin)
   case ri of
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
@@ -577,9 +596,9 @@ printSatisfyingModel exprDoc vs =
      rPrint $ nest 2 (sep ([exprDoc] ++ docs ++ [text "= True"]))
 
 
-dumpTestsCmd :: FilePath -> String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
-dumpTestsCmd outFile str pos fnm =
-  do expr <- replParseExpr str pos fnm
+dumpTestsCmd :: FilePath -> String -> (Int,Int) -> CommandOrigin -> REPL CommandResult
+dumpTestsCmd outFile str pos origin =
+  do expr <- replParseExpr str pos (commandInputFile origin)
      (val, ty) <- replEvalExpr expr
      ppopts <- getPPValOpts
      testNum <- getKnownUser "tests" :: REPL Int
@@ -610,8 +629,8 @@ data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 -- | Randomly test a property, or exhaustively check it if the number
 -- of values in the type under test is smaller than the @tests@
 -- environment variable, or we specify exhaustive testing.
-qcCmd :: QCMode -> String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
-qcCmd qcMode "" _pos _fnm =
+qcCmd :: QCMode -> String -> (Int,Int) -> CommandOrigin -> REPL CommandResult
+qcCmd qcMode "" _pos _origin =
   do (xs,disp) <- getPropertyNames
      let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
@@ -631,8 +650,8 @@ qcCmd qcMode "" _pos _fnm =
           success <- foldM evalProp True xs
           pure emptyCommandResult { crSuccess = success }
 
-qcCmd qcMode str pos fnm =
-  do expr <- replParseExpr str pos fnm
+qcCmd qcMode str pos origin =
+  do expr <- replParseExpr str pos (commandInputFile origin)
      (_,texpr,schema) <- replCheckExpr expr
      nd <- M.mctxNameDisp <$> getFocusedEnv
      let doc = fixNameDisp nd (ppPrec 3 expr) -- function application has precedence 3
@@ -852,16 +871,15 @@ expectedCoverage testNum sz =
 
    proportion = negate (expm1 (numD * log1p (negate (recip szD))))
 
-satCmd, proveCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+satCmd, proveCmd :: String -> (Int,Int) -> CommandOrigin -> REPL CommandResult
 satCmd = cmdProveSat True
 proveCmd = cmdProveSat False
 
 showProverStats :: Maybe String -> ProverStats -> REPL ()
-showProverStats mprover stat = rPutStrLn msg
-  where
-
-  msg = "(Total Elapsed Time: " ++ SBV.showTDiff stat ++
-        maybe "" (\p -> ", using " ++ show p) mprover ++ ")"
+showProverStats prover stat =
+  rPutStrLn $
+    "(Total Elapsed Time: " ++ SBV.showTDiff stat ++
+    maybe "" (\p -> ", using " ++ show p) prover ++ ")"
 
 rethrowErrorCall :: REPL a -> REPL a
 rethrowErrorCall m = REPL (\r -> unREPL m r `X.catches` hs)
@@ -874,16 +892,17 @@ rethrowErrorCall m = REPL (\r -> unREPL m r `X.catches` hs)
       ]
 
 -- | Attempts to prove the given term is safe for all inputs
-safeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+safeCmd :: String -> (Int,Int) -> CommandOrigin -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-safeCmd "" _pos _fnm =
+safeCmd "" _pos _origin =
   do  rPutStrLn $ invalidCommandArgument ":safe"
       return emptyCommandResult {crSuccess = False}
 
-safeCmd str pos fnm = do
+safeCmd str pos origin = do
   proverName <- getKnownUser "prover"
   fileName   <- getKnownUser "smtFile"
-  let mfile = if fileName == "-" then Nothing else Just fileName
+  let fnm = commandInputFile origin
+      mfile = if fileName == "-" then Nothing else Just fileName
   pexpr <- replParseExpr str pos fnm
   nd <- M.mctxNameDisp <$> getFocusedEnv
   let exprDoc = fixNameDisp nd (ppPrec 3 pexpr) -- function application has precedence 3
@@ -935,8 +954,8 @@ safeCmd str pos fnm = do
 -- console, and binds the @it@ variable to a record whose form depends
 -- on the expression given. See ticket #66 for a discussion of this
 -- design.
-cmdProveSat :: Bool -> String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
-cmdProveSat isSat "" _pos _fnm =
+cmdProveSat :: Bool -> String -> (Int,Int) -> CommandOrigin -> REPL CommandResult
+cmdProveSat isSat "" _pos _origin =
   do (xs,disp) <- getPropertyNames
      let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
@@ -959,7 +978,8 @@ cmdProveSat isSat "" _pos _fnm =
           pure emptyCommandResult { crSuccess = success }
 
 
-cmdProveSat isSat str pos fnm = do
+cmdProveSat isSat str pos origin = do
+  let fnm = commandInputFile origin
   pexpr <- replParseExpr str pos fnm
   nd <- M.mctxNameDisp <$> getFocusedEnv
   let doc = fixNameDisp nd (ppPrec 3 pexpr) -- function application has precedence 3
@@ -1205,14 +1225,14 @@ mkSolverResult thing rng result earg =
        in ((argName,t),(argName,e))
 
 
-specializeCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+specializeCmd :: String -> (Int,Int) -> CommandOrigin -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-specializeCmd "" _pos _fnm =
+specializeCmd "" _pos _origin =
   do  rPutStrLn $ invalidCommandArgument ":debug_specialize"
       return emptyCommandResult {crSuccess = False}
 
-specializeCmd str pos fnm = do
-  parseExpr <- replParseExpr str pos fnm
+specializeCmd str pos origin = do
+  parseExpr <- replParseExpr str pos (commandInputFile origin)
   (_, expr, schema) <- replCheckExpr parseExpr
   spexpr <- replSpecExpr expr
   rPutStrLn  "Expression type:"
@@ -1224,14 +1244,14 @@ specializeCmd str pos fnm = do
   rPutStrLn value
   pure emptyCommandResult { crValue = Just value }
 
-refEvalCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+refEvalCmd :: String -> (Int,Int) -> CommandOrigin -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-refEvalCmd "" _pos _fnm =
+refEvalCmd "" _pos _origin =
   do  rPutStrLn $ invalidCommandArgument ":eval"
       return emptyCommandResult {crSuccess = False}
 
-refEvalCmd str pos fnm = do
-  parseExpr <- replParseExpr str pos fnm
+refEvalCmd str pos origin = do
+  parseExpr <- replParseExpr str pos (commandInputFile origin)
   (_, expr, schema) <- replCheckExpr parseExpr
   validEvalContext expr
   validEvalContext schema
@@ -1241,14 +1261,14 @@ refEvalCmd str pos fnm = do
   rPutStrLn value
   pure emptyCommandResult { crValue = Just value }
 
-astOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+astOfCmd :: String -> (Int,Int) -> CommandOrigin -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-astOfCmd "" _pos _fnm =
+astOfCmd "" _pos _origin =
   do  rPutStrLn $ invalidCommandArgument ":ast"
       return emptyCommandResult {crSuccess = False}
 
-astOfCmd str pos fnm = do
- expr <- replParseExpr str pos fnm
+astOfCmd str pos origin = do
+ expr <- replParseExpr str pos (commandInputFile origin)
  (re,_,_) <- replCheckExpr (P.noPos expr)
  rPrint (fmap M.nameUnique re)
  pure emptyCommandResult
@@ -1260,15 +1280,15 @@ extractCoqCmd = do
   pure emptyCommandResult
 
 
-typeOfCmd :: String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
+typeOfCmd :: String -> (Int,Int) -> CommandOrigin -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-typeOfCmd "" _pos _fnm =
+typeOfCmd "" _pos _origin =
   do  rPutStrLn $ invalidCommandArgument ":type"
       return emptyCommandResult {crSuccess = False}
 
-typeOfCmd str pos fnm = do
+typeOfCmd str pos origin = do
 
-  expr         <- replParseExpr str pos fnm
+  expr         <- replParseExpr str pos (commandInputFile origin)
   (_re,def,sig) <- replCheckExpr expr
 
   -- XXX need more warnings from the module system
@@ -1295,16 +1315,16 @@ typeOfCmd str pos fnm = do
   rPutStrLn output
   pure emptyCommandResult { crType = Just output }
 
-timeCmd :: String -> (Int, Int) -> Maybe FilePath -> REPL CommandResult
+timeCmd :: String -> (Int, Int) -> CommandOrigin -> REPL CommandResult
 --- Throw error when no argument is passed to a command expecting one
-timeCmd "" _pos _fnm =
+timeCmd "" _pos _origin =
   do  rPutStrLn $ invalidCommandArgument ":time"
       return emptyCommandResult {crSuccess = False}
 
-timeCmd str pos fnm = do
+timeCmd str pos origin = do
   period <- getKnownUser "timeMeasurementPeriod" :: REPL Int
   quiet <- getKnownUser "timeQuiet"
-  pExpr <- replParseExpr str pos fnm
+  pExpr <- replParseExpr str pos (commandInputFile origin)
   unless quiet $
     rPutStrLn $ "Measuring for " ++ show period ++ " seconds"
   (_, def, sig) <- replCheckExpr pExpr
@@ -1364,9 +1384,9 @@ byteStringToInteger bs
     x1 = byteStringToInteger bs1
     x2 = byteStringToInteger bs2
 
-writeFileCmd :: FilePath -> String -> (Int,Int) -> Maybe FilePath -> REPL CommandResult
-writeFileCmd file str pos fnm = do
-  expr         <- replParseExpr str pos fnm
+writeFileCmd :: FilePath -> String -> (Int,Int) -> CommandOrigin -> REPL CommandResult
+writeFileCmd file str pos origin = do
+  expr         <- replParseExpr str pos (commandInputFile origin)
   (val,ty)     <- replEvalExpr expr
   if not (tIsByteSeq ty)
     then do
@@ -1695,9 +1715,9 @@ helpCmd cmd
   | null cmd  = emptyCommandResult <$ mapM_ rPutStrLn (genHelp commandList)
   | cmd0 : args <- words cmd, ":" `isPrefixOf` cmd0 =
     case findCommandExact cmd0 of
-      []  -> runCommand 1 Nothing (Unknown cmd0)
+      []  -> reportUnknownCommand cmd0
       [c] -> showCmdHelp c args
-      cs  -> runCommand 1 Nothing (Ambiguous cmd0 (concatMap cNames cs))
+      cs  -> reportAmbiguousCommand cmd0 (concatMap cNames cs)
   | otherwise =
     wrapResult <$>
     case parseHelpName cmd of
@@ -2136,31 +2156,30 @@ parseCommand findCmd line = do
   let args' = sanitizeEnd args
   case findCmd cmd of
     [c] -> case cBody c of
-      ExprArg     body -> Just (Command \l fp _ -> (body args' (l,cmdLen+1) fp))
-      DeclsArg    body -> Just (Command \_ _ _ -> (body args'))
-      ExprTypeArg body -> Just (Command \_ _ _ -> (body args'))
-      ModNameArg  body -> Just (Command \_ _ _ -> (body args'))
-      FilenameArg body -> Just (Command \_ _ _ -> (body =<< expandHome args'))
+      ExprArg     body -> Just (Command \l origin -> body args' (l,cmdLen+1) origin)
+      DeclsArg    body -> Just (Command \_ _ -> body args')
+      ExprTypeArg body -> Just (Command \_ _ -> body args')
+      ModNameArg  body -> Just (Command \_ _ -> body args')
+      FilenameArg body -> Just (Command \_ _ -> body =<< expandHome args')
       FilenameArgsArg body ->
            do (_,fp,more) <- extractFilePath args'
-              Just (Command \_ _ docSource -> do hm <- expandHome fp
-                                                 body docSource hm (lexFlags more))
-      OptionArg   body -> Just (Command \_ _ _ -> (body args'))
-      ShellArg    body -> Just (Command \_ _ _ -> (body args'))
-      HelpArg     body -> Just (Command \_ _ _ -> (body args'))
-      NoArg       body -> Just (Command \_ _ _ -> body)
+              Just (Command \_ origin -> do hm <- expandHome fp
+                                            body origin hm (lexFlags more))
+      OptionArg   body -> Just (Command \_ _ -> body args')
+      ShellArg    body -> Just (Command \_ _ -> body args')
+      HelpArg     body -> Just (Command \_ _ -> body args')
+      NoArg       body -> Just (Command \_ _ -> body)
       FileExprArg body ->
            do (fpLen,fp,expr) <- extractFilePath args'
-              Just (Command \l fp' _ -> do let col = cmdLen + fpLen + 1
-                                           hm <- expandHome fp
-                                           body hm expr (l,col) fp')
+              Just (Command \l origin -> do let col = cmdLen + fpLen + 1
+                                            hm <- expandHome fp
+                                            body hm expr (l,col) origin)
     [] -> case uncons cmd of
       Just (':',_) -> Just (Unknown cmd)
-      Just _       -> Just (Command \l fp _ -> evalCmd line l fp)
+      Just _       -> Just (Command \l origin -> evalCmd line l origin)
       _            -> Nothing
 
     cs -> Just (Ambiguous cmd (concatMap cNames cs))
-
   where
   expandHome path =
     case path of
@@ -2267,7 +2286,8 @@ checkBlock docSource = isolated . go . continuedLines
             Just (Command cmd) -> do
               (logtxt, eresult) <-
                 captureLog
-                  (Cryptol.REPL.Monad.try (cmd 0 Nothing docSource))
+                  (Cryptol.REPL.Monad.try
+                    (cmd 0 (FromCodeBlockIn docSource)))
               case eresult of
                 Left e -> do
                   let result = SubcommandResult
@@ -2604,63 +2624,59 @@ getSAW = do
 -- * the file can be found
 -- * SAW processes the file successfully
 sawCmd ::
-  Maybe FilePath {- ^ Containing Cryptol source file for a docstring -} ->
+  CommandOrigin ->
   FilePath {- ^ SAW filename -} ->
   [String] {- ^ Additional SAW arguments -} ->
   REPL CommandResult
-sawCmd docSource input extraArgs = do
-    resolvedInput <- resolveSAWFile docSource input
-    case resolvedInput of
-      Just sawFile ->
-        do
-          (cmd, args) <- getSAW
-          flags <- getKnownUser "sawFlags"
-          if cmd == ""
-            then
-              do
-                rPutStrLn $ "SAW `" ++ cmd ++ "' was empty."
-                pure emptyCommandResult { crSuccess = False }
-            else
-              do
-                processEnv <- io getEnvironment
-                let sawDir = takeDirectory sawFile
-                    oldImportPath =
-                      maybe [] splitSearchPath
-                        (lookup "SAW_IMPORT_PATH" processEnv)
-                    newImportPath =
-                      intercalate [searchPathSeparator] (sawDir : oldImportPath)
-                    sawEnv =
-                      ("SAW_IMPORT_PATH", newImportPath) :
-                      filter ((/= "SAW_IMPORT_PATH") . fst) processEnv
-                    sawProcess =
-                      (proc cmd
-                        (args ++ lexFlags flags ++ [sawFile] ++ extraArgs))
-                        { Process.env = Just sawEnv }
-                start <- io getCurrentTime
-                (exitCode, out, err) <-
-                  io $ readCreateProcessWithExitCode sawProcess ""
-                end <- io getCurrentTime
-                seeStats <- getUserShowProverStats
-                let elapsed = diffUTCTime end start
-                    output = out ++ err
-                if exitCode == ExitSuccess
-                  then
-                    do
-                      rPutStrLn "SAW completed successfully."
-                  else
-                    do
-                      rPutStrLn "SAW exited with an error."
-                      rPutStr output
-                      unless (null output || last output == '\n') $
-                        rPutStrLn ""
-                when seeStats $
-                  rPutStrLn $
-                    "(Total Elapsed Time: " ++ SBV.showTDiff elapsed ++ ")"
-                pure emptyCommandResult { crSuccess = exitCode == ExitSuccess }
-      Nothing ->
-        do
-          rPutStrLn $ "File `" ++ input ++ "' does not exist."
+sawCmd origin input extraArgs = do
+  let docSource =
+        case origin of
+          FromCodeBlockIn fp -> fp
+          _ -> Nothing
+  resolvedInput <- resolveSAWFile docSource input
+  case resolvedInput of
+    Just sawFile -> do
+      (cmd, args) <- getSAW
+      flags <- getKnownUser "sawFlags"
+      if cmd == ""
+        then do
+          rPutStrLn $ "SAW `" ++ cmd ++ "' was empty."
           pure emptyCommandResult { crSuccess = False }
+        else do
+          processEnv <- io getEnvironment
+          let sawDir = takeDirectory sawFile
+              oldImportPath =
+                maybe [] splitSAWImportPath
+                  (lookup "SAW_IMPORT_PATH" processEnv)
+              newImportPath =
+                intercalate ":" (sawDir : oldImportPath)
+              sawEnv =
+                ("SAW_IMPORT_PATH", newImportPath) :
+                filter ((/= "SAW_IMPORT_PATH") . fst) processEnv
+              sawProcess =
+                (proc cmd
+                  (args ++ lexFlags flags ++ [sawFile] ++ extraArgs))
+                  { Process.env = Just sawEnv }
+          start <- io getCurrentTime
+          (exitCode, out, err) <-
+            io $ readCreateProcessWithExitCode sawProcess ""
+          end <- io getCurrentTime
+          seeStats <- getUserShowProverStats
+          let elapsed = diffUTCTime end start
+              output = out ++ err
+          if exitCode == ExitSuccess
+            then rPutStrLn "SAW completed successfully."
+            else do
+              rPutStrLn "SAW exited with an error."
+              rPutStr output
+              unless (null output || last output == '\n') $
+                rPutStrLn ""
+          when seeStats $
+            showProverStats (Just "saw") elapsed
+          pure emptyCommandResult { crSuccess = exitCode == ExitSuccess }
+    Nothing -> do
+      rPutStrLn $ "File `" ++ input ++ "' does not exist."
+      pure emptyCommandResult { crSuccess = False }
 
 resolveSAWFile :: Maybe FilePath -> FilePath -> REPL (Maybe FilePath)
 resolveSAWFile docSource input
@@ -2673,7 +2689,7 @@ resolveSAWFile docSource input
             candidates =
               (base </> input) :
               [ dir </> input
-              | dir <- maybe [] splitSearchPath importPath
+              | dir <- maybe [] splitSAWImportPath importPath
               ]
         findFile candidates
   where
@@ -2686,6 +2702,13 @@ resolveSAWFile docSource input
           if present
             then Just <$> io (makeAbsolute candidate)
             else findFile more
+
+splitSAWImportPath :: String -> [FilePath]
+splitSAWImportPath "" = []
+splitSAWImportPath path =
+  case break (== ':') path of
+    (dir, [])     -> [dir]
+    (dir, _:more) -> dir : splitSAWImportPath more
 
 ppInvalidStatus :: Proj.InvalidStatus -> Doc
 ppInvalidStatus = \case

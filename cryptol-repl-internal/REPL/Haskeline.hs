@@ -82,9 +82,10 @@ crySession replMode stopOnError =
 
   run lineNum cmd =
     case replMode of
-      InteractiveRepl    -> runCommand lineNum Nothing cmd
-      InteractiveBatch _ -> runCommand lineNum Nothing cmd
-      Batch path         -> runCommand lineNum (Just path) cmd
+      InteractiveRepl    -> runCommand lineNum FromRepl cmd
+      -- This mode is used to implement the @-c@/@--command@ option.
+      InteractiveBatch _ -> runCommand lineNum FromRepl cmd
+      Batch path         -> runCommand lineNum (FromBatch path) cmd
 
   runBlock lineNum ls =
     case replMode of
