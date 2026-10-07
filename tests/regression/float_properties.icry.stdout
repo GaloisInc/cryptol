@@ -90,6 +90,10 @@ Q.E.D.
 Q.E.D.
 "Proving prop_fpLogicalEqTransitive..."
 Q.E.D.
+"Proving prop_fpIsPosCorrect..."
+Q.E.D.
+"Proving prop_fpIsNegCorrect..."
+Q.E.D.
 "Proving prop_fpIsPosSign..."
 Q.E.D.
 "Proving prop_fpIsNegSign..."
@@ -414,6 +418,54 @@ Satisfiable
 Satisfiable
 Satisfiable
 Satisfiable
+"Proving prop_fpRemInfDivisor..."
+Q.E.D.
+"Proving prop_fpRemNaNDivisor..."
+Q.E.D.
+"Proving prop_fpRemInfDividend..."
+Q.E.D.
+"Proving prop_fpRemZeroDividend..."
+Q.E.D.
+"Proving prop_fpRemNaNDividend..."
+Q.E.D.
+"Proving prop_fpRemInverse..."
+Q.E.D.
+"Checking check_fpRemCorrect..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+"Proving prop_fpMinLeftNaN..."
+Q.E.D.
+"Proving prop_fpMinRightNaN..."
+Q.E.D.
+"Proving prop_fpMinNegPosZero..."
+Q.E.D.
+"Proving prop_fpMinPosNegZero..."
+Q.E.D.
+"Proving prop_fpMinCorrect..."
+Q.E.D.
+"Proving prop_fpMinAssociative..."
+Q.E.D.
+"Proving prop_fpMinCommutative..."
+Q.E.D.
+"Proving prop_fpMinNegMax..."
+Q.E.D.
+"Proving prop_fpMaxLeftNaN..."
+Q.E.D.
+"Proving prop_fpMaxRightNaN..."
+Q.E.D.
+"Proving prop_fpMaxNegPosZero..."
+Q.E.D.
+"Proving prop_fpMaxPosNegZero..."
+Q.E.D.
+"Proving prop_fpMaxCorrect..."
+Q.E.D.
+"Proving prop_fpMaxAssociative..."
+Q.E.D.
+"Proving prop_fpMaxCommutative..."
+Q.E.D.
+"Proving prop_fpMaxNegMin..."
+Q.E.D.
 "Proving prop_fpFMACommutative..."
 Q.E.D.
 Q.E.D.
@@ -442,6 +494,176 @@ Q.E.D.
 Q.E.D.
 "Proving prop_fpAbsInf..."
 Q.E.D.
+"Proving prop_fpCastNaN..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpCastInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpCastZero..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpIdentityCast..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Checking check_fpCastCorrect..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+"Proving prop_fpRoundNaN..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpRoundZero..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpRoundInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpRoundIdempotent..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Checking check_fpRoundCorrect..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
 "Proving prop_fpSqrtNaN..."
 Q.E.D.
 Q.E.D.
@@ -497,6 +719,502 @@ Satisfiable
 Satisfiable
 Satisfiable
 "Checking check_fpFromToRational..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Proving prop_fpFromBVRound..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Checking check_fpFromBVCorrect..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.15% (100 of 65536 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.15% (100 of 65536 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.15% (100 of 65536 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.15% (100 of 65536 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.15% (100 of 65536 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+"Proving prop_fpFromSBVRound..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Checking check_fpFromSBVCorrect..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.15% (100 of 65536 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.15% (100 of 65536 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.15% (100 of 65536 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.15% (100 of 65536 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.15% (100 of 65536 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^64 values)
+"Proving prop_fpToBVNaN..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpToBVNegInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpToBVPosInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Checking check_fpToBVSaturatingMin..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Checking check_fpToBVSaturatingMax..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Checking check_fpToBVCorrect..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Proving prop_fpToSBVNaN..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpToSBVNegInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Proving prop_fpToSBVPosInf..."
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"Checking check_fpToSBVSaturatingMin..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Checking check_fpToSBVSaturatingMax..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+"Checking check_fpToSBVCorrect..."
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
+Using random testing.
+Testing... Passed 100 tests.
+Expected test coverage: 0.00% (100 of 2^^32 values)
 Using random testing.
 Testing... Passed 100 tests.
 Expected test coverage: 0.00% (100 of 2^^32 values)

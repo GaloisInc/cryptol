@@ -146,7 +146,7 @@ pub struct CryValImporter<'a> {
     /// Make an unsigned integer, which fits in a `u64`.
     pub send_small_uint: extern "C" fn(&c_void, u64),
 
-    /// Make an signed integer, which fits in a `i64`.
+    /// Make a signed integer, which fits in a `i64`.
     pub send_small_sint: extern "C" fn(&c_void, i64),
 
     /// Make a floating-point value.

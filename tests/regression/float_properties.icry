@@ -97,6 +97,10 @@
 :prove prop_fpLogicalEqSymmetric`{8, 24}
 "Proving prop_fpLogicalEqTransitive..."
 :prove prop_fpLogicalEqTransitive`{8, 24}
+"Proving prop_fpIsPosCorrect..."
+:prove prop_fpIsPosCorrect`{8, 24}
+"Proving prop_fpIsNegCorrect..."
+:prove prop_fpIsNegCorrect`{8, 24}
 "Proving prop_fpIsPosSign..."
 :prove prop_fpIsPosSign`{8, 24}
 "Proving prop_fpIsNegSign..."
@@ -421,6 +425,52 @@
 :sat counterexample_fpDivDistributive`{8, 24} rtp
 :sat counterexample_fpDivDistributive`{8, 24} rtn
 :sat counterexample_fpDivDistributive`{8, 24} rtz
+"Proving prop_fpRemInfDivisor..."
+:prove prop_fpRemInfDivisor`{8, 24}
+"Proving prop_fpRemNaNDivisor..."
+:prove prop_fpRemNaNDivisor`{8, 24}
+"Proving prop_fpRemInfDividend..."
+:prove prop_fpRemInfDividend`{8, 24}
+"Proving prop_fpRemZeroDividend..."
+:prove prop_fpRemZeroDividend`{8, 24}
+"Proving prop_fpRemNaNDividend..."
+:prove prop_fpRemNaNDividend`{8, 24}
+"Proving prop_fpRemInverse..."
+:prove prop_fpRemInverse`{8, 24}
+"Checking check_fpRemCorrect..."
+:check check_fpRemCorrect`{8, 24}
+"Proving prop_fpMinLeftNaN..."
+:prove prop_fpMinLeftNaN`{8, 24}
+"Proving prop_fpMinRightNaN..."
+:prove prop_fpMinRightNaN`{8, 24}
+"Proving prop_fpMinNegPosZero..."
+:prove prop_fpMinNegPosZero`{8, 24}
+"Proving prop_fpMinPosNegZero..."
+:prove prop_fpMinPosNegZero`{8, 24}
+"Proving prop_fpMinCorrect..."
+:prove prop_fpMinCorrect`{8, 24}
+"Proving prop_fpMinAssociative..."
+:prove prop_fpMinAssociative`{8, 24}
+"Proving prop_fpMinCommutative..."
+:prove prop_fpMinCommutative`{8, 24}
+"Proving prop_fpMinNegMax..."
+:prove prop_fpMinNegMax`{8, 24}
+"Proving prop_fpMaxLeftNaN..."
+:prove prop_fpMaxLeftNaN`{8, 24}
+"Proving prop_fpMaxRightNaN..."
+:prove prop_fpMaxRightNaN`{8, 24}
+"Proving prop_fpMaxNegPosZero..."
+:prove prop_fpMaxNegPosZero`{8, 24}
+"Proving prop_fpMaxPosNegZero..."
+:prove prop_fpMaxPosNegZero`{8, 24}
+"Proving prop_fpMaxCorrect..."
+:prove prop_fpMaxCorrect`{8, 24}
+"Proving prop_fpMaxAssociative..."
+:prove prop_fpMaxAssociative`{8, 24}
+"Proving prop_fpMaxCommutative..."
+:prove prop_fpMaxCommutative`{8, 24}
+"Proving prop_fpMaxNegMin..."
+:prove prop_fpMaxNegMin`{8, 24}
 "Proving prop_fpFMACommutative..."
 :prove prop_fpFMACommutative`{8, 24} rne
 :prove prop_fpFMACommutative`{8, 24} rna
@@ -449,6 +499,126 @@
 :prove prop_fpAbsNaN`{8, 24}
 "Proving prop_fpAbsInf..."
 :prove prop_fpAbsInf`{8, 24}
+"Proving prop_fpCastNaN..."
+:prove prop_fpCastNaN`{8, 24, 8, 24} rne
+:prove prop_fpCastNaN`{8, 24, 8, 24} rna
+:prove prop_fpCastNaN`{8, 24, 8, 24} rtp
+:prove prop_fpCastNaN`{8, 24, 8, 24} rtn
+:prove prop_fpCastNaN`{8, 24, 8, 24} rtz
+:prove prop_fpCastNaN`{8, 24, 11, 53} rne
+:prove prop_fpCastNaN`{8, 24, 11, 53} rna
+:prove prop_fpCastNaN`{8, 24, 11, 53} rtp
+:prove prop_fpCastNaN`{8, 24, 11, 53} rtn
+:prove prop_fpCastNaN`{8, 24, 11, 53} rtz
+:prove prop_fpCastNaN`{11, 53, 8, 24} rne
+:prove prop_fpCastNaN`{11, 53, 8, 24} rna
+:prove prop_fpCastNaN`{11, 53, 8, 24} rtp
+:prove prop_fpCastNaN`{11, 53, 8, 24} rtn
+:prove prop_fpCastNaN`{11, 53, 8, 24} rtz
+:prove prop_fpCastNaN`{11, 53, 11, 53} rne
+:prove prop_fpCastNaN`{11, 53, 11, 53} rna
+:prove prop_fpCastNaN`{11, 53, 11, 53} rtp
+:prove prop_fpCastNaN`{11, 53, 11, 53} rtn
+:prove prop_fpCastNaN`{11, 53, 11, 53} rtz
+"Proving prop_fpCastInf..."
+:prove prop_fpCastInf`{8, 24, 8, 24} rne
+:prove prop_fpCastInf`{8, 24, 8, 24} rna
+:prove prop_fpCastInf`{8, 24, 8, 24} rtp
+:prove prop_fpCastInf`{8, 24, 8, 24} rtn
+:prove prop_fpCastInf`{8, 24, 8, 24} rtz
+:prove prop_fpCastInf`{8, 24, 11, 53} rne
+:prove prop_fpCastInf`{8, 24, 11, 53} rna
+:prove prop_fpCastInf`{8, 24, 11, 53} rtp
+:prove prop_fpCastInf`{8, 24, 11, 53} rtn
+:prove prop_fpCastInf`{8, 24, 11, 53} rtz
+:prove prop_fpCastInf`{11, 53, 8, 24} rne
+:prove prop_fpCastInf`{11, 53, 8, 24} rna
+:prove prop_fpCastInf`{11, 53, 8, 24} rtp
+:prove prop_fpCastInf`{11, 53, 8, 24} rtn
+:prove prop_fpCastInf`{11, 53, 8, 24} rtz
+:prove prop_fpCastInf`{11, 53, 11, 53} rne
+:prove prop_fpCastInf`{11, 53, 11, 53} rna
+:prove prop_fpCastInf`{11, 53, 11, 53} rtp
+:prove prop_fpCastInf`{11, 53, 11, 53} rtn
+:prove prop_fpCastInf`{11, 53, 11, 53} rtz
+"Proving prop_fpCastZero..."
+:prove prop_fpCastZero`{8, 24, 8, 24} rne
+:prove prop_fpCastZero`{8, 24, 8, 24} rna
+:prove prop_fpCastZero`{8, 24, 8, 24} rtp
+:prove prop_fpCastZero`{8, 24, 8, 24} rtn
+:prove prop_fpCastZero`{8, 24, 8, 24} rtz
+:prove prop_fpCastZero`{8, 24, 11, 53} rne
+:prove prop_fpCastZero`{8, 24, 11, 53} rna
+:prove prop_fpCastZero`{8, 24, 11, 53} rtp
+:prove prop_fpCastZero`{8, 24, 11, 53} rtn
+:prove prop_fpCastZero`{8, 24, 11, 53} rtz
+:prove prop_fpCastZero`{11, 53, 8, 24} rne
+:prove prop_fpCastZero`{11, 53, 8, 24} rna
+:prove prop_fpCastZero`{11, 53, 8, 24} rtp
+:prove prop_fpCastZero`{11, 53, 8, 24} rtn
+:prove prop_fpCastZero`{11, 53, 8, 24} rtz
+:prove prop_fpCastZero`{11, 53, 11, 53} rne
+:prove prop_fpCastZero`{11, 53, 11, 53} rna
+:prove prop_fpCastZero`{11, 53, 11, 53} rtp
+:prove prop_fpCastZero`{11, 53, 11, 53} rtn
+:prove prop_fpCastZero`{11, 53, 11, 53} rtz
+"Proving prop_fpIdentityCast..."
+:prove prop_fpIdentityCast`{8, 24} rne
+:prove prop_fpIdentityCast`{8, 24} rna
+:prove prop_fpIdentityCast`{8, 24} rtp
+:prove prop_fpIdentityCast`{8, 24} rtn
+:prove prop_fpIdentityCast`{8, 24} rtz
+"Checking check_fpCastCorrect..."
+:check check_fpCastCorrect`{8, 24, 8, 24} rne
+:check check_fpCastCorrect`{8, 24, 8, 24} rna
+:check check_fpCastCorrect`{8, 24, 8, 24} rtp
+:check check_fpCastCorrect`{8, 24, 8, 24} rtn
+:check check_fpCastCorrect`{8, 24, 8, 24} rtz
+:check check_fpCastCorrect`{8, 24, 11, 53} rne
+:check check_fpCastCorrect`{8, 24, 11, 53} rna
+:check check_fpCastCorrect`{8, 24, 11, 53} rtp
+:check check_fpCastCorrect`{8, 24, 11, 53} rtn
+:check check_fpCastCorrect`{8, 24, 11, 53} rtz
+:check check_fpCastCorrect`{11, 53, 8, 24} rne
+:check check_fpCastCorrect`{11, 53, 8, 24} rna
+:check check_fpCastCorrect`{11, 53, 8, 24} rtp
+:check check_fpCastCorrect`{11, 53, 8, 24} rtn
+:check check_fpCastCorrect`{11, 53, 8, 24} rtz
+:check check_fpCastCorrect`{11, 53, 11, 53} rne
+:check check_fpCastCorrect`{11, 53, 11, 53} rna
+:check check_fpCastCorrect`{11, 53, 11, 53} rtp
+:check check_fpCastCorrect`{11, 53, 11, 53} rtn
+:check check_fpCastCorrect`{11, 53, 11, 53} rtz
+"Proving prop_fpRoundNaN..."
+:prove prop_fpRoundNaN`{8, 24} rne
+:prove prop_fpRoundNaN`{8, 24} rna
+:prove prop_fpRoundNaN`{8, 24} rtp
+:prove prop_fpRoundNaN`{8, 24} rtn
+:prove prop_fpRoundNaN`{8, 24} rtz
+"Proving prop_fpRoundZero..."
+:prove prop_fpRoundZero`{8, 24} rne
+:prove prop_fpRoundZero`{8, 24} rna
+:prove prop_fpRoundZero`{8, 24} rtp
+:prove prop_fpRoundZero`{8, 24} rtn
+:prove prop_fpRoundZero`{8, 24} rtz
+"Proving prop_fpRoundInf..."
+:prove prop_fpRoundInf`{8, 24} rne
+:prove prop_fpRoundInf`{8, 24} rna
+:prove prop_fpRoundInf`{8, 24} rtp
+:prove prop_fpRoundInf`{8, 24} rtn
+:prove prop_fpRoundInf`{8, 24} rtz
+"Proving prop_fpRoundIdempotent..."
+:prove prop_fpRoundIdempotent`{8, 24} rne
+:prove prop_fpRoundIdempotent`{8, 24} rna
+:prove prop_fpRoundIdempotent`{8, 24} rtp
+:prove prop_fpRoundIdempotent`{8, 24} rtn
+:prove prop_fpRoundIdempotent`{8, 24} rtz
+"Checking check_fpRoundCorrect..."
+:check check_fpRoundCorrect`{8, 24} rne
+:check check_fpRoundCorrect`{8, 24} rna
+:check check_fpRoundCorrect`{8, 24} rtp
+:check check_fpRoundCorrect`{8, 24} rtn
+:check check_fpRoundCorrect`{8, 24} rtz
 "Proving prop_fpSqrtNaN..."
 :prove prop_fpSqrtNaN`{8, 24} rne
 :prove prop_fpSqrtNaN`{8, 24} rna
@@ -509,6 +679,262 @@
 :check check_fpFromToRational`{8, 24} rtp
 :check check_fpFromToRational`{8, 24} rtn
 :check check_fpFromToRational`{8, 24} rtz
+"Proving prop_fpFromBVRound..."
+:prove prop_fpFromBVRound`{16, 8, 24} rne
+:prove prop_fpFromBVRound`{16, 8, 24} rna
+:prove prop_fpFromBVRound`{16, 8, 24} rtp
+:prove prop_fpFromBVRound`{16, 8, 24} rtn
+:prove prop_fpFromBVRound`{16, 8, 24} rtz
+:prove prop_fpFromBVRound`{32, 8, 24} rne
+:prove prop_fpFromBVRound`{32, 8, 24} rna
+:prove prop_fpFromBVRound`{32, 8, 24} rtp
+:prove prop_fpFromBVRound`{32, 8, 24} rtn
+:prove prop_fpFromBVRound`{32, 8, 24} rtz
+:prove prop_fpFromBVRound`{64, 8, 24} rne
+:prove prop_fpFromBVRound`{64, 8, 24} rna
+:prove prop_fpFromBVRound`{64, 8, 24} rtp
+:prove prop_fpFromBVRound`{64, 8, 24} rtn
+:prove prop_fpFromBVRound`{64, 8, 24} rtz
+"Checking check_fpFromBVCorrect..."
+:check check_fpFromBVCorrect`{16, 8, 24} rne
+:check check_fpFromBVCorrect`{16, 8, 24} rna
+:check check_fpFromBVCorrect`{16, 8, 24} rtp
+:check check_fpFromBVCorrect`{16, 8, 24} rtn
+:check check_fpFromBVCorrect`{16, 8, 24} rtz
+:check check_fpFromBVCorrect`{32, 8, 24} rne
+:check check_fpFromBVCorrect`{32, 8, 24} rna
+:check check_fpFromBVCorrect`{32, 8, 24} rtp
+:check check_fpFromBVCorrect`{32, 8, 24} rtn
+:check check_fpFromBVCorrect`{32, 8, 24} rtz
+:check check_fpFromBVCorrect`{64, 8, 24} rne
+:check check_fpFromBVCorrect`{64, 8, 24} rna
+:check check_fpFromBVCorrect`{64, 8, 24} rtp
+:check check_fpFromBVCorrect`{64, 8, 24} rtn
+:check check_fpFromBVCorrect`{64, 8, 24} rtz
+"Proving prop_fpFromSBVRound..."
+:prove prop_fpFromSBVRound`{16, 8, 24} rne
+:prove prop_fpFromSBVRound`{16, 8, 24} rna
+:prove prop_fpFromSBVRound`{16, 8, 24} rtp
+:prove prop_fpFromSBVRound`{16, 8, 24} rtn
+:prove prop_fpFromSBVRound`{16, 8, 24} rtz
+:prove prop_fpFromSBVRound`{32, 8, 24} rne
+:prove prop_fpFromSBVRound`{32, 8, 24} rna
+:prove prop_fpFromSBVRound`{32, 8, 24} rtp
+:prove prop_fpFromSBVRound`{32, 8, 24} rtn
+:prove prop_fpFromSBVRound`{32, 8, 24} rtz
+:prove prop_fpFromSBVRound`{64, 8, 24} rne
+:prove prop_fpFromSBVRound`{64, 8, 24} rna
+:prove prop_fpFromSBVRound`{64, 8, 24} rtp
+:prove prop_fpFromSBVRound`{64, 8, 24} rtn
+:prove prop_fpFromSBVRound`{64, 8, 24} rtz
+"Checking check_fpFromSBVCorrect..."
+:check check_fpFromSBVCorrect`{16, 8, 24} rne
+:check check_fpFromSBVCorrect`{16, 8, 24} rna
+:check check_fpFromSBVCorrect`{16, 8, 24} rtp
+:check check_fpFromSBVCorrect`{16, 8, 24} rtn
+:check check_fpFromSBVCorrect`{16, 8, 24} rtz
+:check check_fpFromSBVCorrect`{32, 8, 24} rne
+:check check_fpFromSBVCorrect`{32, 8, 24} rna
+:check check_fpFromSBVCorrect`{32, 8, 24} rtp
+:check check_fpFromSBVCorrect`{32, 8, 24} rtn
+:check check_fpFromSBVCorrect`{32, 8, 24} rtz
+:check check_fpFromSBVCorrect`{64, 8, 24} rne
+:check check_fpFromSBVCorrect`{64, 8, 24} rna
+:check check_fpFromSBVCorrect`{64, 8, 24} rtp
+:check check_fpFromSBVCorrect`{64, 8, 24} rtn
+:check check_fpFromSBVCorrect`{64, 8, 24} rtz
+"Proving prop_fpToBVNaN..."
+:prove prop_fpToBVNaN`{16, 8, 24} rne
+:prove prop_fpToBVNaN`{16, 8, 24} rna
+:prove prop_fpToBVNaN`{16, 8, 24} rtp
+:prove prop_fpToBVNaN`{16, 8, 24} rtn
+:prove prop_fpToBVNaN`{16, 8, 24} rtz
+:prove prop_fpToBVNaN`{32, 8, 24} rne
+:prove prop_fpToBVNaN`{32, 8, 24} rna
+:prove prop_fpToBVNaN`{32, 8, 24} rtp
+:prove prop_fpToBVNaN`{32, 8, 24} rtn
+:prove prop_fpToBVNaN`{32, 8, 24} rtz
+:prove prop_fpToBVNaN`{64, 8, 24} rne
+:prove prop_fpToBVNaN`{64, 8, 24} rna
+:prove prop_fpToBVNaN`{64, 8, 24} rtp
+:prove prop_fpToBVNaN`{64, 8, 24} rtn
+:prove prop_fpToBVNaN`{64, 8, 24} rtz
+"Proving prop_fpToBVNegInf..."
+:prove prop_fpToBVNegInf`{16, 8, 24} rne
+:prove prop_fpToBVNegInf`{16, 8, 24} rna
+:prove prop_fpToBVNegInf`{16, 8, 24} rtp
+:prove prop_fpToBVNegInf`{16, 8, 24} rtn
+:prove prop_fpToBVNegInf`{16, 8, 24} rtz
+:prove prop_fpToBVNegInf`{32, 8, 24} rne
+:prove prop_fpToBVNegInf`{32, 8, 24} rna
+:prove prop_fpToBVNegInf`{32, 8, 24} rtp
+:prove prop_fpToBVNegInf`{32, 8, 24} rtn
+:prove prop_fpToBVNegInf`{32, 8, 24} rtz
+:prove prop_fpToBVNegInf`{64, 8, 24} rne
+:prove prop_fpToBVNegInf`{64, 8, 24} rna
+:prove prop_fpToBVNegInf`{64, 8, 24} rtp
+:prove prop_fpToBVNegInf`{64, 8, 24} rtn
+:prove prop_fpToBVNegInf`{64, 8, 24} rtz
+"Proving prop_fpToBVPosInf..."
+:prove prop_fpToBVPosInf`{16, 8, 24} rne
+:prove prop_fpToBVPosInf`{16, 8, 24} rna
+:prove prop_fpToBVPosInf`{16, 8, 24} rtp
+:prove prop_fpToBVPosInf`{16, 8, 24} rtn
+:prove prop_fpToBVPosInf`{16, 8, 24} rtz
+:prove prop_fpToBVPosInf`{32, 8, 24} rne
+:prove prop_fpToBVPosInf`{32, 8, 24} rna
+:prove prop_fpToBVPosInf`{32, 8, 24} rtp
+:prove prop_fpToBVPosInf`{32, 8, 24} rtn
+:prove prop_fpToBVPosInf`{32, 8, 24} rtz
+:prove prop_fpToBVPosInf`{64, 8, 24} rne
+:prove prop_fpToBVPosInf`{64, 8, 24} rna
+:prove prop_fpToBVPosInf`{64, 8, 24} rtp
+:prove prop_fpToBVPosInf`{64, 8, 24} rtn
+:prove prop_fpToBVPosInf`{64, 8, 24} rtz
+"Checking check_fpToBVSaturatingMin..."
+:check check_fpToBVSaturatingMin`{16, 8, 24} rne
+:check check_fpToBVSaturatingMin`{16, 8, 24} rna
+:check check_fpToBVSaturatingMin`{16, 8, 24} rtp
+:check check_fpToBVSaturatingMin`{16, 8, 24} rtn
+:check check_fpToBVSaturatingMin`{16, 8, 24} rtz
+:check check_fpToBVSaturatingMin`{32, 8, 24} rne
+:check check_fpToBVSaturatingMin`{32, 8, 24} rna
+:check check_fpToBVSaturatingMin`{32, 8, 24} rtp
+:check check_fpToBVSaturatingMin`{32, 8, 24} rtn
+:check check_fpToBVSaturatingMin`{32, 8, 24} rtz
+:check check_fpToBVSaturatingMin`{64, 8, 24} rne
+:check check_fpToBVSaturatingMin`{64, 8, 24} rna
+:check check_fpToBVSaturatingMin`{64, 8, 24} rtp
+:check check_fpToBVSaturatingMin`{64, 8, 24} rtn
+:check check_fpToBVSaturatingMin`{64, 8, 24} rtz
+"Checking check_fpToBVSaturatingMax..."
+:check check_fpToBVSaturatingMax`{16, 8, 24} rne
+:check check_fpToBVSaturatingMax`{16, 8, 24} rna
+:check check_fpToBVSaturatingMax`{16, 8, 24} rtp
+:check check_fpToBVSaturatingMax`{16, 8, 24} rtn
+:check check_fpToBVSaturatingMax`{16, 8, 24} rtz
+:check check_fpToBVSaturatingMax`{32, 8, 24} rne
+:check check_fpToBVSaturatingMax`{32, 8, 24} rna
+:check check_fpToBVSaturatingMax`{32, 8, 24} rtp
+:check check_fpToBVSaturatingMax`{32, 8, 24} rtn
+:check check_fpToBVSaturatingMax`{32, 8, 24} rtz
+:check check_fpToBVSaturatingMax`{64, 8, 24} rne
+:check check_fpToBVSaturatingMax`{64, 8, 24} rna
+:check check_fpToBVSaturatingMax`{64, 8, 24} rtp
+:check check_fpToBVSaturatingMax`{64, 8, 24} rtn
+:check check_fpToBVSaturatingMax`{64, 8, 24} rtz
+"Checking check_fpToBVCorrect..."
+:check check_fpToBVCorrect`{16, 8, 24} rne
+:check check_fpToBVCorrect`{16, 8, 24} rna
+:check check_fpToBVCorrect`{16, 8, 24} rtp
+:check check_fpToBVCorrect`{16, 8, 24} rtn
+:check check_fpToBVCorrect`{16, 8, 24} rtz
+:check check_fpToBVCorrect`{32, 8, 24} rne
+:check check_fpToBVCorrect`{32, 8, 24} rna
+:check check_fpToBVCorrect`{32, 8, 24} rtp
+:check check_fpToBVCorrect`{32, 8, 24} rtn
+:check check_fpToBVCorrect`{32, 8, 24} rtz
+:check check_fpToBVCorrect`{64, 8, 24} rne
+:check check_fpToBVCorrect`{64, 8, 24} rna
+:check check_fpToBVCorrect`{64, 8, 24} rtp
+:check check_fpToBVCorrect`{64, 8, 24} rtn
+:check check_fpToBVCorrect`{64, 8, 24} rtz
+"Proving prop_fpToSBVNaN..."
+:prove prop_fpToSBVNaN`{16, 8, 24} rne
+:prove prop_fpToSBVNaN`{16, 8, 24} rna
+:prove prop_fpToSBVNaN`{16, 8, 24} rtp
+:prove prop_fpToSBVNaN`{16, 8, 24} rtn
+:prove prop_fpToSBVNaN`{16, 8, 24} rtz
+:prove prop_fpToSBVNaN`{32, 8, 24} rne
+:prove prop_fpToSBVNaN`{32, 8, 24} rna
+:prove prop_fpToSBVNaN`{32, 8, 24} rtp
+:prove prop_fpToSBVNaN`{32, 8, 24} rtn
+:prove prop_fpToSBVNaN`{32, 8, 24} rtz
+:prove prop_fpToSBVNaN`{64, 8, 24} rne
+:prove prop_fpToSBVNaN`{64, 8, 24} rna
+:prove prop_fpToSBVNaN`{64, 8, 24} rtp
+:prove prop_fpToSBVNaN`{64, 8, 24} rtn
+:prove prop_fpToSBVNaN`{64, 8, 24} rtz
+"Proving prop_fpToSBVNegInf..."
+:prove prop_fpToSBVNegInf`{16, 8, 24} rne
+:prove prop_fpToSBVNegInf`{16, 8, 24} rna
+:prove prop_fpToSBVNegInf`{16, 8, 24} rtp
+:prove prop_fpToSBVNegInf`{16, 8, 24} rtn
+:prove prop_fpToSBVNegInf`{16, 8, 24} rtz
+:prove prop_fpToSBVNegInf`{32, 8, 24} rne
+:prove prop_fpToSBVNegInf`{32, 8, 24} rna
+:prove prop_fpToSBVNegInf`{32, 8, 24} rtp
+:prove prop_fpToSBVNegInf`{32, 8, 24} rtn
+:prove prop_fpToSBVNegInf`{32, 8, 24} rtz
+:prove prop_fpToSBVNegInf`{64, 8, 24} rne
+:prove prop_fpToSBVNegInf`{64, 8, 24} rna
+:prove prop_fpToSBVNegInf`{64, 8, 24} rtp
+:prove prop_fpToSBVNegInf`{64, 8, 24} rtn
+:prove prop_fpToSBVNegInf`{64, 8, 24} rtz
+"Proving prop_fpToSBVPosInf..."
+:prove prop_fpToSBVPosInf`{16, 8, 24} rne
+:prove prop_fpToSBVPosInf`{16, 8, 24} rna
+:prove prop_fpToSBVPosInf`{16, 8, 24} rtp
+:prove prop_fpToSBVPosInf`{16, 8, 24} rtn
+:prove prop_fpToSBVPosInf`{16, 8, 24} rtz
+:prove prop_fpToSBVPosInf`{32, 8, 24} rne
+:prove prop_fpToSBVPosInf`{32, 8, 24} rna
+:prove prop_fpToSBVPosInf`{32, 8, 24} rtp
+:prove prop_fpToSBVPosInf`{32, 8, 24} rtn
+:prove prop_fpToSBVPosInf`{32, 8, 24} rtz
+:prove prop_fpToSBVPosInf`{64, 8, 24} rne
+:prove prop_fpToSBVPosInf`{64, 8, 24} rna
+:prove prop_fpToSBVPosInf`{64, 8, 24} rtp
+:prove prop_fpToSBVPosInf`{64, 8, 24} rtn
+:prove prop_fpToSBVPosInf`{64, 8, 24} rtz
+"Checking check_fpToSBVSaturatingMin..."
+:check check_fpToSBVSaturatingMin`{16, 8, 24} rne
+:check check_fpToSBVSaturatingMin`{16, 8, 24} rna
+:check check_fpToSBVSaturatingMin`{16, 8, 24} rtp
+:check check_fpToSBVSaturatingMin`{16, 8, 24} rtn
+:check check_fpToSBVSaturatingMin`{16, 8, 24} rtz
+:check check_fpToSBVSaturatingMin`{32, 8, 24} rne
+:check check_fpToSBVSaturatingMin`{32, 8, 24} rna
+:check check_fpToSBVSaturatingMin`{32, 8, 24} rtp
+:check check_fpToSBVSaturatingMin`{32, 8, 24} rtn
+:check check_fpToSBVSaturatingMin`{32, 8, 24} rtz
+:check check_fpToSBVSaturatingMin`{64, 8, 24} rne
+:check check_fpToSBVSaturatingMin`{64, 8, 24} rna
+:check check_fpToSBVSaturatingMin`{64, 8, 24} rtp
+:check check_fpToSBVSaturatingMin`{64, 8, 24} rtn
+:check check_fpToSBVSaturatingMin`{64, 8, 24} rtz
+"Checking check_fpToSBVSaturatingMax..."
+:check check_fpToSBVSaturatingMax`{16, 8, 24} rne
+:check check_fpToSBVSaturatingMax`{16, 8, 24} rna
+:check check_fpToSBVSaturatingMax`{16, 8, 24} rtp
+:check check_fpToSBVSaturatingMax`{16, 8, 24} rtn
+:check check_fpToSBVSaturatingMax`{16, 8, 24} rtz
+:check check_fpToSBVSaturatingMax`{32, 8, 24} rne
+:check check_fpToSBVSaturatingMax`{32, 8, 24} rna
+:check check_fpToSBVSaturatingMax`{32, 8, 24} rtp
+:check check_fpToSBVSaturatingMax`{32, 8, 24} rtn
+:check check_fpToSBVSaturatingMax`{32, 8, 24} rtz
+:check check_fpToSBVSaturatingMax`{64, 8, 24} rne
+:check check_fpToSBVSaturatingMax`{64, 8, 24} rna
+:check check_fpToSBVSaturatingMax`{64, 8, 24} rtp
+:check check_fpToSBVSaturatingMax`{64, 8, 24} rtn
+:check check_fpToSBVSaturatingMax`{64, 8, 24} rtz
+"Checking check_fpToSBVCorrect..."
+:check check_fpToSBVCorrect`{16, 8, 24} rne
+:check check_fpToSBVCorrect`{16, 8, 24} rna
+:check check_fpToSBVCorrect`{16, 8, 24} rtp
+:check check_fpToSBVCorrect`{16, 8, 24} rtn
+:check check_fpToSBVCorrect`{16, 8, 24} rtz
+:check check_fpToSBVCorrect`{32, 8, 24} rne
+:check check_fpToSBVCorrect`{32, 8, 24} rna
+:check check_fpToSBVCorrect`{32, 8, 24} rtp
+:check check_fpToSBVCorrect`{32, 8, 24} rtn
+:check check_fpToSBVCorrect`{32, 8, 24} rtz
+:check check_fpToSBVCorrect`{64, 8, 24} rne
+:check check_fpToSBVCorrect`{64, 8, 24} rna
+:check check_fpToSBVCorrect`{64, 8, 24} rtp
+:check check_fpToSBVCorrect`{64, 8, 24} rtn
+:check check_fpToSBVCorrect`{64, 8, 24} rtz
 "Proving prop_fpEqNaN..."
 :prove prop_fpEqNaN`{8, 24}
 "Proving prop_fpEqZero..."
