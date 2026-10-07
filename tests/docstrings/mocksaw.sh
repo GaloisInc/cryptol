@@ -2,13 +2,7 @@
 
 saw_file=$(printf '%s\n' "$1" | tr '\\' '/')
 saw_name=${saw_file##*/}
-saw_dir=${saw_file%/*}
 import_path=$(printf '%s\n' "$SAW_IMPORT_PATH" | tr '\\' '/')
-
-case "$import_path" in
-    "$saw_dir"|"$saw_dir":*) saw_dir_is_first=true ;;
-    *)                       saw_dir_is_first=false ;;
-esac
 
 if [ "$#" = 4 ] &&
    [ "$saw_name" = "T13.saw" ] &&
@@ -23,13 +17,13 @@ if [ "$saw_name" = "T14.saw" ] ; then
     exit 1
 fi
 if [ "$saw_name" = "T16.saw" ] &&
-   [ "$saw_dir_is_first" = true ] ; then
+   [ -z "$import_path" ] ; then
     case "$saw_file" in
         */tests/docstrings/T16/T16.saw) exit 0 ;;
     esac
 fi
 if [ "$saw_name" = "T17.saw" ] &&
-   [ "$saw_dir_is_first" = true ] ; then
+   [ "$import_path" = "./proofs" ] ; then
     case "$saw_file" in
         */tests/docstrings/proofs/T17.saw) exit 0 ;;
     esac

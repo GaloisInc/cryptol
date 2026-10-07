@@ -145,7 +145,7 @@ import Data.List (intercalate, nub, isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
 import Data.Foldable (traverse_)
 import Data.Time.Clock (diffUTCTime, getCurrentTime)
-import System.Environment (getEnvironment, lookupEnv)
+import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process
   ( shell, createProcess, waitForProcess
@@ -374,7 +374,8 @@ nbCommandList  =
      , "after the filename. In a docstring, relative filenames are resolved"
      , "relative to the containing Cryptol file; otherwise they are resolved"
      , "relative to the current working directory. SAW_IMPORT_PATH is searched"
-     , "if the file is not found there."
+     , "if the file is not found there. SAW runs in Cryptol's current working"
+     , "directory, with SAW_IMPORT_PATH unchanged."
      ])
   ]
 
@@ -2643,20 +2644,11 @@ sawCmd origin input extraArgs = do
           rPutStrLn $ "SAW `" ++ cmd ++ "' was empty."
           pure emptyCommandResult { crSuccess = False }
         else do
-          processEnv <- io getEnvironment
-          let sawDir = takeDirectory sawFile
-              oldImportPath =
-                maybe [] splitSAWImportPath
-                  (lookup "SAW_IMPORT_PATH" processEnv)
-              newImportPath =
-                intercalate ":" (sawDir : oldImportPath)
-              sawEnv =
-                ("SAW_IMPORT_PATH", newImportPath) :
-                filter ((/= "SAW_IMPORT_PATH") . fst) processEnv
-              sawProcess =
+          cwd <- io getCurrentDirectory
+          let sawProcess =
                 (proc cmd
                   (args ++ lexFlags flags ++ [sawFile] ++ extraArgs))
-                  { Process.env = Just sawEnv }
+                  { Process.cwd = Just cwd }
           start <- io getCurrentTime
           (exitCode, out, err) <-
             io $ readCreateProcessWithExitCode sawProcess ""
