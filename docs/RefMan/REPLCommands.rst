@@ -130,6 +130,29 @@ Commands
     Uses an external solver to prove that an expression is safe (does not
     encounter run-time errors) for all inputs.
 
+``:saw FILE [ARG ...]``
+    Run SAW on ``FILE``. Any additional arguments are passed to SAW after the
+    filename.
+
+    The command used to invoke SAW is determined by the ``CRYPTOL_SAW``
+    environment variable and defaults to ``saw``. Arguments in
+    ``CRYPTOL_SAW`` are passed first, followed by the ``sawFlags`` option,
+    ``FILE``, and any arguments provided after ``FILE``.
+
+    Relative filenames in docstrings are resolved relative to the directory
+    containing the Cryptol source file. Relative filenames in interactive and
+    batch commands are resolved relative to Cryptol's current working
+    directory. If the file is not found there, Cryptol searches the directories
+    in ``SAW_IMPORT_PATH``. Absolute filenames are used directly.
+
+    The resolved SAW filename is passed as an absolute path. Its directory is
+    prepended to ``SAW_IMPORT_PATH`` for the SAW process, while the process
+    retains Cryptol's current working directory.
+
+    On success, Cryptol reports that SAW completed successfully. On failure,
+    Cryptol displays SAW's standard output and standard error. Elapsed time is
+    reported in either case.
+
 ``:sat [EXPR]``
     Uses a solver to find a satisfying assignment for which the argument returns
     true. (If no argument, find an assignment for all properties.)
@@ -406,3 +429,11 @@ Commands
     **Valid values:** ``off``, ``on``, ``false``, ``true``
 
     Suppress output of ``:time`` command and only bind result to ``it``
+
+``:set sawFlags``
+    **Default value:** empty
+
+    **Valid values:** command-line arguments
+
+    Arguments to pass to every invocation of SAW. These arguments appear before
+    the SAW filename and any additional arguments supplied to ``:saw``.

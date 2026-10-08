@@ -1,8 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
-Loading module I
-Checking module I
-  Docstrings on I
-    :saw T13.saw 1 "two words" 3
+Loading module T16
+Checking module T16
+  Docstrings on T16
+    :saw T16.saw
       SAW completed successfully.
 Successes: 1, No fences: 0, Failures: 0
