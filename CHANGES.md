@@ -19,6 +19,19 @@
   lookup and fallback through `SAW_IMPORT_PATH`.
   ([#1976](https://github.com/GaloisInc/cryptol/issues/1976))
 
+## Language changes
+
+* Add the following functions to the `Float` module
+  ([#2046](https://github.com/GaloisInc/cryptol/issues/2046)):
+
+  * `fpIsPos`: Test if a `Float` is positive.
+  * `fpRem`: Compute the remainder from the division of two `Float`s.
+  * `fp{Min,Max}`: Compute the minimum or maximum of two `Float`s.
+  * `fpCast`: Convert a `Float` to a different size.
+  * `fpRound`: Round a `Float` to an integer (represented as a `Float`).
+  * `fpFrom{BV,SBV}`: Convert an unsigned or signed bitvector to a `Float`.
+  * `fpTo{BV,SBV}`: Convert a `Float` to an unsigned or signed bitvector.
+
 ## Bug fixes
 
 * Fresh `Rational` values no longer crash the Cryptol REPL when using
