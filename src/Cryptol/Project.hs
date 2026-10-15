@@ -14,7 +14,7 @@ module Cryptol.Project
   , depMap
   ) where
 
-import           Control.Monad                    (void)
+import           Control.Monad                    (void, when)
 import           Data.Foldable
 import           Data.Map.Strict                  (Map)
 import qualified Data.Map.Strict                  as Map
@@ -33,6 +33,7 @@ import           Cryptol.Project.Cache
 import           Cryptol.Project.Monad
 import           Cryptol.Project.WildMatch
 import qualified Cryptol.Parser.AST as P
+import qualified Cryptol.Parser.Unlit as P
 import Cryptol.Parser.Position (Located(..))
 import Control.Exception (try)
 
@@ -115,12 +116,9 @@ scanPath path =
              for_ entries \entry -> scanPath (path FP.</> entry)
 
     Right False ->
-      -- XXX: This should probably handle other extenions
-      -- (literate Cryptol)
-      case takeExtension path of
-        ".cry" -> void (tryLoadM (scanFromPath path))
-                  -- XXX: failure: file disappeared.
-        _      -> pure ()
+      when (drop 1 (takeExtension path) `elem` P.knownExts) $
+        void (tryLoadM (scanFromPath path))
+        -- XXX: failure: file disappeared.
 
 
 -- | Process a particular file path.
