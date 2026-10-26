@@ -20,8 +20,11 @@ typing-extensions = "^4.1.1"
 junit-xml = ">=1.9"
 
 requests = ">=2.33.0"
-urllib3 = ">=2.7.0"
+urllib3 = ">=2.8.0"
 types-requests = ">=2.31.0"
+
+# add fake dep on certifi for a security issue
+certifi = ">=2026.10.19"
 
 [tool.poetry.dev-dependencies]
 mypy = "^1.10"
