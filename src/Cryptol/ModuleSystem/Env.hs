@@ -297,6 +297,11 @@ instance Monoid ModContext where
 -- | 'IfaceDecls` should contain enough information so that we can check
 -- and evalute everything in scope.  At the moment we just pass all loaded
 -- things here. See 'modContextOf'.
+--
+-- The interface is that of the module @m@ being searched.  When searching
+-- inside a submodule functor, we use the functor's interface, and add its
+-- declarations to the loaded ones (as an interface's declarations do not
+-- include those of its functors).
 findEnv ::
   ModuleEnv -> IfaceDecls -> Name -> IfaceG b -> T.ModuleG a ->
   Maybe ModContext
@@ -326,7 +331,11 @@ findEnv me loaded n iface m
 
   | Just target <- Map.lookup n (T.mModAliases m) = modContextOf target me
 
-  | otherwise = asum (fmap (findEnv me loaded n iface) (Map.elems (T.mFunctors m)))
+  | otherwise =
+      asum [ findEnv me (ifDefines d <> loaded) n d fm
+           | (f, fm) <- Map.toList (T.mFunctors m)
+           , let d = functorIface f
+           ]
 
   where
   functorIface f =
