@@ -1,5 +1,21 @@
 {-# Language OverloadedStrings, BlockArguments #-}
-module Cryptol.REPL.Browse (BrowseHow(..), browseModContext) where
+module Cryptol.REPL.Browse
+  ( BrowseHow(..)
+  , browseModContext
+    -- * Customizing the sections displayed
+  , BrowseSection
+  , DispInfo
+  , browseModContextWith
+  , defaultBrowseSections
+  , browseSignatures
+  , browseMods
+  , browseModAliases
+  , browseFunctors
+  , browseTSyns
+  , browsePrimTys
+  , browseNominalTypes
+  , browseVars
+  ) where
 
 import qualified Data.Set as Set
 import Data.Map (Map)
@@ -21,19 +37,34 @@ import Cryptol.ModuleSystem.Interface
 data BrowseHow = BrowseExported | BrowseInScope
 
 browseModContext :: BrowseHow -> ModContext -> PPDoc
-browseModContext how mc =
+browseModContext = browseModContextWith defaultBrowseSections
+
+-- | A section of the browse output, displaying some of the declarations.
+type BrowseSection = DispInfo -> IfaceDecls -> [Doc]
+
+-- | The sections displayed by 'browseModContext', in order.
+defaultBrowseSections :: [BrowseSection]
+defaultBrowseSections =
+  [ browseSignatures
+  , browseMods
+  , browseFunctors
+  , browseTSyns
+  , browsePrimTys
+  , browseNominalTypes
+  , browseVars
+  ]
+
+-- | Like 'browseModContext', but displaying the given sections (in
+-- order) after the module parameters (if any).
+browseModContextWith ::
+  [BrowseSection] -> BrowseHow -> ModContext -> PPDoc
+browseModContextWith bsections how mc =
   runDoc (env disp) (vcat sections)
   where
   sections = concat
-    [ browseMParams (env disp) (mctxParams mc)
-    , browseSignatures disp decls
-    , browseMods disp decls
-    , browseFunctors disp decls
-    , browseTSyns disp decls
-    , browsePrimTys disp decls
-    , browseNominalTypes disp decls
-    , browseVars disp decls
-    ]
+    ( browseMParams (env disp) (mctxParams mc)
+    : [ f disp decls | f <- bsections ]
+    )
 
   disp     = DispInfo { dispHow = how, env = mctxNameDisp mc }
   decls    = filterIfaceDecls (`Set.member` visUserNames) (mctxDecls mc)
@@ -81,6 +112,15 @@ browseMods disp decls =
   ppSection disp "Submodules" ppM (ifModules decls)
   where
   ppM m = pp (ifsName m)
+
+-- | Submodule aliases (e.g., @submodule A = submodule B@), with their
+-- targets.  Not part of 'defaultBrowseSections'.
+browseModAliases :: DispInfo -> IfaceDecls -> [Doc]
+browseModAliases disp decls =
+  ppSection disp "Submodule Aliases" ppA
+    (Map.mapWithKey (,) (ifModuleAliases decls))
+  where
+  ppA (x,tgt) = pp x <+> "=" <+> pp tgt
 
 browseFunctors :: DispInfo -> IfaceDecls -> [Doc]
 browseFunctors disp decls =
