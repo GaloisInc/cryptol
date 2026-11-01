@@ -307,13 +307,26 @@ instance Monoid ModContext where
 findEnv ::
   ModuleEnv -> IfaceDecls -> Name -> IfaceG b -> T.ModuleG a ->
   Maybe ModContext
-findEnv me loaded n iface m
+findEnv = findEnvWith ifsPublic
+
+-- | Selects some of the names of a module (e.g., 'ifsPublic' or
+-- 'ifsDefines').  The names do not depend on the type of the module's
+-- name, which differs for top-level modules and submodules.
+type IfaceNamesSelector = forall name. IfaceNames name -> Set Name
+
+-- | Like 'findEnv', but the given function selects the names that go
+-- in 'mctxExported'.  See 'modContextOfWith'.
+findEnvWith ::
+  IfaceNamesSelector ->
+  ModuleEnv -> IfaceDecls -> Name -> IfaceG b -> T.ModuleG a ->
+  Maybe ModContext
+findEnvWith sel me loaded n iface m
   | Just sm <- Map.lookup n (T.mSubmodules m) =
     let localNames = T.smInScope sm in
     Just
       ModContext
         { mctxParams   = NoParams
-        , mctxExported = ifsPublic (T.smIface sm)
+        , mctxExported = sel (T.smIface sm)
         , mctxDecls    = loaded
         , mctxNames    = localNames
         , mctxNameDisp = R.toNameDisp localNames
@@ -325,16 +338,17 @@ findEnv me loaded n iface m
       Just
         ModContext
           { mctxParams   = FunctorParams (ifParams d)
-          , mctxExported = ifsPublic (ifNames d)
+          , mctxExported = sel (ifNames d)
           , mctxDecls    = ifDefines d <> loaded
           , mctxNames    = localNames
           , mctxNameDisp = R.toNameDisp localNames
           }
 
-  | Just target <- Map.lookup n (T.mModAliases m) = modContextOf target me
+  | Just target <- Map.lookup n (T.mModAliases m) =
+      modContextOfWith sel target me
 
   | otherwise =
-      asum [ findEnv me (ifDefines d <> loaded) n d fm
+      asum [ findEnvWith sel me (ifDefines d <> loaded) n d fm
            | (f, fm) <- Map.toList (T.mFunctors m)
            , let d = functorIface f
            ]
@@ -346,19 +360,28 @@ findEnv me loaded n iface m
       Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
 
 modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
-modContextOf (ImpNested nm) me =
+modContextOf = modContextOfWith ifsPublic
+
+-- | Like 'modContextOf', but the given function selects which of the
+-- module's names go in 'mctxExported'.  For example, with 'ifsDefines'
+-- the private names are included too.  (Signatures export no names, so
+-- for them the function is not used.)
+modContextOfWith ::
+  IfaceNamesSelector ->
+  ImpName Name -> ModuleEnv -> Maybe ModContext
+modContextOfWith sel (ImpNested nm) me =
   do -- find the top module:
     mname <- nameTopModuleMaybe nm
     lm <- lookupModule mname me
     let loadedDecls = map (ifDefines . lmInterface)
                     $ getLoadedModules (meLoadedModules me)
         loaded = mconcat (ifDefines (lmInterface lm) : loadedDecls)
-    findEnv me loaded nm (lmInterface lm) (lmModule lm)
+    findEnvWith sel me loaded nm (lmInterface lm) (lmModule lm)
 
   -- TODO: support focusing inside a submodule signature to support browsing?
-modContextOf (ImpTop mname) me =
+modContextOfWith sel (ImpTop mname) me =
   do lm <- lookupModule mname me
-     pure (lmModContext me lm)
+     pure (lmModContextWith sel me lm)
   `mplus`
   do lm <- lookupSignature mname me
      pure (lmSignatureContext me lm)
@@ -369,7 +392,13 @@ mainContexts me = lmModContext me <$> lookupMainModules me
 
 
 lmModContext :: ModuleEnv -> LoadedModule -> ModContext
-lmModContext me lm =
+lmModContext = lmModContextWith ifsPublic
+
+-- | Like 'lmModContext', but the given function selects the names that
+-- go in 'mctxExported'.  See 'modContextOfWith'.
+lmModContextWith ::
+  IfaceNamesSelector -> ModuleEnv -> LoadedModule -> ModContext
+lmModContextWith sel me lm =
   let localIface  = lmInterface lm
       localNames  = lmNamingEnv lm
 
@@ -382,7 +411,7 @@ lmModContext me lm =
     ModContext
       { mctxParams   = if Map.null params then NoParams
                                           else FunctorParams params
-      , mctxExported = ifsPublic (ifNames localIface)
+      , mctxExported = sel (ifNames localIface)
       , mctxDecls    = mconcat (ifDefines localIface : loadedDecls)
       , mctxNames    = localNames
       , mctxNameDisp = R.toNameDisp localNames
