@@ -37,6 +37,12 @@
   at inconsistent kinds.
   ([#2149](https://github.com/GaloisInc/cryptol/issues/2149))
 
+* Browsing or focusing on a submodule nested in a submodule functor
+  (e.g., `:focus submodule F` then `:browse submodule M`) now shows the
+  submodule's declarations, and doing so for a functor nested in a
+  submodule functor no longer causes a panic ("Submodule functor not
+  present in interface").
+
 # 3.6.0 -- 2026-09-08
 
 ## Language changes
