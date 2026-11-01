@@ -19,6 +19,17 @@
   * `fpFrom{BV,SBV}`: Convert an unsigned or signed bitvector to a `Float`.
   * `fpTo{BV,SBV}`: Convert a `Float` to an unsigned or signed bitvector.
 
+## API changes
+
+* `Cryptol.REPL.Browse` exports `browseModContextWith`, which allows
+  customizing the sections displayed (`defaultBrowseSections` gives the
+  sections displayed by `browseModContext`).
+
+* `Cryptol.ModuleSystem.Env` exports `modContextOfWith` (and
+  `findEnvWith`, `lmModContextWith`), variants of `modContextOf` that
+  select which of a module's names are exported in the `ModContext`;
+  e.g., `modContextOfWith ifsDefines` includes private names.
+
 ## Bug fixes
 
 * Fresh `Rational` values no longer crash the Cryptol REPL when using
