@@ -50,6 +50,10 @@
   at inconsistent kinds.
   ([#2149](https://github.com/GaloisInc/cryptol/issues/2149))
 
+* Cryptol no longer ignores literate Cryptol files specified in
+  `cryproject.toml` files.
+  ([#2152](https://github.com/GaloisInc/cryptol/issues/2152))
+
 # 3.6.0 -- 2026-09-08
 
 ## Language changes
