@@ -38,8 +38,8 @@
   customizing the sections displayed (`defaultBrowseSections` gives the
   sections displayed by `browseModContext`).
 
-* `Cryptol.ModuleSystem.Env` exports `modContextOfWith` (and
-  `findEnvWith`, `lmModContextWith`), variants of `modContextOf` that
+* `Cryptol.ModuleSystem.Env` exports `modContextOfWith` (as well as
+  `findEnvWith` and `lmModContextWith`), variants of `modContextOf` that
   select which of a module's names are exported in the `ModContext`;
   e.g., `modContextOfWith ifsDefines` includes private names.
 
