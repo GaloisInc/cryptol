@@ -1,0 +1,18 @@
+// Browsing (via modContextOf/findEnv) a submodule and a functor that
+// are nested in a submodule functor.  Previously, the submodule's
+// declarations were missing, and the nested functor caused a panic
+// ("Submodule functor not present in interface").
+module T048 where
+
+submodule F where
+  parameter
+    p : [8]
+
+  submodule FM where
+    z = p + 1
+
+  submodule FF where
+    parameter
+      r : [8]
+
+    ff = r + p

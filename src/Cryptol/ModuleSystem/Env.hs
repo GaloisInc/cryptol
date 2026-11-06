@@ -297,8 +297,16 @@ instance Monoid ModContext where
 -- | 'IfaceDecls` should contain enough information so that we can check
 -- and evalute everything in scope.  At the moment we just pass all loaded
 -- things here. See 'modContextOf'.
+--
+-- The interface is that of the module @m@ being searched.  When searching
+-- inside a submodule functor, we use the functor's interface, and add its
+-- declarations to the loaded ones (as an interface's /loaded/ declarations
+-- do not include those of its functors, since conceptually an interface's
+-- declarations does include those of its functors---we just haven't added
+-- them yet.).
 findEnv ::
-  ModuleEnv -> IfaceDecls -> Name -> Iface -> T.ModuleG a -> Maybe ModContext
+  ModuleEnv -> IfaceDecls -> Name -> IfaceG b -> T.ModuleG a ->
+  Maybe ModContext
 findEnv me loaded n iface m
   | Just sm <- Map.lookup n (T.mSubmodules m) =
     let localNames = T.smInScope sm in
@@ -312,22 +320,30 @@ findEnv me loaded n iface m
         }
 
   | Just fn <- Map.lookup n (T.mFunctors m) =
-      case Map.lookup n (ifFunctors (ifDefines iface)) of
-        Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
-        Just d ->
-          let localNames = T.mInScope fn in
-          Just
-            ModContext
-              { mctxParams   = FunctorParams (ifParams d)
-              , mctxExported = ifsPublic (ifNames d)
-              , mctxDecls    = ifDefines d <> loaded
-              , mctxNames    = localNames
-              , mctxNameDisp = R.toNameDisp localNames
-              }
+      let d          = functorIface n
+          localNames = T.mInScope fn in
+      Just
+        ModContext
+          { mctxParams   = FunctorParams (ifParams d)
+          , mctxExported = ifsPublic (ifNames d)
+          , mctxDecls    = ifDefines d <> loaded
+          , mctxNames    = localNames
+          , mctxNameDisp = R.toNameDisp localNames
+          }
 
   | Just target <- Map.lookup n (T.mModAliases m) = modContextOf target me
 
-  | otherwise = asum (fmap (findEnv me loaded n iface) (Map.elems (T.mFunctors m)))
+  | otherwise =
+      asum [ findEnv me (ifDefines d <> loaded) n d fm
+           | (f, fm) <- Map.toList (T.mFunctors m)
+           , let d = functorIface f
+           ]
+
+  where
+  functorIface f =
+    case Map.lookup f (ifFunctors (ifDefines iface)) of
+      Just d  -> d
+      Nothing -> panic "findEnv" ["Submodule functor not present in interface"]
 
 modContextOf :: ImpName Name -> ModuleEnv -> Maybe ModContext
 modContextOf (ImpNested nm) me =

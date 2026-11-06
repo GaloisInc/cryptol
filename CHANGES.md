@@ -54,6 +54,13 @@
   `cryproject.toml` files.
   ([#2152](https://github.com/GaloisInc/cryptol/issues/2152))
 
+* Browsing or focusing on a submodule nested in a submodule functor
+  (e.g., `:focus submodule F` then `:browse submodule M`) now shows the
+  submodule's declarations, and doing so for a functor nested in a
+  submodule functor no longer causes a panic ("Submodule functor not
+  present in interface").
+  ([#2163](https://github.com/GaloisInc/cryptol/issues/2163))
+
 # 3.6.0 -- 2026-09-08
 
 ## Language changes
