@@ -312,6 +312,9 @@ findEnv = findEnvWith ifsPublic
 -- | Selects some of the names of a module (e.g., 'ifsPublic' or
 -- 'ifsDefines').  The names do not depend on the type of the module's
 -- name, which differs for top-level modules and submodules.
+--
+-- NOTE: This needs to be a higher-rank type so that it can handle
+-- name being -- instantiated to both Name and ModName alike.
 type IfaceNamesSelector = forall name. IfaceNames name -> Set Name
 
 -- | Like 'findEnv', but the given function selects the names that go
