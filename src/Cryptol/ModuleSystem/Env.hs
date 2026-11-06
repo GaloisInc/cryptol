@@ -300,8 +300,10 @@ instance Monoid ModContext where
 --
 -- The interface is that of the module @m@ being searched.  When searching
 -- inside a submodule functor, we use the functor's interface, and add its
--- declarations to the loaded ones (as an interface's declarations do not
--- include those of its functors).
+-- declarations to the loaded ones (as an interface's /loaded/ declarations
+-- do not include those of its functors, since conceptually an interface's
+-- declarations does include those of its functors---we just haven't added
+-- them yet.).
 findEnv ::
   ModuleEnv -> IfaceDecls -> Name -> IfaceG b -> T.ModuleG a ->
   Maybe ModContext
